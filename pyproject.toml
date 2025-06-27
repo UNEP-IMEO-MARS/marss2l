@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marss2l"
+# Read version from __init__.py
+dynamic = ["version"]
+authors = [
+    {name = "Gonzalo Mateo-García"},
+    {name = "Anna Vaughan"},
+]
+description = "Plume detection, segmentation and quantification of methane plumes in Sentinel-2 and Landsat images"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["ch4", "methane", "remote sensing"]
+license = {text = ""}  # Add license if available
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+# Dependencies will be read from the specified file
+dependencies = []  # This will be filled dynamically
+
+[project.urls]
+"Homepage" = "https://github.com/gonzmg88/marss2l"
+"Bug Tracker" = "https://github.com/gonzmg88/marss2l/issues"
+
+[tool.setuptools]
+packages = ["marss2l"]
+
+[tool.setuptools.package-data]
+marss2l = ["py.typed"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["tests"]
+
+[tool.setuptools.dynamic]
+version = {attr = "marss2l.__version__"}
+dependencies = {file = ["environment/package_requirements.txt"]}
