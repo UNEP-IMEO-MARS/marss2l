@@ -1,0 +1,8 @@
+C0 = "#648FFF"
+C1 = "#785EF0"
+C2 = "#DC267F"
+C3 = "#FE6100"
+C4 = "#FFB000" 
+
+PALETTE_ALL = [C0, C2, C4, C1, C3]
+

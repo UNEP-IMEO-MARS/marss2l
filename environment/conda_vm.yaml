@@ -1,0 +1,33 @@
+name: marss2ltacopy312
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  # only for vm
+  # - notebook
+  - ipykernel
+  - pip:
+    - torch<2.6
+    - torchvision==0.20
+    - pandas>=2.0
+    - geopandas>=0.13
+    - fsspec
+    - adlfs
+    - tacotoolbox
+    - tacoreader
+    - earthengine-api
+    - segmentation_models_pytorch
+    - georeader-spaceml>=1.4.10
+    - matplotlib
+    - matplotlib-scalebar
+    - tqdm
+    - scipy
+    - scikit-image
+    - scikit-learn
+    - satalign==0.1.1
+    - wandb
+    - torchmetrics
+    - seaborn
+    - basemap
+    - numpy==1.26
