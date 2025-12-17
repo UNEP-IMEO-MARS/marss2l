@@ -1,0 +1,242 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+marss2l/account_key.json
+marss2l/GCP_token.json
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+#   For a library or package, you might want to ignore these files since the code is
+#   intended to run in multiple environments; otherwise, check them in:
+# .python-version
+
+# pipenv
+#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
+#   However, in case of collaboration, if having platform-specific dependencies or dependencies
+#   having no cross-platform support, pipenv may install dependencies that don't work, or not
+#   install all needed dependencies.
+#Pipfile.lock
+
+# poetry
+#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
+#   This is especially recommended for binary packages to ensure reproducibility, and is more
+#   commonly ignored for libraries.
+#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
+#poetry.lock
+
+# pdm
+#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
+#pdm.lock
+#   pdm stores project-wide configurations in .pdm.toml, but it is recommended to not include it
+#   in version control.
+#   https://pdm.fming.dev/latest/usage/project/#working-with-version-control
+.pdm.toml
+.pdm-python
+.pdm-build/
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# PyCharm
+#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
+#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
+#  and can be added to the global gitignore or merged into this file.  For a more nuclear
+#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
+#.idea/
+notebooks/figures/figures/areaplume.pdf
+notebooks/figures/figures/areaplume.png
+notebooks/figures/figures/case_studies_data_distribution.pdf
+notebooks/figures/figures/case_studies_data.pdf
+notebooks/figures/figures/case_studies_new.pdf
+notebooks/figures/figures/cloudsen12plus_locs.pdf
+notebooks/figures/figures/detection_curves_by_region.pdf
+notebooks/figures/figures/detection_curves_by_satellite.pdf
+notebooks/figures/figures/fig1_map_with_case_studies_colors.pdf
+notebooks/figures/figures/fig1_map_with_case_studies_no_casestudieslegend.pdf
+notebooks/figures/figures/fig1_map_with_case_studies.pdf
+notebooks/figures/figures/fig1_ts_images_detections_300.png
+notebooks/figures/figures/fig1_ts_images_detections_by_country_1.pdf
+notebooks/figures/figures/fig1_ts_images_detections_by_country_2.pdf
+notebooks/figures/figures/fig1_ts_images_detections.pdf
+notebooks/figures/figures/fig1_ts_images_detections.png
+notebooks/figures/figures/fig2_case_studies_new_noncummulative.pdf
+notebooks/figures/figures/fig2_case_studies_new.pdf
+notebooks/figures/figures/fig2_number_of_images_to_review_log.pdf
+notebooks/figures/figures/fig2_number_of_images_to_review.pdf
+notebooks/figures/figures/fig2_overall_noncum.pdf
+notebooks/figures/figures/fig2_overall.pdf
+notebooks/figures/figures/fluxratehist_zoomedin.png
+notebooks/figures/figures/fluxratehist.pdf
+notebooks/figures/figures/fluxratehist.png
+notebooks/figures/figures/malaysia_offshore_UNEP_IMEO_complete_ts.pdf
+notebooks/figures/figures/mdl_by_region.pdf
+notebooks/figures/figures/mdl_by_satellite.pdf
+notebooks/figures/figures/min_delta_ch4.pdf
+notebooks/figures/figures/number_of_images_per_location_marss2_test.pdf
+notebooks/figures/figures/number_of_images_per_location_marss2_test.png
+notebooks/figures/figures/number_of_images_per_location_marss2.pdf
+notebooks/figures/figures/number_of_images_per_location_marss2.png
+notebooks/figures/figures/number_of_images_per_location_rest.pdf
+notebooks/figures/figures/number_of_images_per_location_rest.png
+notebooks/figures/figures/pr_and_roc_curves.pdf
+notebooks/figures/figures/pretty_colorbar_horizontal_1000.pdf
+notebooks/figures/figures/pretty_colorbar_horizontal_1000.png
+notebooks/figures/figures/pretty_colorbar_horizontal_2000.pdf
+notebooks/figures/figures/pretty_colorbar_horizontal_2000.png
+notebooks/figures/figures/pretty_colorbar_horizontal_notransparent_1000.png
+notebooks/figures/figures/pretty_colorbar_horizontal_notransparent_2000.png
+notebooks/figures/figures/pretty_colorbar_vertical_1000.pdf
+notebooks/figures/figures/pretty_colorbar_vertical_1000.png
+notebooks/figures/figures/pretty_colorbar_vertical_2000.pdf
+notebooks/figures/figures/pretty_colorbar_vertical_2000.png
+notebooks/figures/figures/pretty_colorbar_vertical_notransparent_1000.png
+notebooks/figures/figures/pretty_colorbar_vertical_notransparent_2000.png
+notebooks/figures/figures/pretty_colorbar.pdf
+notebooks/figures/figures/quantified_controlled_releases.pdf
+notebooks/figures/figures/scatterplot_controlled_releases.pdf
+notebooks/figures/figures/stats_by_wind.pdf
+notebooks/figures/figures/stats_toa_dxch4_with_cloudsen12.pdf
+notebooks/figures/figures/stats_toa_mbmp_with_cloudsen12.pdf
+notebooks/figures/figures/stats_toa_mbmp.pdf
+notebooks/figures/figures/stats_toa_xch4_with_cloudsen12.pdf
+notebooks/WIP_notebooks/figures/cloudsen12plus_locs.pdf
+notebooks/WIP_notebooks/figures/detection_curves_by_region.pdf
+notebooks/WIP_notebooks/figures/detection_curves_by_satellite.pdf
+notebooks/WIP_notebooks/figures/mdl_by_region.pdf
+notebooks/WIP_notebooks/figures/mdl_by_satellite.pdf
+notebooks/WIP_notebooks/figures/stats_toa_mbmp.pdf
+notebooks/examples/figures/Ag_0005.pdf
+notebooks/examples/figures/BRN_4.pdf
+notebooks/examples/figures/L_24.pdf
+notebooks/examples/figures/MEX_003.pdf
+notebooks/examples/figures/MYS_1.pdf
+notebooks/examples/figures/P2.pdf
+notebooks/examples/figures/PB_78.pdf
+notebooks/examples/figures/PB_K_0001.pdf
+notebooks/examples/figures/PB_K_0005.pdf
+notebooks/examples/figures/T_14.pdf
+notebooks/examples/figures/Te_N_5.pdf
+notebooks/examples/figures/VEN_0003.pdf
+notebooks/examples/figures/VEN_whwgthbp0.pdf
+notebooks/examples/figures/Y_1.pdf
+notebooks/examples/cloudsen12_models/landsat30.pt

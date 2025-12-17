@@ -1,0 +1,13 @@
+# Build and publish requirements
+build
+twine
+# Documentation requirements
+mkdocs
+mkdocs-material
+mkdocstrings
+mknotebooks
+mkdocs-awesome-pages-plugin
+mkdocs-same-dir
+pymdown-extensions
+mdx-truly-sane-lists
+ghp-import

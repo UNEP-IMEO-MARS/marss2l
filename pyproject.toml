@@ -1,0 +1,94 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marss2l"
+# Read version from __init__.py
+dynamic = ["version"]
+authors = [
+    {name = "Gonzalo Mateo-García"},
+    {name = "Anna Vaughan"},
+]
+description = "MARS-S2L Plume detection, segmentation and quantification of methane plumes in Sentinel-2 and Landsat images"
+readme = "README.md"
+requires-python = ">=3.12"
+keywords = ["ch4", "methane", "remote sensing"]
+license = "LGPL-3.0-or-later"
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+# Dependencies will be read from the specified file
+dependencies = []  # This will be filled dynamically
+
+[project.urls]
+"Homepage" = "https://github.com/gonzmg88/marss2l"
+"Bug Tracker" = "https://github.com/gonzmg88/marss2l/issues"
+
+[tool.setuptools]
+packages = {find = {where = ["."], include = ["marss2l*"]}}
+
+[tool.setuptools.package-data]
+marss2l = ["py.typed"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["tests"]
+
+[tool.setuptools.dynamic]
+version = {attr = "marss2l.__version__"}
+dependencies = {file = ["environment/package_requirements.txt"]}
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+fix = true
+cache-dir = "~/.cache/ruff"
+exclude = ["notebooks/",]
+line-length = 100
+src = ["marss2l"]
+target-version = "py312"
+
+[tool.ruff.lint]
+dummy-variable-rgx = "^_$"
+select = [
+    "F",
+    "E",
+    "W",
+    "YTT",
+    "B",
+    "Q",
+    "PLE",
+    "PLR",
+    "PLW",
+    "PIE",
+    "PYI",
+    "TID",
+    "ISC",
+    "F821",
+]
+ignore = [
+    "B008",
+    "F841",
+    "PLR0911",
+    "E402",
+    "E731",
+    "E501",
+    "S303",
+    "S307",
+    "RET504",
+    "S101",
+    "F722",
+    "PLR2004",
+    "PLR0913",
+]
+unfixable = ["ERA001", "F401", "F841", "T201", "T203"]
+
+[tool.isort]
+atomic = "true"
+line_length = 100
+multi_line_output = 3
+profile = "black"
+py_version = 312
+skip = 'notebooks'

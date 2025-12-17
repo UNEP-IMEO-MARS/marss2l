@@ -1,0 +1,64 @@
+docs_dir: .
+
+site_name: MARS-S2L
+repo_url: https://github.com/UNEP-IMEO-MARS/marss2l
+site_url: https://UNEP-IMEO-MARS.github.io/marss2l
+site_description: 🛰️ MARS-S2L - Methane detection in Sentinel-2 and Landsat imagery
+site_author: Gonzalo Mateo-García
+edit_uri: edit/main/docs/
+repo_name: marss2l
+use_directory_urls: false
+
+# Configuration
+theme:
+  name: material
+  language: en
+  logo: notebooks/logo.png
+  favicon: notebooks/logo.png
+  feature:
+    tabs: true
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: 
+    - README.md
+  - End-to-end Inference: notebooks/examples/download_and_inference.ipynb
+  - Reproducibility: notebooks/figures/README.md
+
+# Plugins
+plugins:
+  - search
+  - same-dir
+  - awesome-pages
+  - mkdocstrings
+  - mknotebooks:
+      execute: false
+      timeout: 100
+      allow_errors: false
+
+markdown_extensions:
+  - meta
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.pathconverter
+  - pymdownx.tabbed
+  - mdx_truly_sane_lists
+  - pymdownx.tasklist
+
+extra_css:
+  - assets/style.css
