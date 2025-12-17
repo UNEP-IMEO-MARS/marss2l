@@ -16,7 +16,7 @@ from shapely.geometry import Polygon, box, mapping, shape
 Resampling = rasterio.warp.Resampling
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from marss2l.mars_sentinel2 import query_images
 
@@ -49,11 +49,11 @@ BANDS_L89 = bands_in_l89(BANDS_S2)
 
 def gee_info_to_download(
     tile: str,
-    satellite: str,
     band_for_crs_transform: Optional[str] = "B02",
     geometry: Optional[Polygon] = None,
     tile_date: Optional[datetime] = None,
     logger: Optional[logging.Logger] = None,
+    delta_hours_search: int = 1,
 ) -> dict[str, Any]:
     """
     From the name of the tile, figures out the image to download from the Google Earth Engine.
@@ -61,13 +61,19 @@ def gee_info_to_download(
     Args:
         tile (str): tile name
         satellite (str): satellite name
-        band_for_crs_transform (Optional[str], optional): Band to get the crs_transform. Defaults to "B2".
+        band_for_crs_transform (Optional[str], optional): Band to get the crs_transform. Defaults to "B02".
+        geometry (Optional[Polygon], optional): Geometry to query images if direct tile lookup fails. Defaults to None.
+        tile_date (Optional[datetime], optional): Date of the tile for temporal filtering if direct lookup fails. Defaults to None.
+        logger (Optional[logging.Logger], optional): Logger instance for logging messages. Defaults to None.
+        delta_hours_search (int, optional): Time window in hours for searching images if direct lookup fails. Defaults to 1.
 
     Returns:
         Dict[str, Any]: dictionary with keys collection_name, gee_id and proj
     """
     if logger is None:
         logger = logging.getLogger(__name__)
+    
+    satellite = tile.split("_")[0]
 
     band_for_crs_transform = S2_SAFE_reader.normalize_band_names([band_for_crs_transform])[0]
     if satellite.startswith("S2"):
@@ -99,9 +105,16 @@ def gee_info_to_download(
             "MEAN_SOLAR_ZENITH_ANGLE",
         ]
         # 'EARTH_SUN_DISTANCE', 'REFLECTANCE_CONVERSION_CORRECTION'
-        out_dict = {
-            k: info_img["properties"][k] for k in angles_keys if k in info_img["properties"]
-        }
+        out_dict = info_img["properties"].copy()
+        for k in angles_keys:
+            if k in out_dict:
+                out_dict[k] = float(out_dict[k])
+
+        out_dict["utcdatetime"] = datetime.fromtimestamp(out_dict['system:time_start']/1000,timezone.utc)
+        if satellite.startswith("S2"):
+            out_dict["tile"] = out_dict["PRODUCT_ID"]
+        else:
+            out_dict["tile"] = out_dict["LANDSAT_PRODUCT_ID"]
 
         asset_id = f"{collection_name}/{gee_id}"
 
@@ -132,12 +145,17 @@ def gee_info_to_download(
 
         images_available_gee = query_images.query_gee(
             geometry,
-            date_start=tile_date - timedelta(hours=1),
-            date_end=tile_date + timedelta(hours=1),
+            date_start=tile_date - timedelta(hours=delta_hours_search),
+            date_end=tile_date + timedelta(hours=delta_hours_search),
             producttype=producttype,
             with_wind=False,
             logger=logger,
         )
+        images_available_gee = images_available_gee.reset_index()
+
+        # Rename column title by tile
+        images_available_gee = images_available_gee.rename(columns={'title': "tile"})
+
         if (images_available_gee is None) or (len(images_available_gee) == 0):
             logger.error(f"No images found in GEE for tile {tile} and date {tile_date}")
             return
@@ -154,7 +172,6 @@ def gee_info_to_download(
 
 
 def download_image_and_angles(
-    satellite: str,
     geometry: Polygon,
     image_to_download: dict[str, Any] | None = None,
     tile: str | None = None,
@@ -181,7 +198,7 @@ def download_image_and_angles(
 
     if image_to_download is None:
         try:
-            image_to_download = gee_info_to_download(tile, satellite=satellite)
+            image_to_download = gee_info_to_download(tile, geometry=geometry, logger=logger)
         except Exception as e:
             logger.error(
                 f"Error figuring out info image to download {tile} from GEE",
@@ -195,6 +212,9 @@ def download_image_and_angles(
             f"image_to_insert must have collection_name, gee_id and proj keys. Missing keys: {missing_keys} \nCurrent dict: {image_to_download}"
         )
 
+    tile = image_to_download["tile"]
+
+    satellite = tile.split("_")[0]
     islandsat = not satellite.startswith("S2")
     channels_query_original = BANDS_L89 if islandsat else BANDS_S2
     channels_query = [b.replace("B0", "B") for b in channels_query_original]
@@ -277,7 +297,7 @@ MODEL_CLOUD_DETECTION_L89: cloudsen12.CDModel = None
 
 
 def load_model_cloud_detection(
-    satellite: str, weights_folder: str = "cloudsen12_models", device: str = torch.device("cpu")
+    satellite: str, device: str = torch.device("cpu")
 ) -> cloudsen12.CDModel:
 
     global MODEL_CLOUD_DETECTION_S2, MODEL_CLOUD_DETECTION_L89
@@ -286,15 +306,15 @@ def load_model_cloud_detection(
     if islandsat:
         if MODEL_CLOUD_DETECTION_L89 is None:
             MODEL_CLOUD_DETECTION_L89 = cloudsen12.load_model_by_name(
-                MODEL_NAME_CLOUDS_L89, weights_folder, device=device
+                MODEL_NAME_CLOUDS_L89, device=device
             )
+            MODEL_CLOUD_DETECTION_L89.bands = bands_in_l89(MODEL_CLOUD_DETECTION_L89.bands)
 
-        MODEL_CLOUD_DETECTION_L89.bands = bands_in_l89(MODEL_CLOUD_DETECTION_L89.bands)
         return MODEL_CLOUD_DETECTION_L89
     else:
         if MODEL_CLOUD_DETECTION_S2 is None:
             MODEL_CLOUD_DETECTION_S2 = cloudsen12.load_model_by_name(
-                MODEL_NAME_CLOUDS_S2, weights_folder, device=device
+                MODEL_NAME_CLOUDS_S2, device=device
             )
 
         return MODEL_CLOUD_DETECTION_S2

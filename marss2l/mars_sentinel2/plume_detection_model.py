@@ -570,7 +570,37 @@ MODELS = {
         "norm_data": False,
         "film": False,
         "film_train_zero_id": True,
-    }
+    },
+    "MARS-S2L-offshore": {
+        "weights": f"trained_models/MARSS2L_off_20250523/best_epoch",
+        "config_experiment": f"trained_models/MARSS2L_off_20250523/config_experiment.json",
+        "bands": BANDS_S2L_MODEL_S2,
+        "multipass": True,
+        "threshold_prediction": 0.5,
+        "threshold_pixels": 100,
+        "wind": True,
+        "norm_wind": True,
+        "cat_mbmp": True,
+        "cloud_mask": True,
+        "norm_data": False,
+        "film": False,
+        "film_train_zero_id": True,
+    },
+    "CH4Net":  {
+        "weights": f"trained_models/CH4Net_20250329/best_epoch",
+        "config_experiment": f"trained_models/CH4Net_20250329/config_experiment.json",
+        "bands": BANDS_S2L_MODEL_S2,
+        "multipass": False,
+        "threshold_prediction": 0.5,
+        "threshold_pixels": 100,
+        "wind": False,
+        "norm_wind": True,
+        "cat_mbmp": False,
+        "cloud_mask": False,
+        "norm_data": False,
+        "film": False,
+        "film_train_zero_id": True,
+    },
 }
 
 import shutil
