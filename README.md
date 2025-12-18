@@ -103,10 +103,10 @@ In order to re-run the evaluation in the test set with the trained model propose
 ## Dataset structure
 
 The file [`validated_images_all.csv`](https://huggingface.co/datasets/UNEP-IMEO/MARS-S2L/blob/main/validated_images_all.csv) contains the metadata of all the items in the dataset. Each item comprises a Sentinel-2 or Landsat image of 200x200 pixels
-together with its concatenated background image, the plume mask, the cloud mask and the methane enhancement image in ppb. In addition, each item
-includes several metadata which is described in the *Images metadata description* section.
+together with its concatenated background image and the cloud mask. The plume mask and the methane enhancement image in ppb is also provided for positive samples. In addition, each item
+includes several metadata described  in the next section. (*Images metadata description*).
 
-The file `validated_images_plumes.csv` contains all validated plumes in the dataset. Notice that there are few images that contain more than one plume. 
+The file [`validated_images_plumes.csv`](https://huggingface.co/datasets/UNEP-IMEO/MARS-S2L/blob/main/validated_images_plumes.csv) contains all validated plumes in the dataset. Notice that there are few images that contain more than one plume. 
 The content of this file is described in the *Plumes metadata description* section.
 
 ### Images metadata description
@@ -116,9 +116,9 @@ Column description of file [`validated_images_all.csv`](https://huggingface.co/d
 | Name      | Description      | Example | 
 | ------------- | ------------- | -------- |
 |s2path| Path to S2 or Landsat image concatenated with the background image. S2 L1C image with bands: B02, B03, B04, B08, B11, B12. Landsat TOA reflectance image with bands  B02, B03, B04, B05, B06, B07 | model_data_all/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_s2.tif |
-|plumepath| Path to binary representation of the mask. | model_data_all/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_label.tif |
+|plumepath| Path to binary representation of the mask. Only provided for positive samples (`isplume` `True`). | model_data_all/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_label.tif |
 |cloudmaskpath| Path to cloud mask generated with CloudSEN12 with interpretation `{0 : "clear", 1: "Thick cloud", 2: "Thin cloud", 3: "Cloud shadow"}` | model_data_all/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_cloudmask.tif |
-|ch4path| Path to CH4 enhancement image in ppb. | model_data_all/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_ch4.tif |
+|ch4path| Path to the ΔXCH₄ enhancement image in ppb. Only provided for positive samples (`isplume` `True`). | model_data_all/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_ch4.tif |
 |wind_u| U component of the wind at 10m | -1.87 |
 |wind_v| V component of the wind at 10m | 3.76 |
 |wind_source| Source where the wind data is downloaded from. | ECMWF/ERA5_LAND/HOURLY |
