@@ -115,10 +115,10 @@ Column description of file [`validated_images_all.csv`](https://huggingface.co/d
 
 | Name      | Description      | Example | 
 | ------------- | ------------- | -------- |
-|s2path| Path to S2 or Landsat image concatenated with the background image. S2 L1C image with bands: B02, B03, B04, B08, B11, B12. Landsat TOA reflectance image with bands  B02, B03, B04, B05, B06, B07 | model_data_all/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_s2.tif |
-|plumepath| Path to binary representation of the mask. Only provided for positive samples (`isplume` `True`). | model_data_all/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_label.tif |
-|cloudmaskpath| Path to cloud mask generated with CloudSEN12 with interpretation `{0 : "clear", 1: "Thick cloud", 2: "Thin cloud", 3: "Cloud shadow"}` | model_data_all/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_cloudmask.tif |
-|ch4path| Path to the ΔXCH₄ enhancement image in ppb. Only provided for positive samples (`isplume` `True`). | model_data_all/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_ch4.tif |
+|s2path| Path to S2 or Landsat image concatenated with the background image. S2 L1C image with bands: B02, B03, B04, B08, B11, B12. Landsat TOA reflectance image with bands  B02, B03, B04, B05, B06, B07 | data/train_2023/43/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_s2.tif |
+|plumepath| Path to binary representation of the mask. Only provided for positive samples (`isplume` `True`). | data/train_2023/43/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_label.tif |
+|cloudmaskpath| Path to cloud mask generated with CloudSEN12 with interpretation `{0 : "clear", 1: "Thick cloud", 2: "Thin cloud", 3: "Cloud shadow"}` | data/train_2023/43/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_cloudmask.tif |
+|ch4path| Path to the ΔXCH₄ enhancement image in ppb. Only provided for positive samples (`isplume` `True`). | data/train_2023/43/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_ch4.tif |
 |wind_u| U component of the wind at 10m | -1.87 |
 |wind_v| V component of the wind at 10m | 3.76 |
 |wind_source| Source where the wind data is downloaded from. | ECMWF/ERA5_LAND/HOURLY |
