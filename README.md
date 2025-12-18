@@ -47,7 +47,7 @@ hf download --local-dir /path/to/localdir/MARS-S2L \
             --repo-type dataset UNEP-IMEO/MARS-S2L
 ```
 
-The following notebooks show how to load and plot images using the `torch.Dataset` directly from the Azure container: [`notebooks/examples/plot_images_dataset_train.ipynb`](./notebooks/examples/plot_images_dataset_train.ipynb) and [`notebooks/examples/plot_images_dataset_test.ipynb`](./notebooks/examples/plot_images_dataset_test.ipynb).
+The following notebooks show how to load and plot images using the `torch.Dataset` direclty from the Hugging Face repository: [`notebooks/examples/plot_images_dataset_train.ipynb`](./notebooks/examples/plot_images_dataset_train.ipynb) and [`notebooks/examples/plot_images_dataset_test.ipynb`](./notebooks/examples/plot_images_dataset_test.ipynb).
 
 ## Retrain the MARS-S2L model
 
