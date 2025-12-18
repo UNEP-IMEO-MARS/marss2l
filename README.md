@@ -103,7 +103,7 @@ In order to re-run the evaluation in the test set with the trained model propose
 ## Dataset structure
 
 The file [`validated_images_all.csv`](https://huggingface.co/datasets/UNEP-IMEO/MARS-S2L/blob/main/validated_images_all.csv) contains the metadata of all the items in the dataset. Each item comprises a Sentinel-2 or Landsat image of 200x200 pixels
-together with its concatenated background image and the cloud mask. The plume mask and the methane enhancement image in ppb is also provided for positive samples. In addition, each item
+together with its concatenated background image and the cloud mask. The plume mask and the methane enhancement image in ppb are also provided for positive samples. In addition, each item
 includes several metadata described  in the next section. (*Images metadata description*).
 
 The file [`validated_images_plumes.csv`](https://huggingface.co/datasets/UNEP-IMEO/MARS-S2L/blob/main/validated_images_plumes.csv) contains all validated plumes in the dataset. Notice that there are few images that contain more than one plume. 
