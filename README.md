@@ -2,7 +2,9 @@
 
 # <img src="./notebooks/logo.png" alt="Logo" width='7%'> MARS-S2L
 
-Code to reproduce [Artificial intelligence for methane detection: from continuous monitoring to verified mitigation](https://arxiv.org/abs/2511.21777)
+This package contains the operational UNEP International Methane Emissions Observatory (IMEO) pipeline for methane plume detection, segmentation, and quantification in Sentinel-2 and Landsat satellite imagery. The methods and models implemented in this package are described in:
+
+> Allen, Mateo-García, Irakulis-Loitxate et al., *Artificial intelligence for methane detection: from continuous monitoring to verified mitigation* [10.48550/arXiv.2511.21777](https://arxiv.org/abs/2511.21777)
 
 ### Licence
 
