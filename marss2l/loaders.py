@@ -16,6 +16,7 @@ from numpy.typing import NDArray
 from rasterio.windows import Window
 from torch.utils.data import Dataset
 from tqdm import tqdm
+from datetime import datetime
 
 from marss2l.dataframe_image_plumes import (
     ALL_DATE_CUT,
@@ -51,6 +52,7 @@ from marss2l.utils import isremotepath
 read_csv = read_csv_images
 
 from marss2l.mars_sentinel2 import mixing_ratio_methane, plumesimulation, transmittance_to_ch4, wind
+from marss2l.mars_sentinel2.transmittance_to_ch4 import compute_xch4_retrieval
 from marss2l.sampling import (
     WINDOW_SIZE_DATA,
     WINDOW_SIZE_TRAINING,
@@ -150,6 +152,9 @@ class DatasetPlumes(Dataset):
         cache: bool = False,
         mask_input_data: bool = False,
         fs: Optional[fsspec.AbstractFileSystem] = None,
+        min_fluxrate_sim: float = MIN_FLUXRATE_SIM,
+        max_fluxrate_sim: float = MAX_FLUXRATE_SIM,
+        div_factor_simulate_sources: float = DIV_FACTOR_SIMULATE_SOURCES,
     ):
         """
         Initialize the DatasetPlumes class.
@@ -230,6 +235,9 @@ class DatasetPlumes(Dataset):
             cache (bool, optional): Cache the images. Defaults to False.
             mask_input_data (bool, optional): Mask the input data with the cloud mask. That is, it will set the input data to zero where the cloud mask is not clear. Defaults to False.
             fs (Optional[fsspec.AbstractFileSystem], optional): Filesystem to use. Defaults to None.
+            min_fluxrate_sim (float, optional): Minimum flux rate for plume simulation in kg/h. Defaults to MIN_FLUXRATE_SIM (3500).
+            max_fluxrate_sim (float, optional): Maximum flux rate for plume simulation in kg/h. Defaults to MAX_FLUXRATE_SIM (70000).
+            div_factor_simulate_sources (float, optional): Division factor to scale CH4 values when simulating plumes on sources. Defaults to DIV_FACTOR_SIMULATE_SOURCES.
 
         Raises:
             ValueError: If mode is not one of "train", "test" or "val".
@@ -296,6 +304,10 @@ class DatasetPlumes(Dataset):
         if not self.do_simulation:
             self.simulate_on_source_fraction = 0
 
+        self.min_fluxrate_sim = min_fluxrate_sim
+        self.max_fluxrate_sim = max_fluxrate_sim
+        self.div_factor_simulate_sources = div_factor_simulate_sources
+
         self.rotate_data_augmentation = rotate_data_augmentation
         if not self.mode == "train":
             self.rotate_data_augmentation = False
@@ -338,6 +350,12 @@ class DatasetPlumes(Dataset):
             self.sources_dataframe = self.sources_dataframe.set_index("id_loc_image")
 
         if self.plume_dataframe is not None:
+            # Filter detached plumes and log number of plumes discarded
+            num_detached = self.plume_dataframe["is_detached"].sum()
+            if num_detached > 0:
+                self.logger.info(f"Filtering out {num_detached} detached plumes for simulation from {self.plume_dataframe.shape[0]} total plumes.")
+                self.plume_dataframe = self.plume_dataframe[~self.plume_dataframe["is_detached"]].copy()
+            
             # Drop plumes with fluxrate NA
             self.plume_dataframe = self.plume_dataframe[
                 self.plume_dataframe["ch4_fluxrate"].notna()
@@ -483,6 +501,71 @@ class DatasetPlumes(Dataset):
         self.logger.info(
             f"{self.strprependlogs} {self.mode} Bands output by the dataset: {self.bands_out}"
         )
+    
+    def find_image(self, location_name:str, tile:Optional[str]=None, tile_date:Optional[str | datetime]=None) -> Optional[pd.Series]:
+        """
+        Find an image in the dataframe by location name and tile.
+
+        Args:
+            location_name (str): Name of the location.
+            tile (str): Tile identifier.
+            tile_date (str | datetime): Date of the tile.
+        
+        Returns:
+            Optional[pd.Series]: The row of the dataframe corresponding to the image, or None if not found.
+        """
+        if tile is not None and tile_date is not None:
+            raise ValueError("Provide either tile or tile_date, not both")
+
+        if tile_date is None:
+            df_loc = self.image_dataframe[
+                (self.image_dataframe.location_name == location_name)
+                & (self.image_dataframe.tile == tile)
+            ]
+        else:
+            if isinstance(tile_date, str):
+                tile_date = datetime.fromisoformat(tile_date)
+            df_loc = self.image_dataframe[
+                (self.image_dataframe.location_name == location_name)
+                & (self.image_dataframe.tile_date == tile_date)
+            ]
+
+        if df_loc.shape[0] == 0:
+             return None
+        else:
+            return df_loc.iloc[0]
+    
+    def find_plume(self, location_name:str, tile:Optional[str]=None, tile_date:Optional[str | datetime]=None) -> Optional[pd.Series]:
+        """
+        Find a plume in the plume dataframe by location name and tile.
+
+        Args:
+            location_name (str): Name of the location.
+            tile (str): Tile identifier.
+            tile_date (str | datetime): Date of the tile.
+        Returns:
+            Optional[pd.Series]: The row of the plume dataframe corresponding to the plume, or None if not found.
+        """
+        if tile is not None and tile_date is not None:
+            raise ValueError("Provide either tile or tile_date, not both")
+
+        if tile_date is None:
+            df_loc = self.plume_dataframe[
+                (self.plume_dataframe.location_name == location_name)
+                & (self.plume_dataframe.tile == tile)
+            ]
+        else:
+            if isinstance(tile_date, str):
+                tile_date = datetime.fromisoformat(tile_date)
+            df_loc = self.plume_dataframe[
+                (self.plume_dataframe.location_name == location_name)
+                & (self.plume_dataframe.tile_date == tile_date)
+            ]
+
+        if df_loc.shape[0] == 0:
+             return None
+        else:
+            return df_loc.iloc[0]
 
     def _compute_locations_few_samples(self):
         """
@@ -667,6 +750,40 @@ class DatasetPlumes(Dataset):
             ch4_fluxrate=item.get("ch4_fluxrate", 0),
         )
 
+    def get_sample(self, location_name: str, tile: Optional[str] = None, tile_date: Optional[str | datetime] = None) -> Dict[str, torch.Tensor]:
+        """
+        Get a sample from the dataset by location name and tile.
+
+        Args:
+            location_name (str): Name of the location.
+            tile (str): Tile identifier.
+            tile_date (str | datetime): Date of the tile.
+        
+        Returns:
+            Dict[str, torch.Tensor]: Dictionary containing the processed data.
+        """
+        item = self.find_image(location_name, tile, tile_date)
+        if item is None:
+            raise ValueError("Image not found")
+
+        s2_data = self.load_image(item, "s2path")
+        if item["isplume"]:
+            label = self.load_image(item, "plumepath").astype(bool)
+            plume_window = get_window_from_item(item)
+        else:
+            label = np.zeros(s2_data.shape[1:], dtype=bool)
+            plume_window = None
+
+        return self.postprocess_item(
+            isplume=int(item["isplume"]),
+            plume_window=plume_window,
+            s2_data=s2_data,
+            label=label,
+            simulated=0,
+            item=item,
+            ch4_fluxrate=item.get("ch4_fluxrate", 0),
+        )
+
     def initialize_cache(self):
         if not self.cache:
             self.logger.warning("Cache is not enabled. Call the Dataset with cache=True")
@@ -694,7 +811,6 @@ class DatasetPlumes(Dataset):
         )
         self.dict_cache_name = {
             "s2path": "cache_s2",
-            "plumepath": "cache_plumepath",
             "cloudmaskpath": "cache_cloudmask",
         }
         # Set column in dataframe name and bool saying if the image is in cache
@@ -797,14 +913,14 @@ class DatasetPlumes(Dataset):
         Returns:
             NDArray: image data as a NumPy array.
         """
+        if key == "plumepath":
+            return self.load_plume_method(item)
+
         if self.cache:
             key_array = self.dict_cache_name[key]
             int_index = item["int_index"]
             if not item[f"{key}_in_cache"]:
-                if key == "plumepath":
-                    value = self.load_plume_method(item)
-                else:
-                    value = self.load_image_method(item, key)
+                value = self.load_image_method(item, key)
 
                 # TODO pad if needed to size self.window_size_data
 
@@ -817,8 +933,6 @@ class DatasetPlumes(Dataset):
             else:
                 return getattr(self, key_array)[int_index]
         else:
-            if key == "plumepath":
-                return self.load_plume_method(item)
             return self.load_image_method(item, key)
 
     def cache_image(self, item: Dict[str, Any], keys: List[str]):
@@ -865,7 +979,7 @@ class DatasetPlumes(Dataset):
         assert self.cache is not None, "Cache is not enabled call the Dataset with cache=True"
         self.logger.info(f"Caching {self.image_dataframe.shape[0]} images")
         items = self.image_dataframe.to_dict(orient="records")
-        keys_load = ["s2path", "plumepath", "cloudmaskpath"]
+        keys_load = ["s2path", "cloudmaskpath"]
 
         if nworkers == 0:
             for item in tqdm(items, total=len(items)):
@@ -882,7 +996,6 @@ class DatasetPlumes(Dataset):
 
         # Assert all images are in cache
         assert self.image_dataframe["s2path_in_cache"].all(), "Not all images are in cache!"
-        assert self.image_dataframe["plumepath_in_cache"].all(), "Not all images are in cache!"
         assert self.image_dataframe["cloudmaskpath_in_cache"].all(), "Not all images are in cache!"
 
         # Resubset dataframe_few_samples_or_few_neg to have caching fields
@@ -1078,6 +1191,9 @@ class DatasetPlumes(Dataset):
         """
         Get plumes suitable for simulation given wind speed and offshore status.
 
+        These are plumes with fluxrate between MIN_FLUXRATE_SIM(3500) and MAX_FLUXRATE_SIM(70000) and
+        with wind speed similar to the given wind speed.
+
         Args:
             wind_speed (float): Wind speed in m/s to find similar plumes
             offshore (bool): Whether the location is offshore
@@ -1086,10 +1202,10 @@ class DatasetPlumes(Dataset):
             Optional[pd.DataFrame]: DataFrame with suitable plumes for simulation,
                 or None if no suitable plumes are found
         """
-        min_fluxrate = MIN_FLUXRATE_SIM_OFFSHORE if offshore else MIN_FLUXRATE_SIM
+        min_fluxrate = MIN_FLUXRATE_SIM_OFFSHORE if offshore else self.min_fluxrate_sim
 
         self.logger.debug(
-            f"\t\tSearching for plumes to simulate with fluxrate between {min_fluxrate/1000:.1f} and {MAX_FLUXRATE_SIM/1000:.1f} t/h"
+            f"\t\tSearching for plumes to simulate with fluxrate between {min_fluxrate/1000:.1f} and {self.max_fluxrate_sim/1000:.1f} t/h"
         )
 
         # Find plumes with similar wind speed
@@ -1099,20 +1215,20 @@ class DatasetPlumes(Dataset):
 
         plumes_samples = self.plume_dataframe[
             (self.plume_dataframe.ch4_fluxrate > min_fluxrate)
-            & (self.plume_dataframe.ch4_fluxrate < MAX_FLUXRATE_SIM)
+            & (self.plume_dataframe.ch4_fluxrate < self.max_fluxrate_sim)
             & (wind_distance <= distance_search)
         ]
 
         if plumes_samples.shape[0] == 0:
             self.logger.debug(
                 f"\t\tNo plumes found with fluxrate between {min_fluxrate/1000:.1f}t/h "
-                f"and {MAX_FLUXRATE_SIM/1000:.1f}t/h and wind speed similar to {wind_speed:.2f}m/s (search distance: {distance_search:.2f}m/s)"
+                f"and {self.max_fluxrate_sim/1000:.1f}t/h and wind speed similar to {wind_speed:.2f}m/s (search distance: {distance_search:.2f}m/s)"
             )
             return None
 
         self.logger.debug(
             f"\t\tFound {plumes_samples.shape[0]} plumes with fluxrate in "
-            f"[{min_fluxrate/1000:.1f}, {MAX_FLUXRATE_SIM/1000:.1f}]t/h "
+            f"[{min_fluxrate/1000:.1f}, {self.max_fluxrate_sim/1000:.1f}]t/h "
             f"and wind speed within {distance_search:.2f}m/s of {wind_speed:.2f}m/s"
         )
 
@@ -1123,6 +1239,7 @@ class DatasetPlumes(Dataset):
         item: Dict[str, Any],
         simulate_on_source_fraction: Optional[float] = None,
         loc_injection: Optional[tuple[int, int]] = None,
+        plume_item: Optional[dict[str, Any]] = None,
     ) -> Dict[str, torch.Tensor]:
 
         if simulate_on_source_fraction is None:
@@ -1149,22 +1266,23 @@ class DatasetPlumes(Dataset):
                 item=item,
             )
 
-        # Get suitable plumes for simulation based on wind speed
-        plumes_samples = self.get_plumes_samples(wind_speed=wind_speed, offshore=item["offshore"])
+        if plume_item is None:
+            # Get suitable plumes for simulation based on wind speed
+            plumes_samples = self.get_plumes_samples(wind_speed=wind_speed, offshore=item["offshore"])
 
-        if plumes_samples is None or plumes_samples.shape[0] == 0:
-            self.logger.debug("\t\tSampling no plume. No suitable plumes found for simulation")
-            return self.postprocess_item(
-                isplume=0,
-                plume_window=None,
-                s2_data=s2_data,
-                label=np.zeros(s2_data.shape[1:], dtype=bool),
-                simulated=0,
-                ch4_fluxrate=0.0,
-                item=item,
-            )
+            if plumes_samples is None or plumes_samples.shape[0] == 0:
+                self.logger.debug("\t\tSampling no plume. No suitable plumes found for simulation")
+                return self.postprocess_item(
+                    isplume=0,
+                    plume_window=None,
+                    s2_data=s2_data,
+                    label=np.zeros(s2_data.shape[1:], dtype=bool),
+                    simulated=0,
+                    ch4_fluxrate=0.0,
+                    item=item,
+                )
 
-        plume_item = plumes_samples.iloc[np.random.choice(plumes_samples.shape[0])]
+            plume_item = plumes_samples.iloc[np.random.choice(plumes_samples.shape[0])]
 
         ch4_plume, plume_mask = self.load_plume_simulation(plume_item)
 
@@ -1215,15 +1333,15 @@ class DatasetPlumes(Dataset):
                 plume_item["pixel_col"] - window_plume.col_off,
             )
             # Make enhancement lower when we are simulating in sources
-            ch4_plume = ch4_plume / DIV_FACTOR_SIMULATE_SOURCES
-            fluxrate = fluxrate / DIV_FACTOR_SIMULATE_SOURCES
+            ch4_plume = ch4_plume / self.div_factor_simulate_sources
+            fluxrate = fluxrate / self.div_factor_simulate_sources
 
         # augment by scaling the ch4_plume by uniform sampling scale in [0.5, 1.5]
         scale = np.random.uniform(0.5, 1.5)
         ch4_plume = ch4_plume * scale
         fluxrate = fluxrate * scale
         self.logger.debug(
-            f"\t\t Simulating plume from image {plume_item['location_name']} {plume_item['satellite']} {plume_item['tile_date'].strftime('%Y-%m-%d')} fluxrate: {fluxrate/1000:.1f}t/h {item['id_loc_image']}"
+            f"\t\t Simulating plume {plume_item['location_name']} {plume_item['satellite']} {plume_item['tile_date'].strftime('%Y-%m-%d')} fluxrate: {fluxrate/1000:.1f}t/h id_plume: {plume_item['id_plume']}"
         )
 
         try:
@@ -1268,13 +1386,14 @@ class DatasetPlumes(Dataset):
                     )
 
             # TODO create a flare mask and set the label to zero if there is overlap with the flare mask
-            s2_data = simout["image"]
+            s2_data_sim = simout["image"]
             label = simout["label"].astype(bool)
             plume_window = get_window_from_item(simout)
             return self.postprocess_item(
                 isplume=1,
                 plume_window=plume_window,
-                s2_data=s2_data,
+                s2_data=s2_data_sim,
+                s2_data_before_sim=s2_data,
                 label=label,
                 simulated=1,
                 ch4sim=simout.get("ch4", None),
@@ -1325,6 +1444,7 @@ class DatasetPlumes(Dataset):
         label: NDArray,
         simulated: int,
         item: pd.Series,
+        s2_data_before_sim: Optional[NDArray] = None,
         cm: Optional[NDArray] = None,
         ch4sim: Optional[NDArray] = None,
         ch4_fluxrate: Optional[float] = None,
@@ -1341,6 +1461,8 @@ class DatasetPlumes(Dataset):
             label (NDArray): Plume mask in format (H, W). True if plume, False if not plume
             simulated (int): 1/0 if the plume was simulated or not
             item (pd.Series): metadata of the image.
+            s2_data_before_sim (Optional[NDArray], optional): loaded image before simulation. Defaults to None.
+                If simulated == 1, this should be the image before simulation.
             cm (Optional[NDArray], optional): cloud mask. Defaults to None.
                 If not None, it should be in format (H, W) with 0 if clear >=1 if contaminated (cloud or cloud shadow)
             ch4sim (Optional[NDArray], optional): ch4 values for simulated plumes. Defaults to None.
@@ -1355,21 +1477,26 @@ class DatasetPlumes(Dataset):
                 - "y_context_ls0_0": torch.Tensor with the input data (C, H, W) values ToA reflectance / 2.
                     This tensor has concatenated the input image, the reference image, the mbmp, the cloud mask and the wind components.
                     Names of the bands in this tensor are given by self.bands_out
-                - "label": torch.Tensor with the plume mask.
-                - "ch4": torch.Tensor with the ch4 values. For simulated plumes, this is a combination of the
-                    ch4 of the simulation and the retrieval outside of the plume.
+                - "y_target": torch.Tensor with the plume mask (H, W)
+                - "ch4forweighting": torch.Tensor with the ch4 values used for loss weighting (1, H, W).
+                    For simulated plumes (simulated==1), this is ch4sim. For real plumes, this is the retrieval.
                 - "isplume": torch.Tensor with 1/0 if the image has a plume or not
                 - "tile": str with the tile name
                 - "id_loc_image": str with the id_loc_image
                 - "location_name": str with the location name
+                - "site_ids": torch.Tensor with the site ID for FiLM conditioning
 
             if analysis_mode is True, also returns:
-                - "mbmp": torch.Tensor with the MBMP
+                - "mbmp": torch.Tensor with the MBMP (H, W)
                 - "simulated": torch.Tensor with 1/0 if the plume was simulated or not
-                - "wind": vector with the wind components U and V
-                - "ch4sim": torch.Tensor with the ch4 values for simulated plumes (only if simulated==1)
-                - "ch4retrieval": torch.Tensor with the ch4 retrieval
-                - "ch4_fluxrate": float with the fluxrate of the plume
+                - "wind": torch.Tensor with the wind components U and V (2,)
+                - "tile_date": str with the tile date in ISO format
+                - "satellite": str with the satellite name
+                - "ch4": torch.Tensor with the ch4 retrieval (1, H, W)
+                - "ch4sim": torch.Tensor with the ch4 values for simulated plumes (1, H, W)
+                - "ch4_retrieval_before_sim": torch.Tensor with the ch4 retrieval before simulation (1, H, W)
+                - "ch4_fluxrate": torch.Tensor with the fluxrate of the plume in kg/h
+                - "angle_rotation": int with the rotation angle applied (0, 90, 180, or 270)
         """
         location_name = item["location_name"]
 
@@ -1421,39 +1548,50 @@ class DatasetPlumes(Dataset):
 
         validmask = cm == 0
 
-        # Estimate the Delta transmittance of the B12/B11 ratio
-        if item["offshore"]:
-            self.logger.debug(f"Using SBMP for offshore location {location_name}")
-            dtrest = mixing_ratio_methane.ratio_bands(
-                s2_data,
-                numerator_index=b12_index,
-                denominator_index=b11_index,
-                validmask=validmask,
-                fill_value_default=1,
-                plumemaskbool=label,
-            )
-        else:
-            self.logger.debug(f"Using MBMP for onshore location {location_name}")
-            dtrest = mixing_ratio_methane.ratio_IL(
-                s2_data[: len(all_bands_satellite_s2_naming), ...],
-                background_s2=s2_data[len(all_bands_satellite_s2_naming) :, ...],
+        # Estimate the Delta transmittance of the B12/B11 ratio and compute XCH4 retrieval
+        ch4 = compute_xch4_retrieval(
+            s2l_data=s2_data[: len(all_bands_satellite_s2_naming), ...],
+            background_s2l=s2_data[len(all_bands_satellite_s2_naming) :, ...],
+            offshore=item["offshore"],
+            satellite=item["satellite"],
+            sza=item["sza"],
+            vza=item["vza"],
+            b11_index=b11_index,
+            b12_index=b12_index,
+            validmask=validmask,
+            label=label,
+            transmittance_interpolator=self.ch42tr)
+        
+        if simulated == 1:
+            # For simulated plumes, combine the simulated ch4 with the retrieval outside the plume
+            ch4_retrieval_before_sim = compute_xch4_retrieval(
+                s2l_data=s2_data_before_sim[: len(all_bands_satellite_s2_naming), ...],
+                background_s2l=s2_data_before_sim[len(all_bands_satellite_s2_naming) :, ...],
+                offshore=item["offshore"],
+                satellite=item["satellite"],
+                sza=item["sza"],
+                vza=item["vza"],
                 b11_index=b11_index,
                 b12_index=b12_index,
-                fill_value_ratio_il=1,
                 validmask=validmask,
-                plumemaskbool=label,
-                corregister=False,
+                label=label,
+                transmittance_interpolator=self.ch42tr
             )
-        ch4 = self.ch42tr.deltach4_from_ratio_transmittance(
-            satellite=item["satellite"], sza=item["sza"], vza=item["vza"], ratio_il=dtrest
-        )
-
+        else:
+            ch4_retrieval_before_sim = np.copy(ch4)
+        
         # Crop the images
         # TODO or pad if needed (!)
         s2_data = s2_data[:, start_row:end_row, start_col:end_col]
         label = label[start_row:end_row, start_col:end_col]
         ch4 = ch4[start_row:end_row, start_col:end_col]
         cm = cm[start_row:end_row, start_col:end_col]
+        ch4_retrieval_before_sim = ch4_retrieval_before_sim[
+            start_row:end_row, start_col:end_col
+        ]
+        if ch4sim is not None:
+            ch4sim = ch4sim[start_row:end_row, start_col:end_col]
+
         wind_vector = [_wind_value(item["wind_u"]), _wind_value(item["wind_v"])]
         wind_vector = np.array(wind_vector, dtype=np.float32)
 
@@ -1469,6 +1607,9 @@ class DatasetPlumes(Dataset):
                 cm = np.rot90(cm, k=angle // 90, axes=(0, 1))
                 if ch4sim is not None:
                     ch4sim = np.rot90(ch4sim, k=angle // 90, axes=(0, 1))
+                ch4_retrieval_before_sim = np.rot90(
+                    ch4_retrieval_before_sim, k=angle // 90, axes=(0, 1)
+                )
 
                 wind_vector = plumesimulation.rotate_wind_vector(wind_vector, angle)
 
@@ -1476,6 +1617,7 @@ class DatasetPlumes(Dataset):
         s2_data = self.to_tensor(s2_data)
         label = self.to_tensor(label)
         ch4 = self.to_tensor(ch4)
+        ch4_retrieval_before_sim = self.to_tensor(ch4_retrieval_before_sim)
 
         # Normalize s2_data. Input is given in ToA reflectance multiplied by 10_000
         s2_data[torch.isnan(s2_data)] = 0
@@ -1534,17 +1676,32 @@ class DatasetPlumes(Dataset):
         if self.cat_mbmp:
             s2_data = torch.cat([mbmp.unsqueeze(0), s2_data])
 
-        ch4forweighting = ch4.clone()
+        if ch4sim is None:
+            ch4sim = torch.zeros_like(ch4, device=self.device)
+        else:
+            ch4sim = self.to_tensor(ch4sim)
+        
+        if simulated == 1:
+            # For simulated plumes, combine the simulated ch4 with the retrieval outside the plume
+            if ch4sim is None:
+                raise ValueError("ch4sim must be provided for simulated plumes")
+            ch4forweighting = ch4sim
+            ch4noise_img = ch4_retrieval_before_sim
+        else:
+            if isplume == 1:
+                ch4noise_img = (1-label).float() * ch4
+            else:
+                ch4noise_img = ch4
 
-        # TODO is this more realistic than just the retrieval?
-        # if simulated == 1:
-        #     ch4sim = self.to_tensor(ch4sim)
-        #     ch4forweighting[label == 1] = ch4sim[label == 1]
+            ch4forweighting = ch4.clone()
+        
+        ch4noise = ch4noise_img.mean(axis=(-2, -1))
 
         task = {
             "y_context_ls0_0": s2_data,  # (C, H, W)
             "y_target": label,  # (H, W)
-            "ch4": ch4forweighting.unsqueeze(0),  # (1, H, W)
+            "ch4forweighting": ch4forweighting.unsqueeze(0),  # (1, H, W)  
+            "ch4noise": ch4noise, # (,) mean ch4 noise value
             "isplume": torch.tensor(isplume, device=self.device, dtype=torch.long),
             "location_name": location_name,
             "tile": item["tile"],
@@ -1565,11 +1722,6 @@ class DatasetPlumes(Dataset):
         task["site_ids"] = torch.tensor(task["site_ids"], device=self.device, dtype=torch.long)
 
         if self.analysis_mode:
-            if ch4sim is None:
-                ch4sim = torch.zeros_like(ch4, device=self.device)
-            else:
-                ch4sim = self.to_tensor(ch4sim)
-
             task.update(
                 {
                     "mbmp": mbmp,  # (H, W)
@@ -1577,7 +1729,9 @@ class DatasetPlumes(Dataset):
                     "wind": torch.tensor(wind_vector, device=self.device),
                     "tile_date": item["tile_date"].isoformat(),
                     "satellite": item["satellite"],
+                    "ch4": ch4.unsqueeze(0),  # (1, H, W)
                     "ch4sim": ch4sim.unsqueeze(0),  # (1, H, W)
+                    "ch4_retrieval_before_sim": ch4_retrieval_before_sim.unsqueeze(0),  # (1, H, W)
                     # "ch4retrieval": ch4.unsqueeze(0),  # (1, H, W)
                     "ch4_fluxrate": torch.tensor(
                         ch4_fluxrate if ch4_fluxrate is not None else 0.0, device=self.device
@@ -1596,10 +1750,13 @@ class DatasetPlumes(Dataset):
         norm_rgb: float = 1.0,
         vmax_ppb: float = 2_000,
         add_sources: bool = True,
-        pos_weight: float = 1.0,
     ) -> tuple[plt.Figure, plt.Axes]:
+        
+        if not self.analysis_mode:
+            raise ValueError("plot_item is only available in analysis_mode=True")
+        
         nrows = 2
-        ncols = 6 if self.analysis_mode else 5
+        ncols = 6
 
         fig, ax = plt.subplots(
             nrows,
@@ -1684,14 +1841,11 @@ class DatasetPlumes(Dataset):
         ax[i].set_title(f"B12 Bg")
 
         i = 8
-        # MBMP cropped to plume
-        mbmp_cropped = mbmp * y_target
-        mbmp_cropped[mbmp_cropped == 0] = 1
-        im = ax[i].imshow(
-            mbmp_cropped, cmap="plasma_r", vmax=1, vmin=vmin_mbmp, interpolation="nearest"
-        )
+        # CH4 for weighting
+        ch4forweighting = item["ch4forweighting"]
+        im = ax[i].imshow(ch4forweighting[0], cmap="plasma", vmax=vmax_ppb, vmin=0)
         plot.colorbar_next_to(im, ax[i])
-        ax[i].set_title(r"MBMP cropped")
+        ax[i].set_title(r"$\Delta$XCH$_4$ for weighting (ppb)")
         wind.add_wind_to_plot(item["wind"], ax=ax[i])
 
         i = 9
@@ -1702,22 +1856,22 @@ class DatasetPlumes(Dataset):
         ax[i].set_title(r"$\Delta$XCH$_4$ (ppb) cropped")
         wind.add_wind_to_plot(item["wind"], ax=ax[i])
 
-        if self.analysis_mode:
-            i = 10
-            # Add plot if ch4sim
-            ch4sim = item["ch4sim"]
-            im = ax[i].imshow(ch4sim[0], cmap="plasma", vmax=vmax_ppb, vmin=0)
-            plot.colorbar_next_to(im, ax[i])
-            ax[i].set_title(r"$\Delta$XCH$_4$ Simulated (ppb)")
-            wind.add_wind_to_plot(item["wind"], ax=ax[i])
+        i = 10
+        # Add plot if ch4sim
+        ch4sim = item["ch4sim"]
+        im = ax[i].imshow(ch4sim[0], cmap="plasma", vmax=vmax_ppb, vmin=0)
+        plot.colorbar_next_to(im, ax[i])
+        ax[i].set_title(r"$\Delta$XCH$_4$ Simulated (ppb)")
+        wind.add_wind_to_plot(item["wind"], ax=ax[i])
 
-            from marss2l.loss import get_ch4_weight
-
-            weight_loss = get_ch4_weight(ch4[0], y_target, pos_weight=pos_weight)
-            i = 11
-            im = ax[i].imshow(weight_loss, cmap="viridis", vmax=8, vmin=0)
-            plot.colorbar_next_to(im, ax[i])
-            ax[i].set_title(r"$\Delta$XCH$_4$ Weight for loss")
+        i = 11
+        # Plot ch4_retrieval_before_sim
+        ch4_retrieval_before_sim = item["ch4_retrieval_before_sim"]
+        im = ax[i].imshow(ch4_retrieval_before_sim[0], cmap="plasma", vmax=vmax_ppb, vmin=0)
+        plot.colorbar_next_to(im, ax=ax[i])
+        ax[i].set_title(r"$\Delta$XCH$_4$ Retrieval before sim (ppb)")
+        wind.add_wind_to_plot(item["wind"], ax=ax[i])
+            
 
         if (
             add_sources
@@ -1730,11 +1884,13 @@ class DatasetPlumes(Dataset):
             if self.rotate_data_augmentation:
                 angle = item.get("angle_rotation", 0)
                 if angle != 0:
+                    # np.rot90 with positive k rotates array counter-clockwise but moves pixels clockwise
+                    # rotate_pixel_coordinates expects counter-clockwise, so negate the angle
                     pixel_row, pixel_col = plumesimulation.rotate_pixel_coordinates(
                         pixel_row,
                         pixel_col,
                         center=(item["y_target"].shape[0] // 2, item["y_target"].shape[1] // 2),
-                        angle=angle,
+                        angle=-angle,
                     )
             for axs in ax:
                 axs.scatter(pixel_col, pixel_row, marker="x", c="red", s=100)

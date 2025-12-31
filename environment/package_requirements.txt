@@ -25,3 +25,4 @@ netcdf4
 rasterio
 shapely
 cloudsen12-models
+cyclopts

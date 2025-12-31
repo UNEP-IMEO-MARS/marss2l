@@ -15,7 +15,10 @@ from georeader.abstract_reader import FakeGeoData
 from huggingface_hub import hf_hub_url
 from rasterio import Affine, warp
 from shapely import make_valid, wkt
-from shapely.geometry import MultiPolygon, Polygon, shape
+from shapely.geometry import MultiPolygon, Polygon, shape, Point
+
+from georeader.window_utils import polygon_to_crs
+from georeader import get_utm_epsg
 
 from marss2l.huggingface import CSV_PATH_DEFAULT_HF, CSV_PLUME_PATH_DEFAULT_HF, REPO_ID
 from marss2l.locations_case_studies import (
@@ -264,6 +267,30 @@ def compute_footprint(row: pd.Series, crs="EPSG:4326") -> MultiPolygon:
 
     return window_utils.polygon_to_crs(pol, row.crs, crs)
 
+def distance_source_to_plume(row: pd.Series | dict[str, Any]) -> float:
+    """
+    Compute the distance in meters from the source point to the nearest point of the plume.    
+
+    Args:
+        row (pd.Series | dict[str, Any]): Row with the data. It must contain the following fields:
+            - lon: Longitude of the source point
+            - lat: Latitude of the source point
+            - geometry: Geometry of the plume (Polygon or MultiPolygon)
+
+
+    Returns:
+        float: Distance in meters from the source point to the nearest point of the plume.
+    """
+    point_source = Point(row["lon"], row["lat"])
+    if row["geometry"].contains(point_source):
+        return 0.0
+    
+    crs_utm = get_utm_epsg((row["lon"], row["lat"]), "EPSG:4326")
+    polygon_utm = polygon_to_crs(row["geometry"], crs_polygon="EPSG:4326", dst_crs=crs_utm)
+    point_source_utm = polygon_to_crs(point_source, crs_polygon="EPSG:4326", dst_crs=crs_utm)
+    distance_m = polygon_utm.distance(point_source_utm)
+    return distance_m
+
 
 def read_csv_images(
     csv_path: str = CSV_PATH_DEFAULT,
@@ -494,18 +521,18 @@ read_csv = read_csv_images  # for backward compatibility
 
 def read_csv_plumes(
     csv_path: str = CSV_PLUME_PATH_DEFAULT,
-    dataframe_images: Optional[pd.DataFrame] = None,
     fs: Optional[fsspec.AbstractFileSystem] = None,
-    recompute_windows: bool = False,
+    recompute_is_detached: bool = False,
 ) -> pd.DataFrame:
     """
     Read the CSV file with the plumes.
 
     Args:
         csv_path (str): Path to the CSV
-        dataframe_images (pd.DataFrame): Dataframe with the images
         fs (fsspec.AbstractFileSystem, optional): Filesystem to use. Defaults to None.
-        recompute_windows (bool, optional): Whether to recompute the window where the plume lies in the image. Defaults to False.
+        recompute_is_detached (bool, optional): Whether to recompute the is_detached column. A plume is detached if the 
+            distance from the origin to the nearest point of the plume is greater than 200m.
+            Defaults to False.
 
     Returns:
         pd.DataFrame: Dataframe with the plumes
@@ -526,10 +553,13 @@ def read_csv_plumes(
     )
     dataframe_plumes["geometry"] = dataframe_plumes["geometry"].apply(make_valid_load)
 
-    if dataframe_images is not None:
-        dataframe_plumes = process_images_and_plumes(dataframe_plumes, dataframe_images,
-                                                     recompute_windows=recompute_windows)
+    if recompute_is_detached or "is_detached" not in dataframe_plumes.columns:
+        dataframe_plumes["is_detached"] = dataframe_plumes.apply(
+            lambda row: distance_source_to_plume(row) > 200, axis=1
+        )    
     
+    # from shapely.ops import nearest_points
+    # nearest_point_on_polygon, _ = nearest_points(polygon, point)
 
     return dataframe_plumes
 
@@ -843,9 +873,9 @@ def process_images_and_sources(
 
 def split_control_releases(
     dataframe: pd.DataFrame, split: str, logger: Optional[logging.Logger] = None
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> pd.Series:
     """
-    Split the dataframe into control releases and non-control releases.
+    Get boolean mask for control releases split.
 
     For location 'Standford_controlled_releases' the split is:
     - train: 2020-01-01 to 2022-01-01
@@ -856,6 +886,9 @@ def split_control_releases(
     - train: 2020-01-01 to 2021-10-01
     - val: 2022-01-01 to 2022-10-01
     - test: 2021-10-19 to 2021-11-03
+    
+    Returns:
+        pd.Series: Boolean mask for the split
     """
     control_releases_images = dataframe.location_name.isin(LOCATIONS_CONTROL_RELEASES)
 
@@ -876,14 +909,12 @@ def split_control_releases(
         )
         split_data = control_releases_images & (stanford_2020 | stanford_2021)
 
-        plume_dataframe = dataframe[dataframe["isplume"] & ~control_releases_images].copy()
     elif split == "control_releases_val":
         split_data = control_releases_images & dataframe.tile_date.between(
             datetime(2022, 1, 1, tzinfo=timezone.utc),
             datetime(2022, 10, 1, tzinfo=timezone.utc),
             inclusive="left",
         )
-        plume_dataframe = None
     elif split == "control_releases_test":
         stanford_2020_test = (
             dataframe.location_name == "Standford_controlled_releases"
@@ -900,16 +931,13 @@ def split_control_releases(
             inclusive="both",
         )
         split_data = control_releases_images & (stanford_2020_test | stanford_2021_test)
-        plume_dataframe = None
 
     else:
         raise ValueError(
             f"Unknown split {split}. Expected 'control_releases_train', 'control_releases_val', 'control_releases_test'"
         )
 
-    dataframe = dataframe.loc[split_data].copy()
-
-    return dataframe, plume_dataframe
+    return split_data
 
 
 def load_dataframe_split(
@@ -923,6 +951,7 @@ def load_dataframe_split(
     all_locs: Optional[List[str]] = None,
     only_onshore: bool = False,
     only_offshore: bool = False,
+    smoke_test: bool = False,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Load the image dataframe and (optionally) the plume dataframe, then apply the requested split.
@@ -961,6 +990,8 @@ def load_dataframe_split(
         If True, only keep onshore locations.
     only_offshore : bool, default False
         If True, only keep offshore locations.
+    smoke_test : bool, default False
+        If True, only load a small subset of the data for quick testing.
 
     Returns
     -------
@@ -1030,25 +1061,25 @@ def load_dataframe_split(
             dataframe_sources = read_csv_locs_sources(dataframe_or_csv_path_sources, fs)
         else:
             dataframe_sources = dataframe_or_csv_path_sources.copy()
-
-    # Make sure to exclude Control release locations
-    locs_control_releases_serie = dataframe_images.location_name.isin(LOCATIONS_CONTROL_RELEASES)
-    if split.startswith("control_releases"):
-        if not locs_control_releases_serie.any():
-            raise ValueError(f"Locations {LOCATIONS_CONTROL_RELEASES} not found in the dataset")
-        return split_control_releases(dataframe_images, split, logger)
-    else:
-        if locs_control_releases_serie.any():
-            dataframe_images = dataframe_images.loc[~locs_control_releases_serie].copy()
-
+    
     # Keep only data from 2018 on
     data_pre_2018 = dataframe_images["year"] < 2018
     if data_pre_2018.any():
         # logger.info(f"Discarding data from years before 2018. There are {data_pre_2018.sum()} samples before 2018")
         dataframe_images = dataframe_images[~data_pre_2018].copy()
 
+    # Make sure to exclude Control release locations
+    iscontrolreleasessplit = split.startswith("control_releases")
+    locs_control_releases_serie = dataframe_images.location_name.isin(LOCATIONS_CONTROL_RELEASES)
+    if not iscontrolreleasessplit and locs_control_releases_serie.any():
+        dataframe_images = dataframe_images.loc[~locs_control_releases_serie].copy()
+
     # Split the data
-    if split == "val_2023":
+    if iscontrolreleasessplit:
+        if not locs_control_releases_serie.any():
+            raise ValueError(f"Locations {LOCATIONS_CONTROL_RELEASES} not found in the dataset")
+        split_data =  split_control_releases(dataframe_images, split, logger)
+    elif split == "val_2023":
         split_data = (dataframe_images["year"] == 2021) & dataframe_images.location_name.isin(
             LOCS_TRAINING_ABLATION + LOCS_OFFSHORE_ABLATION
         )
@@ -1069,26 +1100,57 @@ def load_dataframe_split(
             f"Unknown split {split}. Expected 'train_2023', 'test_2023', 'val_2023', 'all_train_test_train', 'all_train_test_val', 'all_train_test_test'"
         )
 
-    dataframe_images = dataframe_images.loc[split_data].copy()
+    # Subset dataframe_images, dataframe_plumes and dataframe_sources
+    dataframe_images_splitted = dataframe_images.loc[split_data].copy()
+    if iscontrolreleasessplit:
+        # This assumes that for the control releases we will simulate plumes only taken from non-control release images
+        dataframe_images_for_plumes = dataframe_images[~locs_control_releases_serie].copy()
+    else:
+        dataframe_images_for_plumes = dataframe_images_splitted
 
     # Set self.all_locs and keep only data from all_locs
     if all_locs is not None:
-        images_from_loc = dataframe_images.location_name.isin(all_locs)
+        images_from_loc = dataframe_images_splitted.location_name.isin(all_locs)
         if not images_from_loc.any():
             raise ValueError(
                 f"None of the locations in 'all_locs' where found in the dataset in split {split}"
             )
 
-        dataframe_images = dataframe_images.loc[images_from_loc].copy()
+        dataframe_images_splitted = dataframe_images_splitted.loc[images_from_loc].copy()
 
     if dataframe_plumes is not None:
-        dataframe_plumes = process_images_and_plumes(dataframe_plumes, dataframe_images)
+        dataframe_plumes = process_images_and_plumes(dataframe_plumes, 
+                                                     dataframe_images_for_plumes,
+                                                     logger=logger)
     if dataframe_sources is not None:
         dataframe_sources = process_images_and_sources(
-            dataframe_sources, dataframe_images, logger=logger
+            dataframe_sources, dataframe_images_splitted, logger=logger
+        )
+    
+    # If smoke_test, keep only 200 samples 100 with plumes and 100 without plumes
+    if smoke_test:
+        dataframe_images_with_plume = dataframe_images_splitted[
+            dataframe_images_splitted.isplume
+        ].head(100)
+        dataframe_images_without_plume = dataframe_images_splitted[
+            ~dataframe_images_splitted.isplume
+        ].head(100)
+        dataframe_images_splitted = pd.concat(
+            [dataframe_images_with_plume, dataframe_images_without_plume], ignore_index=True
+        )
+        if dataframe_plumes is not None:
+            dataframe_plumes = dataframe_plumes[
+                dataframe_plumes.id_loc_image.isin(dataframe_images_with_plume.id_loc_image)
+            ].copy()
+        if dataframe_sources is not None:
+            dataframe_sources = dataframe_sources[
+                dataframe_sources.id_loc_image.isin(dataframe_images_splitted.id_loc_image)
+            ].copy()
+        logger.info(
+            f"Smoke test: keeping only {len(dataframe_images_splitted)} images, {0 if dataframe_plumes is None else len(dataframe_plumes)} plumes, {0 if dataframe_sources is None else len(dataframe_sources)} sources"
         )
 
-    return dataframe_images, dataframe_plumes, dataframe_sources
+    return dataframe_images_splitted, dataframe_plumes, dataframe_sources
 
 
 def load_image(

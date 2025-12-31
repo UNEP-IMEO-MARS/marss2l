@@ -11,14 +11,22 @@ from huggingface_hub import hf_hub_url
 REPO_ID = "UNEP-IMEO/MARS-S2L"
 
 CSV_PATH_DEFAULT_HF_CONVENTION = f"datasets/{REPO_ID}/validated_images_all.csv"
+PARQUET_PATH_DEFAULT_HF_CONVENTION = f"datasets/{REPO_ID}/validated_images_all.parquet"
 CSV_PLUME_PATH_DEFAULT_HF_CONVENTION = f"datasets/{REPO_ID}/validated_images_plumes.csv"
+PARQUET_PATH_DEFAULT_HF_CONVENTION = f"datasets/{REPO_ID}/validated_images_plumes.parquet"
 
 CSV_PATH_DEFAULT_HF = hf_hub_url(
     repo_id=REPO_ID, filename="validated_images_all.csv", repo_type="dataset"
 )
+PARQUET_PATH_DEFAULT_HF = hf_hub_url(
+    repo_id=REPO_ID, filename="validated_images_all.parquet", repo_type="dataset"
+)
 
 CSV_PLUME_PATH_DEFAULT_HF = hf_hub_url(
     repo_id=REPO_ID, filename="validated_images_plumes.csv", repo_type="dataset"
+)
+PARQUET_PLUME_PATH_DEFAULT_HF = hf_hub_url(
+    repo_id=REPO_ID, filename="validated_images_plumes.parquet", repo_type="dataset"
 )
 
 COLUMNS_DF_EXPORT = [
@@ -190,8 +198,7 @@ def export_dataframe_csvs_to_hf(
         None
     """
     # Change the path in the dataframe to point to HF paths
-    dataframe_images_export = dataframe_images.copy()
-    dataframe_images_export = dataframe_images_export.reset_index()
+    dataframe_images_export = dataframe_images.copy().reset_index()
 
     for field in FIELDS_TO_COPY:
         dataframe_images_export[field] = dataframe_images_export.apply(
@@ -205,6 +212,8 @@ def export_dataframe_csvs_to_hf(
             axis=1,
         )
     dataframe_images_export = dataframe_images_export[COLUMNS_DF_EXPORT]
+
+    # TODO Export parquet files also
 
     # Copy CSV file
     if dry_run:

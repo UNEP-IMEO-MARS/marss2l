@@ -1,11 +1,11 @@
-import argparse
 import json
 import logging
 import os
 import shutil
 from datetime import datetime
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
+import cyclopts
 import fsspec
 import numpy as np
 import torch
@@ -33,21 +33,32 @@ from marss2l.loaders import (
     DEFAULT_NORM_WIND,
     DEFAULT_ONLY_OFFSHORE,
     DEFAULT_ONLY_ONSHORE,
+    DEFAULT_SIMULATE_ON_SOURCE_FRACTION,
     DEFAULT_SPLIT,
     DEFAULT_WIND,
+    DIV_FACTOR_SIMULATE_SOURCES,
     NSAMPLES_PER_EPOCH_DEFAULT,
     SPLITS,
     WINDOW_SIZE_TRAINING,
     DatasetPlumes,
 )
-from marss2l.loss import DEFAULT_POS_WEIGHT, DEFAULT_APPLY_SNR_FACTOR, load_loss
+from marss2l.loss import (
+    DEFAULT_POS_WEIGHT,
+    DEFAULT_WEIGHT_BY_CH4,
+    CH4_MIN_FOR_WEIGHTING,
+    CH4_MAX_FOR_WEIGHTING,
+    SCALE_CH4_LOSS,
+    DEFAULT_NOISE_WARMUP_EPOCHS,
+    DEFAULT_NOISE_TRANSITION_EPOCHS
+)
 from marss2l.models import load_model
-from marss2l.trainer import Trainer
+from marss2l.trainer import Trainer, DEFAULT_LEARNING_RATE
 from marss2l.utils import (
     CustomJSONEncoder,
     fs_from_path,
     pathjoin,
     setup_file_logger,
+    setup_stream_logger
 )
 
 # Define constants for defaults
@@ -62,14 +73,16 @@ DEFAULT_DEVICE_NAME = "cuda"
 DEFAULT_FINETUNE_FILM = False
 DEFAULT_FINETUNE_CLASS_HEAD = False
 DEFAULT_ONE_PARAM_PER_CHANNEL = True
-DEFAULT_LEARNING_RATE = 5e-4
-DEFAULT_WEIGHT_BY_CH4 = True
 DEFAULT_PATIENCE_EARLY_STOPPING = 30
 DEFAULT_NUM_WORKERS = 12
 DEFAULT_NUM_WORKERS_VAL = 4
 DEFAULT_WEIGHT_DECAY = 0
 DEFAULT_FINETUNE = False
-DEFAULT_SIMULATE_IN_SOURCES = False
+DEFAULT_WEIGHT_BY_IME = False
+DEFAULT_ONLY_CLASSIFICATION = False
+DEFAULT_SCALE_CH4_LOSS = SCALE_CH4_LOSS
+DEFAULT_WEIGHT_BY_NOISE = False
+DEFAULT_WANDB_PROJECT = "s2l89-model"
 
 
 # Worker initialization function
@@ -81,54 +94,87 @@ def worker_init_fn(worker_id):
         np.random.seed(seed)
 
 
-def run_training(
-    output_dir: str,
-    model_name: str = DEFAULT_MODEL_NAME,
-    multipass: bool = DEFAULT_MULTIPASS,
-    do_simulation: bool = DEFAULT_DO_SIMULATION,
-    wind: bool = DEFAULT_WIND,
-    cloud_mask: bool = DEFAULT_CLOUD_MASK,
-    classification_head: bool = DEFAULT_CLASSIFICATION_HEAD,
-    norm_wind: bool = DEFAULT_NORM_WIND,
-    cat_mbmp: bool = DEFAULT_CAT_MBMP,
-    bands_l8: bool = DEFAULT_BANDS_L8,
-    batch_norm: bool = DEFAULT_BATCH_NORM,
-    csv_path: str = CSV_PATH_DEFAULT,
-    csv_plume_path: str = CSV_PLUME_PATH_DEFAULT,
-    csv_sources_path: str = CSV_LOCSOURCES_PATH_DEFAULT,
-    split: str = DEFAULT_SPLIT,
-    film_train_zero_id: bool = DEFAULT_FILM_TRAIN_ZERO_ID,
-    logger: Optional[logging.Logger] = None,
-    num_workers: int = DEFAULT_NUM_WORKERS,
-    num_workers_val: int = DEFAULT_NUM_WORKERS_VAL,
-    cache_all: bool = True,
-    data_parallel: bool = DEFAULT_DATA_PARALLEL,
-    nepochs: int = DEFAULT_NEPOCHS,
-    batch_size: int = DEFAULT_BATCH_SIZE,
-    batch_size_val: int = DEFAULT_BATCH_SIZE_VAL,
-    window_size_training: int = WINDOW_SIZE_TRAINING,
-    n_samples_per_epoch_train: int = NSAMPLES_PER_EPOCH_DEFAULT,
-    device_name: str = DEFAULT_DEVICE_NAME,
-    all_locs: Optional[List[str]] = None,
-    finetune_film: bool = DEFAULT_FINETUNE_FILM,
-    finetune_classification_head: bool = DEFAULT_FINETUNE_CLASS_HEAD,
-    finetune: bool = DEFAULT_FINETUNE,
-    path_weights_forfinetuning: Optional[str] = None,
-    filename_weights_forfinetuning: str = "best_epoch",
-    one_param_per_channel: bool = DEFAULT_ONE_PARAM_PER_CHANNEL,
-    learning_rate: float = DEFAULT_LEARNING_RATE,
-    pos_weight: float = DEFAULT_POS_WEIGHT,
-    weight_decay: float = DEFAULT_WEIGHT_DECAY,
-    weight_by_ch4: bool = DEFAULT_WEIGHT_BY_CH4,
-    patience_early_stopping: int = DEFAULT_PATIENCE_EARLY_STOPPING,
-    simulate_in_sources: bool = DEFAULT_SIMULATE_IN_SOURCES,
-    only_onshore: bool = DEFAULT_ONLY_ONSHORE,
-    only_offshore: bool = DEFAULT_ONLY_OFFSHORE,
-    path_prepend_data: Optional[str] = None,
-    fsread: Optional[fsspec.AbstractFileSystem] = None,
-):
+app = cyclopts.App(
+    name="train_final",
+    help="""Train MARS-S2L models for methane plume detection, segmentation, and quantification in Sentinel-2 and Landsat imagery.
 
-    os.makedirs(output_dir, exist_ok=True)
+Supports plume simulation. Models are trained with BCE loss and CH4 concentration weighting.
+
+Smoke test mode (fast validation):
+    python -m marss2l.train_final --smoke-test --output-dir dummy \
+        --device-name cpu --cache-all --num-workers 2 --num-workers-val 2\
+        --n-samples-per-epoch-train 80 --batch-size 16 --batch-size-val 8\
+"""
+)
+
+
+@app.default
+def run(
+    output_dir: Annotated[str, cyclopts.Parameter(help="Output directory for model checkpoints and config")] = "train_output",
+    model_name: Annotated[str, cyclopts.Parameter(help="Model architecture (UnetOriginal, CH4Net, etc.)")] = DEFAULT_MODEL_NAME,
+    multipass: Annotated[bool, cyclopts.Parameter(help="Enable multi-pass detection mode")] = DEFAULT_MULTIPASS,
+    do_simulation: Annotated[bool, cyclopts.Parameter(help="Enable plume simulation during training")] = DEFAULT_DO_SIMULATION,
+    wind: Annotated[bool, cyclopts.Parameter(help="Include wind information as input")] = DEFAULT_WIND,
+    cloud_mask: Annotated[bool, cyclopts.Parameter(help="Include cloud mask as input")] = DEFAULT_CLOUD_MASK,
+    classification_head: Annotated[bool, cyclopts.Parameter(help="Add classification head for image-level detection")] = DEFAULT_CLASSIFICATION_HEAD,
+    norm_wind: Annotated[bool, cyclopts.Parameter(help="Normalize wind vectors")] = DEFAULT_NORM_WIND,
+    cat_mbmp: Annotated[bool, cyclopts.Parameter(help="Concatenate MBMP (Matched Band Methane Plume) features")] = DEFAULT_CAT_MBMP,
+    bands_l8: Annotated[bool, cyclopts.Parameter(help="Use Landsat-8 band configuration")] = DEFAULT_BANDS_L8,
+    batch_norm: Annotated[bool, cyclopts.Parameter(help="Use batch normalization in model")] = DEFAULT_BATCH_NORM,
+    csv_path: Annotated[str, cyclopts.Parameter(help="Path to CSV file with image metadata")] = CSV_PATH_DEFAULT,
+    csv_plume_path: Annotated[Optional[str], cyclopts.Parameter(help="Path to CSV file with plume metadata for simulation")] = CSV_PLUME_PATH_DEFAULT,
+    csv_sources_path: Annotated[Optional[str], cyclopts.Parameter(help="Path to CSV file with source locations for simulation")] = CSV_LOCSOURCES_PATH_DEFAULT,
+    split: Annotated[str, cyclopts.Parameter(help="Data split strategy (e.g., 'all', 'spatial', 'temporal')")] = DEFAULT_SPLIT,
+    film_train_zero_id: Annotated[bool, cyclopts.Parameter(help="Train FiLM zero ID for unknown locations")] = DEFAULT_FILM_TRAIN_ZERO_ID,
+    logger: Annotated[Optional[logging.Logger], cyclopts.Parameter(help="Logger instance (auto-created if None)")] = None,
+    num_workers: Annotated[int, cyclopts.Parameter(help="Number of dataloader workers for training")] = DEFAULT_NUM_WORKERS,
+    num_workers_val: Annotated[int, cyclopts.Parameter(help="Number of dataloader workers for validation")] = DEFAULT_NUM_WORKERS_VAL,
+    cache_all: Annotated[bool, cyclopts.Parameter(help="Cache all training images in memory")] = True,
+    data_parallel: Annotated[bool, cyclopts.Parameter(help="Use DataParallel for multi-GPU training")] = DEFAULT_DATA_PARALLEL,
+    nepochs: Annotated[int, cyclopts.Parameter(help="Number of training epochs")] = DEFAULT_NEPOCHS,
+    batch_size: Annotated[int, cyclopts.Parameter(help="Training batch size")] = DEFAULT_BATCH_SIZE,
+    batch_size_val: Annotated[int, cyclopts.Parameter(help="Validation batch size")] = DEFAULT_BATCH_SIZE_VAL,
+    window_size_training: Annotated[int, cyclopts.Parameter(help="Window size for random crops during training")] = WINDOW_SIZE_TRAINING,
+    n_samples_per_epoch_train: Annotated[int, cyclopts.Parameter(help="Number of training samples per epoch")] = NSAMPLES_PER_EPOCH_DEFAULT,
+    device_name: Annotated[str, cyclopts.Parameter(help="Device for training (cuda, cpu)")] = DEFAULT_DEVICE_NAME,
+    all_locs: Annotated[Optional[List[str]], cyclopts.Parameter(help="Filter training to specific locations")] = None,
+    finetune_film: Annotated[bool, cyclopts.Parameter(help="Finetune FiLM layers only")] = DEFAULT_FINETUNE_FILM,
+    finetune_classification_head: Annotated[bool, cyclopts.Parameter(help="Finetune classification head only")] = DEFAULT_FINETUNE_CLASS_HEAD,
+    finetune: Annotated[bool, cyclopts.Parameter(help="Finetune entire model from checkpoint")] = DEFAULT_FINETUNE,
+    path_weights_forfinetuning: Annotated[Optional[str], cyclopts.Parameter(help="Path to checkpoint directory for finetuning")] = None,
+    filename_weights_forfinetuning: Annotated[str, cyclopts.Parameter(help="Checkpoint filename for finetuning")] = "best_epoch",
+    one_param_per_channel: Annotated[bool, cyclopts.Parameter(help="Use one FiLM parameter per channel")] = DEFAULT_ONE_PARAM_PER_CHANNEL,
+    learning_rate: Annotated[float, cyclopts.Parameter(help="AdamW learning rate")] = DEFAULT_LEARNING_RATE,
+    pos_weight: Annotated[float, cyclopts.Parameter(help="Positive class weight for BCE loss")] = DEFAULT_POS_WEIGHT,
+    weight_decay: Annotated[float, cyclopts.Parameter(help="AdamW weight decay")] = DEFAULT_WEIGHT_DECAY,
+    weight_by_ch4: Annotated[bool, cyclopts.Parameter(help="Weight loss by CH4 concentration")] = DEFAULT_WEIGHT_BY_CH4,
+    weight_by_ime: Annotated[bool, cyclopts.Parameter(help="Weight loss by IME (Integrated Mass Enhancement)")] = DEFAULT_WEIGHT_BY_IME,
+    only_classification: Annotated[bool, cyclopts.Parameter(help="Train only classification head (no segmentation)")] = DEFAULT_ONLY_CLASSIFICATION,
+    ch4_min_for_weighting: Annotated[float, cyclopts.Parameter(help="Min CH4 concentration for loss weighting")] = CH4_MIN_FOR_WEIGHTING,
+    ch4_max_for_weighting: Annotated[float, cyclopts.Parameter(help="Max CH4 concentration for loss weighting")] = CH4_MAX_FOR_WEIGHTING,
+    scale_ch4_loss: Annotated[float, cyclopts.Parameter(help="Scaling factor for CH4-weighted loss")] = DEFAULT_SCALE_CH4_LOSS,
+    patience_early_stopping: Annotated[int, cyclopts.Parameter(help="Early stopping patience (epochs without improvement)")] = DEFAULT_PATIENCE_EARLY_STOPPING,
+    weight_by_noise: Annotated[bool, cyclopts.Parameter(help="Weight loss by noise level (for simulated plumes)")] = DEFAULT_WEIGHT_BY_NOISE,
+    noise_warmup_epochs: Annotated[int, cyclopts.Parameter(help="Epochs before noise-based weighting starts")] = DEFAULT_NOISE_WARMUP_EPOCHS,
+    noise_transition_epochs: Annotated[int, cyclopts.Parameter(help="Epochs to transition noise-based weighting")] = DEFAULT_NOISE_TRANSITION_EPOCHS,
+    simulate_on_source_fraction: Annotated[float, cyclopts.Parameter(help="Fraction of samples to simulate on known sources")] = DEFAULT_SIMULATE_ON_SOURCE_FRACTION,
+    div_factor_simulate_sources: Annotated[float, cyclopts.Parameter(help="Divisor for source-based simulation intensity")] = DIV_FACTOR_SIMULATE_SOURCES,
+    only_onshore: Annotated[bool, cyclopts.Parameter(help="Train only on onshore locations")] = DEFAULT_ONLY_ONSHORE,
+    only_offshore: Annotated[bool, cyclopts.Parameter(help="Train only on offshore locations")] = DEFAULT_ONLY_OFFSHORE,
+    path_prepend_data: Annotated[Optional[str], cyclopts.Parameter(help="Prepend path to data files")] = None,
+    smoke_test: Annotated[bool, cyclopts.Parameter(help="Run 2 epochs of training with a subset of train and validation data")] = False,
+    wandb_project: Annotated[str, cyclopts.Parameter(help="Wandb project name for logging")] = os.environ.get("WANDB_PROJECT", DEFAULT_WANDB_PROJECT),
+    fsread: Annotated[Optional[fsspec.AbstractFileSystem], cyclopts.Parameter(help="Filesystem for reading data")] = None,
+):
+    # Setup logger
+    if logger is None:
+        if smoke_test:
+            logger = setup_stream_logger(level=logging.INFO)
+        else:
+            logger = setup_file_logger("logs", "train_final")
+
+    if not smoke_test:
+        os.makedirs(output_dir, exist_ok=True)
     if not multipass:
         if cat_mbmp:
             logger.warning("cat_mbmp is only available for multipass, we will set it to False")
@@ -197,7 +243,7 @@ def run_training(
     dataframe_images = read_csv_images(csv_path, fs=fsread, path_prepend_data=path_prepend_data)
     if do_simulation:
         dataframe_plumes = read_csv_plumes(csv_plume_path, fs=fsread)
-        if simulate_in_sources:
+        if simulate_on_source_fraction > 0:
             dataframe_sources = read_csv_locs_sources(csv_sources_path, fs=fsread)
         else:
             dataframe_sources = None
@@ -217,6 +263,7 @@ def run_training(
         load_plumes=do_simulation,
         only_onshore=only_onshore,
         only_offshore=only_offshore,
+        smoke_test=smoke_test,
     )
 
     # TODO validation with simulation?
@@ -231,6 +278,7 @@ def run_training(
         load_plumes=False,
         only_onshore=only_onshore,
         only_offshore=only_offshore,
+        smoke_test=smoke_test,
     )
 
     # Common arguments for DatasetPlumes
@@ -245,7 +293,6 @@ def run_training(
         "film_dict_mapping": film_dict_mapping,
         "film_train_zero_id": film_train_zero_id,
         "cat_mbmp": cat_mbmp,
-        "load_ch4": weight_by_ch4,
         "fs": fsread,
     }
 
@@ -260,6 +307,8 @@ def run_training(
         sources_dataframe=dataframe_sources_train,
         cache=cache_all,
         n_samples_per_epoch_train=n_samples_per_epoch_train,
+        simulate_on_source_fraction=simulate_on_source_fraction,
+        div_factor_simulate_sources=div_factor_simulate_sources,
         **kwargs_dataset,
     )
 
@@ -273,10 +322,12 @@ def run_training(
     )
 
     # Load validation images to memory
+    logger.info("Caching validation dataset in memory")
     val_dataset.cache_all(nworkers=num_workers_val + num_workers)
     val_dataset.fs = None
 
     if cache_all:
+        logger.info("Caching training dataset in memory")
         train_dataset.cache_all(nworkers=num_workers_val + num_workers)
         # Set to None to avoid fork issues
         train_dataset.fs = None
@@ -287,7 +338,7 @@ def run_training(
         shuffle=True,
         num_workers=num_workers,
         worker_init_fn=worker_init_fn,
-        pin_memory=True,
+        pin_memory=not smoke_test,
         prefetch_factor=4,
         persistent_workers=True,
     )
@@ -298,7 +349,7 @@ def run_training(
         shuffle=False,
         num_workers=num_workers_val,
         worker_init_fn=worker_init_fn,
-        pin_memory=True,
+        pin_memory=not smoke_test,
         prefetch_factor=4,
         persistent_workers=True,
     )
@@ -327,15 +378,6 @@ def run_training(
         logger.info(f"Loading weights from {best_epoch_file_for_finetuning}")
         models.load_weights(model, best_epoch_file_for_finetuning, device=None)
 
-    loss_function = load_loss(
-        weight_by_ch4=weight_by_ch4,
-        class_head=classification_head,
-        pos_weight=pos_weight,
-        only_classification=finetune_classification_head,
-        device=device,
-        apply_snr_factor=DEFAULT_APPLY_SNR_FACTOR,
-    )
-
     if data_parallel:
         logger.info("Using DataParallel")
         model = nn.DataParallel(model)
@@ -346,16 +388,23 @@ def run_training(
     ###### TRAINER
     trainer = Trainer(
         model=model,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        loss_function=loss_function,
         save_path=output_dir,
         learning_rate=learning_rate,
         logger=logger,
         weight_by_ch4=weight_by_ch4,
+        pos_weight=pos_weight,
+        class_head=classification_head,
+        only_classification=only_classification,
+        weight_by_ime=weight_by_ime,
+        ch4_min_for_weighting=ch4_min_for_weighting,
+        ch4_max_for_weighting=ch4_max_for_weighting,
+        scale_ch4_loss=scale_ch4_loss,
         weight_decay=weight_decay,
         device=device,
         patience_early_stopping=patience_early_stopping,
+        weight_by_noise=weight_by_noise,
+        noise_warmup_epochs=noise_warmup_epochs,
+        noise_transition_epochs=noise_transition_epochs,
     )
 
     # TODO if load_weights load optimizer state dict? trainer.opt
@@ -404,6 +453,17 @@ def run_training(
         "film_train_zero_id": film_train_zero_id,
         "output_dir": output_dir,
         "weight_by_ch4": weight_by_ch4,
+        "pos_weight": pos_weight,
+        "weight_by_ime": weight_by_ime,
+        "only_classification": only_classification,
+        "ch4_min_for_weighting": ch4_min_for_weighting,
+        "ch4_max_for_weighting": ch4_max_for_weighting,
+        "scale_ch4_loss": scale_ch4_loss,
+        "weight_by_noise": weight_by_noise,
+        "noise_warmup_epochs": noise_warmup_epochs,
+        "noise_transition_epochs": noise_transition_epochs,
+        "simulate_on_source_fraction": simulate_on_source_fraction,
+        "div_factor_simulate_sources": div_factor_simulate_sources,
         "weight_decay": weight_decay,
         "patience_early_stopping": patience_early_stopping,
         "num_workers": num_workers,
@@ -415,22 +475,28 @@ def run_training(
     }
 
     inprogress_config_file = os.path.join(output_dir, "config_experiment_inprogress.json")
-    with open(inprogress_config_file, "w") as f:
-        json.dump(config_experiment, f, cls=CustomJSONEncoder)
-
-    with wandb.init(project="s2l89-model", reinit=True, config=config_experiment) as run:
+    if not smoke_test:
+        with open(inprogress_config_file, "w") as f:
+            json.dump(config_experiment, f, cls=CustomJSONEncoder)
+    # s2l89-model
+    with wandb.init(
+        project=wandb_project,
+        reinit=True,
+        config=config_experiment,
+        mode="disabled" if smoke_test else "online"
+    ) as run:
         ###### TRAINING
         logger.info(f"Training with config {config_experiment}")
-        trainer.train(n_epochs=nepochs)
+        trainer.train(train_loader, val_loader, n_epochs=nepochs, smoke_test=smoke_test)
 
         # Save the config
-        config_experiment["wandb_run_url"] = run.get_url()
-        config_experiment["wandb_run_id"] = run.id
+        if not smoke_test:
+            config_experiment["wandb_run_url"] = run.get_url()
+            config_experiment["wandb_run_id"] = run.id
+            with open(config_file, "w") as f:
+                json.dump(config_experiment, f, cls=CustomJSONEncoder)
 
-        with open(config_file, "w") as f:
-            json.dump(config_experiment, f, cls=CustomJSONEncoder)
-
-        os.remove(inprogress_config_file)
+            os.remove(inprogress_config_file)
 
         logger.info(f"----- Training finished -----")
 
@@ -438,273 +504,18 @@ def run_training(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train a model for plume detection")
-    parser.add_argument("--output_dir", required=True, help="Directory to save the output")
-    parser.add_argument(
-        "--model_name",
-        default=DEFAULT_MODEL_NAME,
-        help="Model name (e.g., film, UnetOriginal, UnetPlusPlus)",
-    )
-    parser.add_argument(
-        "--multipass",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_MULTIPASS,
-        help="Use multipass input",
-    )
-    parser.add_argument(
-        "--do_simulation",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_DO_SIMULATION,
-        help="Use simulation data",
-    )
-    parser.add_argument(
-        "--wind",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_WIND,
-        help="Include wind data",
-    )
-    parser.add_argument(
-        "--cloud_mask",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_CLOUD_MASK,
-        help="Include cloud mask",
-    )
-    parser.add_argument(
-        "--classification_head",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_CLASSIFICATION_HEAD,
-        help="Use classification head",
-    )
-    parser.add_argument(
-        "--norm_wind",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_NORM_WIND,
-        help="Normalize wind data",
-    )
-    parser.add_argument(
-        "--cat_mbmp",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_CAT_MBMP,
-        help="Concatenate MBMP data",
-    )
-    parser.add_argument(
-        "--bands_l8",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_BANDS_L8,
-        help="Use Landsat 8 bands",
-    )
-    parser.add_argument(
-        "--batch_norm",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_BATCH_NORM,
-        help="Use batch normalization",
-    )
-    parser.add_argument(
-        "--csv_path",
-        type=str,
-        default=CSV_PATH_DEFAULT,
-        help="Path to the CSV file with data",
-    )
-    parser.add_argument(
-        "--split",
-        type=str,
-        default=DEFAULT_SPLIT,
-        choices=SPLITS.keys(),
-        help=f"Data split to use. one of {SPLITS.keys()}",
-    )
-    parser.add_argument(
-        "--film_train_zero_id",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_FILM_TRAIN_ZERO_ID,
-        help="Train with zero ID for FiLM",
-    )
-    parser.add_argument(
-        "--num_workers",
-        type=int,
-        default=DEFAULT_NUM_WORKERS,
-        help="Number of workers for data loading",
-    )
-    parser.add_argument(
-        "--num_workers_val",
-        type=int,
-        default=DEFAULT_NUM_WORKERS_VAL,
-        help="Number of workers for validation data loading",
-    )
-    parser.add_argument(
-        "--data_parallel",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_DATA_PARALLEL,
-        help="Use data parallelism",
-    )
-    parser.add_argument("--nepochs", type=int, default=DEFAULT_NEPOCHS, help="Number of epochs")
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=DEFAULT_BATCH_SIZE,
-        help="Batch size for training",
-    )
-    parser.add_argument(
-        "--batch_size_val",
-        type=int,
-        default=DEFAULT_BATCH_SIZE_VAL,
-        help="Batch size for validation",
-    )
-    parser.add_argument(
-        "--window_size_training",
-        type=int,
-        default=WINDOW_SIZE_TRAINING,
-        help="Window size for training",
-    )
-    parser.add_argument(
-        "--n_samples_per_epoch_train",
-        type=int,
-        default=NSAMPLES_PER_EPOCH_DEFAULT,
-        help="Number of samples per epoch for training",
-    )
-    parser.add_argument(
-        "--device_name",
-        type=str,
-        default=DEFAULT_DEVICE_NAME,
-        help="Device name (e.g., cuda, cpu)",
-    )
-    parser.add_argument(
-        "--finetune_film",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_FINETUNE_FILM,
-        help="Finetune the FiLM parameters of the model",
-    )
-    parser.add_argument(
-        "--finetune_class_head",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_FINETUNE_CLASS_HEAD,
-        help="Finetune the classification head",
-    )
-    parser.add_argument(
-        "--finetune",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_FINETUNE,
-        help="Finetune all the model",
-    )
-    parser.add_argument(
-        "--only_onshore",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_ONLY_ONSHORE,
-        help="Use only onshore locations",
-    )
-    parser.add_argument(
-        "--only_offshore",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_ONLY_OFFSHORE,
-        help="Use only offshore locations",
-    )
-    parser.add_argument(
-        "--cache",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Cache all images in memory",
-    )
-    parser.add_argument(
-        "--path_weights_forfinetuning",
-        type=str,
-        default=None,
-        help="Path to the weights to be used for finetuning",
-    )
-    parser.add_argument(
-        "--file_weights_forfinetuning",
-        type=str,
-        default="best_epoch",
-        help="File name of the weights to be used for finetuning",
-    )
-    parser.add_argument(
-        "--one_param_per_channel",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_ONE_PARAM_PER_CHANNEL,
-        help="Use one parameter per channel",
-    )
-    parser.add_argument(
-        "--weight_decay", type=float, default=DEFAULT_WEIGHT_DECAY, help="Weight decay"
-    )
-    parser.add_argument(
-        "--learning_rate",
-        type=float,
-        default=DEFAULT_LEARNING_RATE,
-        help="Learning rate",
-    )
-    parser.add_argument(
-        "--pos_weight",
-        type=float,
-        default=DEFAULT_POS_WEIGHT,
-        help="Positive weight for loss function",
-    )
-    parser.add_argument(
-        "--weight_by_ch4",
-        action=argparse.BooleanOptionalAction,
-        default=DEFAULT_WEIGHT_BY_CH4,
-        help="Weight loss by CH4 concentration",
-    )
-    parser.add_argument(
-        "--patience_early_stopping",
-        type=int,
-        default=DEFAULT_PATIENCE_EARLY_STOPPING,
-        help="Patience for early stopping",
-    )
-    parser.add_argument(
-        "--path_prepend_data",
-        type=str,
-        default=None,
-        help="Path to prepend to data paths (s2path, plumepath, cloudmaskpath, ch4path). Required for dataset downloaded from Hugging Face.",
-    )
-    args = parser.parse_args()
-
-    logger = logging.getLogger(__name__)
-    setup_file_logger("logs", "train_final", logger)
-
-    if args.cache:
-        logger.info("Caching all images in memory. Setting start method to fork")
+    import sys
+    # python -m marss2l.train_final --smoke-test --output-dir dummy --device-name cpu --cache-all --num_workers 2 --num_workers_val 2 --n_samples_per_epoch_train 1024
+    
+    # Check if --cache-all or --cache is in arguments to set multiprocessing start method
+    cache_enabled = any(arg in ["--cache-all", "--cache"] for arg in sys.argv) and \
+                    "--no-cache-all" not in sys.argv and "--no-cache" not in sys.argv
+    
+    if cache_enabled:
+        print("Caching all images in memory. Setting start method to fork")
         torch.multiprocessing.set_start_method("fork")
     else:
-        logger.info("Not caching all images in memory. Setting start method to spawn")
+        print("Not caching all images in memory. Setting start method to spawn")
         torch.multiprocessing.set_start_method("spawn")
-
-    run_training(
-        output_dir=args.output_dir,
-        model_name=args.model_name,
-        multipass=args.multipass,
-        do_simulation=args.do_simulation,
-        wind=args.wind,
-        cloud_mask=args.cloud_mask,
-        classification_head=args.classification_head,
-        norm_wind=args.norm_wind,
-        cat_mbmp=args.cat_mbmp,
-        bands_l8=args.bands_l8,
-        batch_norm=args.batch_norm,
-        csv_path=args.csv_path,
-        split=args.split,
-        film_train_zero_id=args.film_train_zero_id,
-        num_workers=args.num_workers,
-        num_workers_val=args.num_workers_val,
-        data_parallel=args.data_parallel,
-        nepochs=args.nepochs,
-        batch_size=args.batch_size,
-        batch_size_val=args.batch_size_val,
-        window_size_training=args.window_size_training,
-        n_samples_per_epoch_train=args.n_samples_per_epoch_train,
-        device_name=args.device_name,
-        all_locs=None,
-        finetune_film=args.finetune_film,
-        finetune_classification_head=args.finetune_class_head,
-        finetune=args.finetune,
-        one_param_per_channel=args.one_param_per_channel,
-        weight_decay=args.weight_decay,
-        learning_rate=args.learning_rate,
-        pos_weight=args.pos_weight,
-        path_weights_forfinetuning=args.path_weights_forfinetuning,
-        filename_weights_forfinetuning=args.file_weights_forfinetuning,
-        weight_by_ch4=args.weight_by_ch4,
-        only_onshore=args.only_onshore,
-        only_offshore=args.only_offshore,
-        cache_all=args.cache,
-        patience_early_stopping=args.patience_early_stopping,
-        path_prepend_data=args.path_prepend_data,
-        logger=logger,
-    )
+    
+    app()

@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -11,6 +12,88 @@ from .quantification import BACKGROUND_CONCENTRATION
 
 MIN_MBMP_VALUE = 0.3
 MAX_MBMP_VALUE = 1.08
+
+
+def compute_xch4_retrieval(
+    s2l_data: NDArray | GeoTensor,
+    background_s2l: NDArray | GeoTensor,
+    offshore: bool,
+    satellite: str,
+    sza: float,
+    vza: float,
+    b11_index: int,
+    b12_index: int,
+    validmask: Optional[NDArray | GeoTensor] = None,
+    label: Optional[NDArray | GeoTensor] = None,
+    b12_index_bg: Optional[int] = None,
+    b11_index_bg: Optional[int] = None,
+    corregister: bool = True,
+    corregister_bands: bool = False,
+    transmittance_interpolator: Optional["TransmittanceCH4Interpolation"] = None,
+) -> NDArray:
+    """
+    Compute the XCH4 retrieval from satellite data using either SBMP or MBMP method.
+
+    Args:
+        s2l_data (NDArray | GeoTensor): Current satellite image array with shape (C, H, W) where C is the number of bands.
+        background_s2l (NDArray | GeoTensor): Background/reference satellite image array with shape (C, H, W).
+        offshore (bool): Whether the location is offshore. If True, uses SBMP method,
+            otherwise uses MBMP method.
+        satellite (str): Satellite name (e.g., 'S2A', 'S2B', 'S2C', 'LC08', 'LC09').
+        sza (float): Solar zenith angle in degrees.
+        vza (float): View zenith angle in degrees.
+        b11_index (int): Index of B11 band in the satellite data.
+        b12_index (int): Index of B12 band in the satellite data.
+        validmask (Optional[NDArray | GeoTensor], optional): Boolean mask indicating valid pixels (True for valid). Defaults to None.
+        label (Optional[NDArray | GeoTensor], optional): Boolean mask indicating plume pixels. Defaults to None.
+        b12_index_bg (Optional[int], optional): Index of B12 band in the background data. Defaults to None (uses b12_index).
+        b11_index_bg (Optional[int], optional): Index of B11 band in the background data. Defaults to None (uses b11_index).
+        corregister (bool, optional): If True, it uses satalign to do corregister the images. Defaults to True.
+        corregister_bands (bool, optional): If True, it uses satalign to do corregister the B11 and B12 bands for each image. Defaults to False.
+        transmittance_interpolator (Optional[TransmittanceCH4Interpolation], optional): Transmittance interpolation object
+            used to convert ratio to CH4 concentration. Defaults to TransmittanceCH4InterpolationFromDict().
+
+    Returns:
+        NDArray: Retrieved delta XCH4 concentration in ppb with shape (H, W).
+
+    Notes:
+        - SBMP (Single Band Matched Pair) is used for offshore locations
+        - MBMP (Multi Band Matched Pair) is used for onshore locations
+    """
+
+    if transmittance_interpolator is None:
+        transmittance_interpolator = TransmittanceCH4InterpolationFromDict()
+
+    if offshore:
+        # For SBMP, we need to concatenate image and background
+        dtrest = mixing_ratio_methane.ratio_bands(
+            s2l_data,
+            numerator_index=b12_index,
+            denominator_index=b11_index,
+            validmask=validmask,
+            fill_value_default=1,
+            plumemaskbool=label,
+        )
+    else:
+        dtrest = mixing_ratio_methane.ratio_IL(
+            s2l_data,
+            background_s2=background_s2l,
+            b11_index=b11_index,
+            b12_index=b12_index,
+            b12_index_bg=b12_index_bg,
+            b11_index_bg=b11_index_bg,
+            fill_value_ratio_il=1,
+            validmask=validmask,
+            plumemaskbool=label,
+            corregister=corregister,
+            corregister_bands=corregister_bands,
+        )
+
+    ch4 = transmittance_interpolator.deltach4_from_ratio_transmittance(
+        satellite=satellite, sza=sza, vza=vza, ratio_il=dtrest
+    )
+
+    return ch4
 
 
 class TransmittanceCH4Interpolation:

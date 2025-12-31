@@ -32,7 +32,6 @@ def run_eval(
     csv_path: str = CSV_PATH_DEFAULT,
     device_name: str = "cuda",
     logger: Optional[logging.Logger] = None,
-    log_images: bool = False,
     all_locs=None,
     num_workers: int = 4,
     batch_size: int = 16,
@@ -89,24 +88,7 @@ def run_eval(
     model = BaselineModel()
 
     os.makedirs(output_dir, exist_ok=True)
-    if log_images:
-        output, images = run_validation(
-            test_loader,
-            model,
-            mode="test",
-            threshold_pixels=threshold_pixels,
-            threshold=threshold_mbmp,
-            apply_sigmoid=False,
-            extra_keys_to_gpu=["mbmp"],
-            log_images=log_images,
-        )
-        for im in images.keys():
-            np.save(
-                os.path.join(output_dir, f"plot_{split}{suffix_output}_{im}.npy"),
-                images[im],
-            )
-    else:
-        output = run_validation(
+    output = run_validation(
             test_loader,
             model,
             mode="test",
@@ -153,7 +135,7 @@ if __name__ == "__main__":
         type=int,
         help=f"Threshold to use to set values as plume. Default {-0.95}",
     )
-    parser.add_argument("--log_images", action="store_true", default=False)
+
     parser.add_argument("--suffix_output", default="", help="Suffix to add to the output files")
     parser.add_argument(
         "--path_prepend_data",
@@ -179,6 +161,5 @@ if __name__ == "__main__":
         batch_size=args_parsed.batch_size,
         threshold_pixels=args_parsed.threshold_pixels,
         threshold_mbmp=args_parsed.threshold_mbmp,
-        path_prepend_data=args_parsed.path_prepend_data,
-        log_images=args_parsed.log_images,
+        path_prepend_data=args_parsed.path_prepend_data
     )

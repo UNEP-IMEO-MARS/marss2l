@@ -1,23 +1,22 @@
-import argparse
 import json
 import logging
 import os
-from typing import Optional
+from typing import Annotated, Optional
 
+import cyclopts
 import fsspec
 import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 
 from marss2l.dataframe_image_plumes import load_dataframe_split, read_csv_images
 from marss2l.loaders import CSV_PATH_DEFAULT, DatasetPlumes
+from marss2l.metrics import get_pixellevel_metrics, get_scenelevel_metrics
 from marss2l.models import load_model, load_weights
-from marss2l.utils import fs_from_path, setup_stream_logger, setup_file_logger
+from marss2l.utils import fs_from_path, setup_file_logger, setup_stream_logger
 from marss2l.validation_utils import THRESHOLD_PIXELS, run_validation
-from marss2l.metrics import get_scenelevel_metrics, get_pixellevel_metrics
-
-import pandas as pd
 
 # def debug_collate(batch):
 #     elem = batch[0]
@@ -44,27 +43,77 @@ config_default = {"batch_norm": True, "film_train_zero_id": True}
 DEFAULT_WEIGHTS_FILE_NAME = "best_epoch"
 
 
+app = cyclopts.App(
+    name="eval_final",
+    help="""Evaluate trained MARS-S2L models on test/validation splits.
+
+Loads a trained model checkpoint and configuration, runs inference on specified data split, 
+and computes scene-level and pixel-level metrics (precision, recall, F1, IoU, etc.).
+
+Outputs predictions CSV with per-image results and summary metrics.
+
+Smoke test mode (fast validation):
+    python -m marss2l.eval_final --smoke-test --output-dir train_logs/MARSS2L_20250326 --device-name cpu --batch-size 4 --num-workers 2
+
+Example usage:
+    python -m marss2l.eval_final --output-dir train_logs/MARSS2L_20250326 --split test_2023
+"""
+)
+
+
+@app.default
 def run_eval(
-    output_dir: str,
-    split: str = "test",
-    csv_path: str = CSV_PATH_DEFAULT,
-    device_name: str = "cuda",
-    logger: Optional[logging.Logger] = None,
-    log_images: bool = False,
-    all_locs=None,
-    num_workers: int = 4,
-    batch_size: int = 16,
-    suffix_output: str = "",
-    threshold_pixels: int = THRESHOLD_PIXELS,
-    weights_file_name: str = DEFAULT_WEIGHTS_FILE_NAME,
-    path_prepend_data: Optional[str] = None,
-    fs: Optional[fsspec.AbstractFileSystem] = None,
+    output_dir: Annotated[str, cyclopts.Parameter(help="Directory containing model checkpoint and config")],
+    split: Annotated[str, cyclopts.Parameter(help="Data split to evaluate (e.g., 'test', 'test_2023', 'post_2022_test')")] = "test_2023",
+    csv_path: Annotated[str, cyclopts.Parameter(help="Path to CSV file with image metadata")] = CSV_PATH_DEFAULT,
+    device_name: Annotated[str, cyclopts.Parameter(help="Device for inference (cuda or cpu)")] = "cuda",
+    logger: Annotated[Optional[logging.Logger], cyclopts.Parameter(help="Logger instance (auto-created if None)")] = None,
+    num_workers: Annotated[int, cyclopts.Parameter(help="Number of dataloader workers")] = 4,
+    batch_size: Annotated[int, cyclopts.Parameter(help="Batch size for inference")] = 16,
+    suffix_output: Annotated[str, cyclopts.Parameter(help="Suffix to add to output CSV files")] = "",
+    threshold_pixels: Annotated[int, cyclopts.Parameter(help="Min connected pixels for scene-level detection")] = THRESHOLD_PIXELS,
+    weights_file_name: Annotated[str, cyclopts.Parameter(help="Checkpoint filename to load")] = DEFAULT_WEIGHTS_FILE_NAME,
+    path_prepend_data: Annotated[Optional[str], cyclopts.Parameter(help="Prepend path to data files (for HuggingFace datasets)")] = None,
+    smoke_test: Annotated[bool, cyclopts.Parameter(help="Run evaluation on subset of data without saving results")] = False,
+    fs: Annotated[Optional[fsspec.AbstractFileSystem], cyclopts.Parameter(help="Filesystem for reading data")] = None,
 ):
+    """
+    Run model evaluation on a specified data split.
+    
+    Loads trained model weights and configuration from output_dir, creates a test dataset,
+    runs inference, and computes comprehensive evaluation metrics including:
+    - Scene-level: precision, recall, F1, average precision
+    - Pixel-level: IoU, precision, recall, F1
+    
+    Outputs:
+    - preds_{split}{suffix}.csv: Per-image predictions and metrics (unless smoke_test)
+    - Console: Summary statistics table
+    
+    Args:
+        output_dir: Directory containing best_epoch checkpoint and config_experiment.json
+        split: Name of the data split to evaluate
+        csv_path: Path to master CSV file with all image metadata
+        device_name: PyTorch device (cuda/cpu)
+        logger: Optional logger instance
+        num_workers: DataLoader worker processes
+        batch_size: Inference batch size
+        suffix_output: Optional suffix for output files
+        threshold_pixels: Minimum connected component size for scene detection
+        weights_file_name: Name of checkpoint file (default: best_epoch)
+        path_prepend_data: Path prefix for data files
+        smoke_test: If True, evaluates subset without saving files
+        fs: Optional filesystem object for remote data
+    """
 
     if logger is None:
-        logger = logging.getLogger(__name__)
-        setup_stream_logger(logger, logging.INFO)
+        if smoke_test:
+            logger = setup_stream_logger(level=logging.INFO)
+        else:
+            logger = setup_file_logger("log", "eval_final")
     
+    # Auto-append weights file name to suffix if non-default and no suffix provided
+    if len(suffix_output) == 0 and weights_file_name != DEFAULT_WEIGHTS_FILE_NAME:
+        suffix_output = f"_{weights_file_name}"
 
     torch.backends.cudnn.benchmark = True
     device = torch.device(device_name)
@@ -119,7 +168,8 @@ def run_eval(
         split=split,
         fs=fs,
         logger=logger,
-        load_plumes=False
+        load_plumes=False,
+        smoke_test=smoke_test,
     )
 
     test_dataset = DatasetPlumes(
@@ -147,6 +197,7 @@ def run_eval(
         num_workers=num_workers,
         shuffle=False,
         collate_fn=default_collate,
+        pin_memory=False, # Otherwise we should set device in dataset to cpu
     )
 
     model = load_model(
@@ -166,29 +217,16 @@ def run_eval(
 
     logger.info(f"Running evaluation on {split} split, file {csv_path} model weights from {weights_file}")
 
-    if log_images:
-        output, images = run_validation(
-            test_loader,
-            model,
-            mode="test",
-            threshold_pixels=threshold_pixels,
-            device=device,
-            log_images=log_images,
-        )
-        for im in images.keys():
-            np.save(
-                os.path.join(output_dir, f"plot_{split}{suffix_output}_{im}.npy"),
-                images[im],
-            )
-    else:
-        output = run_validation(
+    output = run_validation(
             test_loader,
             model,
             threshold_pixels=threshold_pixels,
             device=device,
             mode="test",
         )
-    output.to_csv(os.path.join(output_dir, f"preds_{split}{suffix_output}.csv"), index=False)
+    
+    if not smoke_test:
+        output.to_csv(os.path.join(output_dir, f"preds_{split}{suffix_output}.csv"), index=False)
 
     # Log eval metrics
     outs_merge = output.drop(["location_name", "tile"], axis=1)
@@ -213,10 +251,14 @@ def run_eval(
     logger.info(f"Eval metrics:\n{mets.to_string(index=False)}")
 
     # if model is FiLM evaluate the site_id zero
-    if film_train_zero_id and (model_name == "film"):
+    if film_train_zero_id and (model_name == "film") and not smoke_test:
         test_dataset.film_dict_mapping = None
         test_loader = DataLoader(
-            test_dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False
+            test_dataset, 
+            batch_size=batch_size, 
+            num_workers=num_workers, 
+            shuffle=False, 
+            pin_memory=False
         )
         output = run_validation(test_loader, model, threshold_pixels=threshold_pixels, mode="test")
         output.to_csv(
@@ -225,73 +267,6 @@ def run_eval(
         )
 
 
-
 if __name__ == "__main__":
     torch.multiprocessing.set_start_method("spawn")
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--output_dir",
-        required=True,
-        help="Directory to save the experiments results. e.g. train_logs/multipass_wind_sim/",
-    )
-    parser.add_argument(
-        "--split",
-        default="test_2023",
-        help="Split to evaluate. e.g. test, post_2022_test, test_2023",
-    )
-    parser.add_argument(
-        "--csv_path",
-        default=CSV_PATH_DEFAULT,
-        help="Path to the csv file with the data",
-    )
-    parser.add_argument("--suffix_output", default="", help="Suffix to add to the output files")
-    parser.add_argument(
-        "--device", default="cuda", help="Device to run the model. e.g. cuda or cpu"
-    )
-    parser.add_argument(
-        "--batch_size", default=16, type=int, help="Batch size to run the evaluation"
-    )
-    parser.add_argument(
-        "--num_workers", default=4, type=int, help="Number of workers to load the data"
-    )
-    parser.add_argument(
-        "--threshold_pixels",
-        default=THRESHOLD_PIXELS,
-        type=int,
-        help=f"Threshold to use in the connected components to scene-level prediction. Default {THRESHOLD_PIXELS}",
-    )
-    parser.add_argument("--log_images", action="store_true", default=False)
-    parser.add_argument(
-        "--weights_file_name",
-        default=DEFAULT_WEIGHTS_FILE_NAME,
-        help="Name of the weights file to load default: %(default)s",
-    )
-    parser.add_argument(
-        "--path_prepend_data",
-        type=str,
-        default=None,
-        help="Path to prepend to data paths (s2path, plumepath, cloudmaskpath, ch4path). Required for dataset downloaded from Hugging Face.",
-    )
-
-    args_parsed = parser.parse_args()
-    logger = setup_file_logger("log","eval_final")
-
-    suffix_output = args_parsed.suffix_output
-    # Append the weights file name to the suffix if it is different from the default
-    if len(suffix_output) == 0 and args_parsed.weights_file_name != DEFAULT_WEIGHTS_FILE_NAME:
-        suffix_output = f"_{args_parsed.weights_file_name}"
-
-    run_eval(
-        output_dir=args_parsed.output_dir,
-        split=args_parsed.split,
-        csv_path=args_parsed.csv_path,
-        suffix_output=suffix_output,
-        device_name=args_parsed.device,
-        logger=logger,
-        num_workers=args_parsed.num_workers,
-        batch_size=args_parsed.batch_size,
-        threshold_pixels=args_parsed.threshold_pixels,
-        weights_file_name=args_parsed.weights_file_name,
-        log_images=args_parsed.log_images,
-        path_prepend_data=args_parsed.path_prepend_data,
-    )
+    app()

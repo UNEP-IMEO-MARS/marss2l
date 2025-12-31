@@ -191,7 +191,7 @@ if __name__ == "__main__":
             if not os.path.exists(best_epoch_file) or not os.path.exists(config_file):
                 logger.info(f"Training model for experiment: {experiment_name}")
 
-                train_final.run_training(
+                train_final.run(
                     output_dir,
                     **experiment_config,
                     csv_path=csv_path,
@@ -244,7 +244,6 @@ if __name__ == "__main__":
                         csv_path=csv_path,
                         batch_size=batch_size_val,
                         num_workers=num_workers_val,
-                        log_images=False,
                         path_prepend_data=path_prepend_data,
                         logger=logger,
                         fs=fsread,
