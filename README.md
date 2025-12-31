@@ -103,8 +103,8 @@ In order to re-run the evaluation in the test set with the trained model propose
 ## Dataset structure
 
 The file [`validated_images_all.csv`](https://huggingface.co/datasets/UNEP-IMEO/MARS-S2L/blob/main/validated_images_all.csv) contains the metadata of all the items in the dataset. Each item comprises a Sentinel-2 or Landsat image of 200x200 pixels
-together with its concatenated background image and the cloud mask. The plume mask and the methane enhancement image in ppb are also provided for positive samples. In addition, each item
-includes several metadata described  in the next section. (*Images metadata description*).
+together with its concatenated background image and the cloud mask. The methane enhancement image (ΔXCH₄) in ppb is also provided for positive samples. For positive samples, a vector multipolygon in WKT format is provided. In addition, each item
+includes several metadata described in the next section. (*Images metadata description*).
 
 The file [`validated_images_plumes.csv`](https://huggingface.co/datasets/UNEP-IMEO/MARS-S2L/blob/main/validated_images_plumes.csv) contains all validated plumes in the dataset. Notice that there are few images that contain more than one plume. 
 The content of this file is described in the *Plumes metadata description* section.
@@ -116,7 +116,6 @@ Column description of file [`validated_images_all.csv`](https://huggingface.co/d
 | Name      | Description      | Example | 
 | ------------- | ------------- | -------- |
 |s2path| Path to S2 or Landsat image concatenated with the background image. S2 L1C image with bands: B02, B03, B04, B08, B11, B12. Landsat TOA reflectance image with bands  B02, B03, B04, B05, B06, B07 | data/train_2023/43/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_s2.tif |
-|plumepath| Path to binary representation of the mask. Only provided for positive samples (`isplume` `True`). | data/train_2023/43/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_label.tif |
 |cloudmaskpath| Path to cloud mask generated with CloudSEN12 with interpretation `{0 : "clear", 1: "Thick cloud", 2: "Thin cloud", 3: "Cloud shadow"}` | data/train_2023/43/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_cloudmask.tif |
 |ch4path| Path to the ΔXCH₄ enhancement image in ppb. Only provided for positive samples (`isplume` `True`). | data/train_2023/43/b82be820-fe9c-411a-af20-82cf162760a7_ea782bfb-21b6-46c5-a6ed-d3b8ef8815a0_ch4.tif |
 |wind_u| U component of the wind at 10m | -1.87 |
@@ -172,8 +171,8 @@ Column description of file [`validated_images_plumes.csv`](https://huggingface.c
 |tile| Name of the S2 or Landsat product | S2A_MSIL1C_20240613T100031_N0510_R122_T32RNS_20240613T134114 or LC08_L1TP_192040_20190601_20200828_02_T1 |
 |tile_date| Date of acquisition | 2024-06-13 10:00:31+00:00 |
 |satellite| Name of the satellite | S2A, S2B, LC08 or LC09 |
-|lat | Latitude origin of the plume | 28.088329877970512|
-|lon | Longitude origin of the plume | 9.78350881586494|
+|lat | Latitude of the source of the plume | 28.088329877970512|
+|lon | Longitude of the source of the plume | 9.78350881586494|
 |ch4_fluxrate | Estimated flux rate of the plume in kg/h | 9639.58562343052|
 |ch4_fluxrate_std | Estimated std of the flux rate of the plume in kg/h | 3964.424919968837|
 |geometry | Plume shape | MULTIPOLYGON (((9.782459 28.090423, 9.782716 28.089211, 9.782802 28.088378, 9.783746 28.088151, 9.78396 28.089249, 9.784217 28.090953, 9.784475 28.092316, 9.784432 28.093528, 9.783788 28.095156, 9.782802 28.095383, 9.78293 28.09402, 9.782716 28.093339, 9.782201 28.092203, 9.782416 28.09118, 9.782459 28.090423)))|
