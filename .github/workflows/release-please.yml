@@ -79,4 +79,5 @@ jobs:
       - name: Build and publish docs
         run: |
           mkdocs build
+          # ghp-import flags: -n adds .nojekyll, -p pushes to gh-pages, -f forces push
           ghp-import -n -p -f site
