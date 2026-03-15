@@ -67,7 +67,7 @@ def run_eval(
     split: Annotated[str, cyclopts.Parameter(help="Data split to evaluate (e.g., 'test', 'test_2023', 'post_2022_test')")] = "test_2023",
     csv_path: Annotated[str, cyclopts.Parameter(help="Path to CSV file with image metadata")] = CSV_PATH_DEFAULT,
     device_name: Annotated[str, cyclopts.Parameter(help="Device for inference (cuda or cpu)")] = "cuda",
-    logger: Annotated[Optional[logging.Logger], cyclopts.Parameter(help="Logger instance (auto-created if None)")] = None,
+    logger: Optional[logging.Logger] = None,
     num_workers: Annotated[int, cyclopts.Parameter(help="Number of dataloader workers")] = 4,
     batch_size: Annotated[int, cyclopts.Parameter(help="Batch size for inference")] = 16,
     suffix_output: Annotated[str, cyclopts.Parameter(help="Suffix to add to output CSV files")] = "",
@@ -75,7 +75,7 @@ def run_eval(
     weights_file_name: Annotated[str, cyclopts.Parameter(help="Checkpoint filename to load")] = DEFAULT_WEIGHTS_FILE_NAME,
     path_prepend_data: Annotated[Optional[str], cyclopts.Parameter(help="Prepend path to data files (for HuggingFace datasets)")] = None,
     smoke_test: Annotated[bool, cyclopts.Parameter(help="Run evaluation on subset of data without saving results")] = False,
-    fs: Annotated[Optional[fsspec.AbstractFileSystem], cyclopts.Parameter(help="Filesystem for reading data")] = None,
+    fs: Optional[fsspec.AbstractFileSystem] = None,
 ):
     """
     Run model evaluation on a specified data split.

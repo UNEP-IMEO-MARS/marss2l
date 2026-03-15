@@ -14,6 +14,7 @@ import wandb
 from torch.utils.data import DataLoader, get_worker_info
 
 from marss2l import models
+from marss2l.seed import seed_all
 from marss2l.dataframe_image_plumes import (
     CSV_LOCSOURCES_PATH_DEFAULT,
     CSV_PLUME_PATH_DEFAULT,
@@ -126,7 +127,7 @@ def run(
     csv_sources_path: Annotated[Optional[str], cyclopts.Parameter(help="Path to CSV file with source locations for simulation")] = CSV_LOCSOURCES_PATH_DEFAULT,
     split: Annotated[str, cyclopts.Parameter(help="Data split strategy (e.g., 'all', 'spatial', 'temporal')")] = DEFAULT_SPLIT,
     film_train_zero_id: Annotated[bool, cyclopts.Parameter(help="Train FiLM zero ID for unknown locations")] = DEFAULT_FILM_TRAIN_ZERO_ID,
-    logger: Annotated[Optional[logging.Logger], cyclopts.Parameter(help="Logger instance (auto-created if None)")] = None,
+    logger: Optional[logging.Logger] = None,
     num_workers: Annotated[int, cyclopts.Parameter(help="Number of dataloader workers for training")] = DEFAULT_NUM_WORKERS,
     num_workers_val: Annotated[int, cyclopts.Parameter(help="Number of dataloader workers for validation")] = DEFAULT_NUM_WORKERS_VAL,
     cache_all: Annotated[bool, cyclopts.Parameter(help="Cache all training images in memory")] = True,
@@ -164,8 +165,13 @@ def run(
     path_prepend_data: Annotated[Optional[str], cyclopts.Parameter(help="Prepend path to data files")] = None,
     smoke_test: Annotated[bool, cyclopts.Parameter(help="Run 2 epochs of training with a subset of train and validation data")] = False,
     wandb_project: Annotated[str, cyclopts.Parameter(help="Wandb project name for logging")] = os.environ.get("WANDB_PROJECT", DEFAULT_WANDB_PROJECT),
-    fsread: Annotated[Optional[fsspec.AbstractFileSystem], cyclopts.Parameter(help="Filesystem for reading data")] = None,
+    fsread: Optional[fsspec.AbstractFileSystem] = None,
+    seed: Annotated[Optional[int], cyclopts.Parameter(help="Random seed for reproducibility (sets all random number generators)")] = None,
 ):
+    # Set random seed if provided
+    if seed is not None:
+        seed_all(seed)
+    
     # Setup logger
     if logger is None:
         if smoke_test:
