@@ -40,6 +40,7 @@ SIGMA_CH4_S2_PPB = 205.64270005117675  # ppb
 A_UEFF_S2 = 0.33  # [Varon 2018]
 B_UEFF_S2 = 0.45  # [Varon 2018]
 MAX_CH4_CONCENTRATION_PPB = 100_000  # ppb
+MIN_CH4_CONCENTRATION_PPB = -600  # ppb
 BACKGROUND_CONCENTRATION = 1800  # ppb
 
 
@@ -159,6 +160,7 @@ def obtain_flux_rate(
         assert len(resolution) == 2, "res must be a tuple with two elements"
 
     max_ch4_concentration = MAX_CH4_CONCENTRATION_PPB
+    min_ch4_concentration = MIN_CH4_CONCENTRATION_PPB
 
     if isinstance(methane_enhancement_image, GeoTensor):
         methane_enhancement_image = methane_enhancement_image.copy()
@@ -171,8 +173,13 @@ def obtain_flux_rate(
         methane_enhancement_image_values = methane_enhancement_image
         plume_mask_binary_values = plume_mask_binary
 
+    # Replace NaN and inf values by 0 (MAIR and MSAT images have many NaN values)
+    methane_enhancement_image_values = np.nan_to_num(
+        methane_enhancement_image_values, nan=0.0, posinf=0.0, neginf=0.0
+    )
+
     methane_enhancement_image_values = np.clip(
-        methane_enhancement_image_values, 0, max_ch4_concentration
+        methane_enhancement_image_values, min_ch4_concentration, max_ch4_concentration
     )
 
     methane_enhancement_image_values = convert_units(
@@ -221,15 +228,13 @@ def obtain_flux_rate(
         1e6 * 22.4
     )
 
-    # wind_speed_n = np.random.normal(1, wind_speed_unc, n_samp)
-
     noise_arr = rng.normal(0, 1, n_samp)
 
     # MonteCarlo propagation of the U10 to Ueff
     wind_speed_n = wind_speed * (
         1 + noise_arr * wind_speed_unc
     )  # uncertainty proportional to the wind speed because it is relative error
-    # wind_speed_n = np.random.normal(wind_speed, wind_speed_unc*wind_speed, n_samp) # equivalent to the previous line
+    # wind_speed_n = rng.normal(wind_speed, wind_speed_unc*wind_speed, n_samp) # equivalent to the previous line
 
     ueff_n = wind_speed_n * rng.normal(a_u_eff, a_std, n_samp) + rng.normal(b_u_eff, b_std, n_samp)
 

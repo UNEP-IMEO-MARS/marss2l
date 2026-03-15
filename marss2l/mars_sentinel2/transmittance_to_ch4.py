@@ -103,18 +103,23 @@ class TransmittanceCH4Interpolation:
         mr_ch4_arr: NDArray,
         background_concentration: float = BACKGROUND_CONCENTRATION,
         clip_values_retrieval: bool = True,
-        allow_negative_ch4: bool = False,
+        allow_negative_ch4: bool = True,
     ) -> None:
         """
 
         Class to do interpolation from transmittances to methane concentrations and vice versa.
 
+        Notes:
+        by default `clip_values_retrieval=True` and `allow_negative_ch4=True` (IMEO-620). This clips
+        the input values of the MBMP to [0.3, 1.08], for values greater than 1 the retrieved methane concentration
+        will be negative (for 1.08 roughly -500 ppb depending on the AMF).
+
         Args:
-            amf_arr (str, optional): Array with the air mass factor values.
-            mr_ch4_arr (str, optional): Array with the methane concentration values.
-            background_concentration (float, optional): Background concentration of methane in ppb. Defaults to `BACKGROUND_CONCENTRATION`.
-            clip_values_retrieval (bool, optional): clip the input values of the MBMP to [0.3, 1.08]. Defaults to True.
-            allow_negative_ch4 (bool, optional): allow negative methane concentration values. Defaults to False.
+            amf_arr (NDArray): Array with the air mass factor values.
+            mr_ch4_arr (NDArray): Array with the methane concentration values.
+            background_concentration (float): Background concentration of methane in ppb. Defaults to `mixing_ratio_methane.BACKGROUND_CONCENTRATION`.
+            clip_values_retrieval (bool): clip the input values of the MBMP to [0.3, 1.08]. Defaults to True.
+            allow_negative_ch4 (bool): allow negative methane concentration values. Defaults to True. (IMEO-620)
         """
         self.background_concentration = background_concentration
 
@@ -328,6 +333,14 @@ class TransmittanceCH4Interpolation:
         transmittance_b12_bg = self._transmittance_B12_bg(satellite, amf)
         transmittance_b11_bg = self._transmittance_B11_bg(satellite, amf)
 
+        if isinstance(ratio_il, GeoTensor):
+            invalids_mask = ratio_il.values == ratio_il.fill_value_default
+        else:
+            invalids_mask = np.isnan(ratio_il) | (ratio_il == 0)
+
+        if clip_values_retrieval is not None:
+            ratio_il = ratio_il.clip(MIN_MBMP_VALUE, MAX_MBMP_VALUE)
+
         ratio_il_corrected = ratio_il * transmittance_b12_bg / transmittance_b11_bg
 
         ratio_trans = transmittance_b12 / transmittance_b11
@@ -340,20 +353,10 @@ class TransmittanceCH4Interpolation:
             kind="cubic",
         )
 
-        if clip_values_retrieval:
-            # Clips the input ratio to min and max values and also clips the output methane concentration to be non-negative.
-            max_ratio_trans = max(np.max(ratio_trans), MAX_MBMP_VALUE)
-            min_ratio_trans = min(np.min(ratio_trans), MIN_MBMP_VALUE)
-            fun_clipping_inputs = lambda x: np.clip(x, min_ratio_trans, max_ratio_trans)
-        else:
-            fun_clipping_inputs = lambda x: x
-
         if allow_negative_ch4:
-            final_fun = lambda x: interpfun(fun_clipping_inputs(x)) - self.background_concentration
+            final_fun = lambda x: interpfun(x) - self.background_concentration
         else:
-            final_fun = lambda x: np.clip(
-                interpfun(fun_clipping_inputs(x)) - self.background_concentration, 0, None
-            )
+            final_fun = lambda x: np.clip(interpfun(x) - self.background_concentration, 0, None)
 
         # Equivalent to:
         # final_fun = interpolate.interp1d(transmittance_b12/transmittance_b11,
@@ -361,7 +364,15 @@ class TransmittanceCH4Interpolation:
         #                                  axis=0,
         #                                  fill_value="extrapolate", kind='cubic')
 
-        return mixing_ratio_methane.apply_interpfun_to_image(final_fun, ratio_il_corrected)
+        dxch4 = mixing_ratio_methane.apply_interpfun_to_image(
+            final_fun, ratio_il_corrected, fill_value_default=0
+        )
+        if isinstance(ratio_il, GeoTensor):
+            dxch4.values[invalids_mask] = ratio_il.fill_value_default
+        else:
+            dxch4[invalids_mask] = 0
+
+        return dxch4
 
     def deltach4_from_B12_transmittance(
         self,
@@ -462,9 +473,7 @@ class TransmittanceCH4InterpolationFromLUT(TransmittanceCH4Interpolation):
         background_concentration: float = BACKGROUND_CONCENTRATION,
         trans_tot_as_tbg: bool = False,
     ):
-        wvl_mod, t_full_arr, mr_ch4_arr, amf_arr, eg_arr, trans_tot_arr = (
-            mixing_ratio_methane.load_all_lut(lut_file)
-        )
+        wvl_mod, t_full_arr, mr_ch4_arr, amf_arr, eg_arr, trans_tot_arr = mixing_ratio_methane.load_all_lut(lut_file)
         super().__init__(amf_arr, mr_ch4_arr, background_concentration=background_concentration)
 
         self.with_ltoa_correction = with_ltoa_correction
@@ -536,14 +545,10 @@ class TransmittanceCH4InterpolationFromLUT(TransmittanceCH4Interpolation):
                     * self.t_background_transmittance[:, np.newaxis, :]
                     * self.t_full_arr
                     * b12srf_interp
-                ).sum(
-                    axis=-1
-                ) / b12srf_interp.sum()  # (8, 9)
+                ).sum(axis=-1) / b12srf_interp.sum()  # (8, 9)
                 transmittance_b12_bg = (
                     self.eg_arr * self.t_background_transmittance[:, np.newaxis, :] * b12srf_interp
-                ).sum(
-                    axis=-1
-                ) / b12srf_interp.sum()  # (8,1)
+                ).sum(axis=-1) / b12srf_interp.sum()  # (8,1)
                 transmittance_b12_bg = transmittance_b12_bg[:, 0]  # (8,)
                 # transmittance_b12/= transmittance_b12_bg
             else:
@@ -553,9 +558,7 @@ class TransmittanceCH4InterpolationFromLUT(TransmittanceCH4Interpolation):
                     * self.t_full_arr
                     / self.t_background_transmittance[:, np.newaxis, :]
                     * b12srf_interp
-                ).sum(
-                    axis=-1
-                ) / b12srf_interp.sum()  # (8, 9)
+                ).sum(axis=-1) / b12srf_interp.sum()  # (8, 9)
                 transmittance_b12_bg = (self.eg_arr * self.trans_tot_arr * b12srf_interp).sum(
                     axis=-1
                 ) / b12srf_interp.sum()  # float
@@ -567,9 +570,7 @@ class TransmittanceCH4InterpolationFromLUT(TransmittanceCH4Interpolation):
             ) / b12srf_interp.sum()  # (8, 9)
             transmittance_b12_bg = (
                 self.t_background_transmittance[:, np.newaxis, :] * b12srf_interp
-            ).sum(
-                axis=-1
-            ) / b12srf_interp.sum()  # (8,1)
+            ).sum(axis=-1) / b12srf_interp.sum()  # (8,1)
             transmittance_b12_bg = transmittance_b12_bg[:, 0]  # (8,)
             # transmittance_b12/= transmittance_b12_bg
 
@@ -578,9 +579,7 @@ class TransmittanceCH4InterpolationFromLUT(TransmittanceCH4Interpolation):
         ) / b11srf_interp.sum()  # (8, 9)
         transmittance_b11_bg = (
             self.t_background_transmittance[:, np.newaxis, :] * b11srf_interp
-        ).sum(
-            axis=-1
-        ) / b11srf_interp.sum()  # (8,1)
+        ).sum(axis=-1) / b11srf_interp.sum()  # (8,1)
         # transmittance_b11/= transmittance_b11_bg
 
         interpolation_funtion_amf_transmittance_b12 = interpolate.interp1d(
@@ -724,17 +723,12 @@ if __name__ == "__main__":
     import argparse
     import json
 
-    from marsml import utils
+    from .. import utils
 
     # Parse config file
     parser = argparse.ArgumentParser(description="Export transmittance interpolation functions.")
-    parser.add_argument("--config_file", type=str, help="Path to the config file.")
-    args = parser.parse_args()
 
-    config = utils.CustomConfigParser()
-    config.read(args.config_file)
-
-    fs = utils.fs_access_from_config(config)
+    fs = utils.get_remote_filesystem()
 
     out = export_transmittances()
     with fs.open(LUT_PUBLIC_FILE, "w") as f:
