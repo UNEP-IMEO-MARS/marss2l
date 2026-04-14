@@ -1,6 +1,8 @@
 # Build and publish requirements
 build
 twine
+pytest
+nbmake
 # Documentation requirements
 mkdocs
 mkdocs-material

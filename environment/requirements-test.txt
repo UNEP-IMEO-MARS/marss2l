@@ -1,0 +1,18 @@
+# Minimal dependencies required to run the test suite
+numpy
+torch
+torchvision
+pandas>=2.0
+georeader-spaceml>=1.5.9
+marshsi>=0.1.1
+matplotlib
+tqdm
+scipy
+scikit-image
+satalign==0.1.1
+xarray
+rasterio
+shapely
+pytest
+nbmake
+pytest-cov

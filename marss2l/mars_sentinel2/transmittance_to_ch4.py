@@ -4,11 +4,12 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from georeader.geotensor import GeoTensor
+from marshsi.lut import FILE_LUT_GAS, air_mass_factor, load_all_lut
 from numpy.typing import NDArray
 from scipy import interpolate
 
 from . import mixing_ratio_methane
-from .quantification import BACKGROUND_CONCENTRATION
+from marshsi.quantification import BACKGROUND_CONCENTRATION
 
 MIN_MBMP_VALUE = 0.3
 MAX_MBMP_VALUE = 1.08
@@ -149,7 +150,7 @@ class TransmittanceCH4Interpolation:
         raise NotImplementedError("This method should be implemented in the subclass.")
 
     def air_mass_factor(self, sza: float, vza: float) -> float:
-        return np.clip(mixing_ratio_methane.air_mass_factor(sza, vza), None, self.amf_arr_max)
+        return np.clip(air_mass_factor(sza, vza), None, self.amf_arr_max)
 
     def _transmittance_B12_interpfun(
         self, satellite: str, amf: float
@@ -468,12 +469,12 @@ class TransmittanceCH4Interpolation:
 class TransmittanceCH4InterpolationFromLUT(TransmittanceCH4Interpolation):
     def __init__(
         self,
-        lut_file: str = mixing_ratio_methane.FILE_LUT_GAS,
+        lut_file: str = FILE_LUT_GAS,
         with_ltoa_correction: bool = True,
         background_concentration: float = BACKGROUND_CONCENTRATION,
         trans_tot_as_tbg: bool = False,
     ):
-        wvl_mod, t_full_arr, mr_ch4_arr, amf_arr, eg_arr, trans_tot_arr = mixing_ratio_methane.load_all_lut(lut_file)
+        wvl_mod, t_full_arr, mr_ch4_arr, amf_arr, eg_arr, trans_tot_arr = load_all_lut(lut_file)
         super().__init__(amf_arr, mr_ch4_arr, background_concentration=background_concentration)
 
         self.with_ltoa_correction = with_ltoa_correction
