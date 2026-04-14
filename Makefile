@@ -68,7 +68,22 @@ test-file:  ## Run a specific test file: make test-file FILE=tests/test_plume_de
 
 test-notebooks:  ## Run notebooks as integration tests with nbmake
 	@printf "\033[1;34mRunning notebooks with nbmake...\033[0m\n\n"
-	pytest --nbmake notebooks/examples/*.ipynb notebooks/figures/*.ipynb -v --nbmake-timeout=600
+	pytest --nbmake -v --nbmake-timeout=600 \
+		notebooks/examples/download_and_inference.ipynb \
+		notebooks/examples/plot_images_dataset_train.ipynb \
+		notebooks/examples/plot_plumes_dataset_test.ipynb \
+		notebooks/examples/run_inference.ipynb \
+		notebooks/figures/dataset_stats_by_split_and_geopackage_locations.ipynb \
+		notebooks/figures/figure_number_of_images_per_country.ipynb \
+		notebooks/figures/mdl_exploration_by_case_study.ipynb \
+		notebooks/figures/mdl_exploration_adapted.ipynb \
+		notebooks/figures/figure_wind_speed.ipynb \
+		notebooks/figures/stats_dataset_toareflectances.ipynb \
+		notebooks/figures/eval_model_and_figure_prob_vs_emission_rate.ipynb \
+		notebooks/figures/figure_controlled_releases.ipynb \
+		notebooks/figures/cloudsen12_experiment.ipynb \
+		notebooks/figures/ablation_threshold_pixels.ipynb \
+		notebooks/figures/iea_estimates_of_emissions.ipynb
 	@printf "\033[1;34mNotebook tests pass!\033[0m\n\n"
 
 ##@ Building
