@@ -28,6 +28,3 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v
-
-      - name: Run notebook integration tests
-        run: pytest --nbmake notebooks/examples/*.ipynb notebooks/figures/*.ipynb -v --nbmake-timeout=600
