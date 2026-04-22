@@ -10,6 +10,7 @@ Tests cover:
 """
 
 import warnings
+import json
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -93,6 +94,13 @@ class TestModuleConstants:
 
         assert t2ch4.LUT_PUBLIC_FILE is not None
         assert "integrated_transmittances.json" in t2ch4.LUT_PUBLIC_FILE
+
+    def test_lut_public_file_is_local_path(self):
+        """Test LUT_PUBLIC_FILE points to a local package file."""
+        from marss2l.mars_sentinel2 import transmittance_to_ch4 as t2ch4
+
+        assert not t2ch4.LUT_PUBLIC_FILE.startswith("az://")
+        assert os.path.exists(t2ch4.LUT_PUBLIC_FILE)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -432,6 +440,29 @@ class TestTransmittanceCH4InterpolationFromLUT:
 # ─────────────────────────────────────────────────────────────────────────────
 class TestTransmittanceCH4InterpolationFromDict:
     """Tests for TransmittanceCH4InterpolationFromDict class."""
+
+    def test_init_from_local_json_file(self, tmp_path):
+        """Test initialization from a local JSON file path."""
+        from marss2l.mars_sentinel2 import transmittance_to_ch4 as t2ch4
+
+        data = {
+            "amf_arr": [2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5],
+            "mr_ch4_arr": [[1700, 1800, 1850, 1900, 1950, 2000, 2100, 2200, 2500]] * 8,
+            "background_concentration": 1900,
+            "S2A": {
+                "transmittance_b12": [[0.95] * 9] * 8,
+                "transmittance_b11": [[0.98] * 9] * 8,
+                "transmittance_b12_bg": [0.96] * 8,
+                "transmittance_b11_bg": [0.99] * 8,
+            },
+        }
+        json_path = tmp_path / "integrated_transmittances.json"
+        json_path.write_text(json.dumps(data), encoding="utf-8")
+
+        interp = t2ch4.TransmittanceCH4InterpolationFromDict(str(json_path))
+
+        assert interp.background_concentration == 1900
+        assert len(interp.amf_arr) == 8
 
     def test_init_from_dict(self):
         """Test initialization from dictionary."""

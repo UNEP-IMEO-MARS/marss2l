@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -661,21 +662,14 @@ def export_transmittances(
     return out
 
 
-LUT_PUBLIC_FILE = "az://public/MARS-S2L/lut/integrated_transmittances.json"
+LUT_PUBLIC_FILE = os.path.join(os.path.dirname(__file__), "integrated_transmittances.json")
 
 
 class TransmittanceCH4InterpolationFromDict(TransmittanceCH4Interpolation):
     def __init__(self, dict_or_json_file: Union[str, Dict[str, Any]] = LUT_PUBLIC_FILE):
         if isinstance(dict_or_json_file, str):
-            if dict_or_json_file.startswith("az://public"):
-                from adlfs import AzureBlobFileSystem
-
-                fs = AzureBlobFileSystem(account_name="unepazeconomyadlsstorage")
-                with fs.open(dict_or_json_file, "r") as fh:
-                    data = json.load(fh)
-            else:
-                with open(dict_or_json_file, "r") as f:
-                    data = json.load(f)
+            with open(dict_or_json_file, "r") as f:
+                data = json.load(f)
         else:
             data = dict_or_json_file
         super().__init__(
@@ -722,15 +716,10 @@ class TransmittanceCH4InterpolationFromDict(TransmittanceCH4Interpolation):
 
 if __name__ == "__main__":
     import argparse
-    import json
-
-    from .. import utils
 
     # Parse config file
     parser = argparse.ArgumentParser(description="Export transmittance interpolation functions.")
 
-    fs = utils.get_remote_filesystem()
-
     out = export_transmittances()
-    with fs.open(LUT_PUBLIC_FILE, "w") as f:
+    with open(LUT_PUBLIC_FILE, "w") as f:
         json.dump(out, f)

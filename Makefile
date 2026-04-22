@@ -8,6 +8,7 @@ PIP = pip
 CONDA = conda
 SHELL = bash
 PKGROOT = marss2l
+NOTEBOOK_KERNEL ?= python3
 
 
 help:	## Display this help
@@ -68,7 +69,7 @@ test-file:  ## Run a specific test file: make test-file FILE=tests/test_plume_de
 
 test-notebooks:  ## Run notebooks as integration tests with nbmake
 	@printf "\033[1;34mRunning notebooks with nbmake...\033[0m\n\n"
-	pytest --nbmake -v --nbmake-timeout=600 \
+	pytest --nbmake -v --nbmake-timeout=600 --nbmake-kernel=$(NOTEBOOK_KERNEL) \
 		notebooks/examples/download_and_inference.ipynb \
 		notebooks/examples/plot_images_dataset_train.ipynb \
 		notebooks/examples/plot_plumes_dataset_test.ipynb \
