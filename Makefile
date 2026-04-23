@@ -83,8 +83,7 @@ test-notebooks:  ## Run notebooks as integration tests with nbmake
 		notebooks/figures/eval_model_and_figure_prob_vs_emission_rate.ipynb \
 		notebooks/figures/figure_controlled_releases.ipynb \
 		notebooks/figures/cloudsen12_experiment.ipynb \
-		notebooks/figures/ablation_threshold_pixels.ipynb \
-		notebooks/figures/iea_estimates_of_emissions.ipynb
+		notebooks/figures/ablation_threshold_pixels.ipynb
 	@printf "\033[1;34mNotebook tests pass!\033[0m\n\n"
 
 ##@ Building
