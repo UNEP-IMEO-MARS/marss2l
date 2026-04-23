@@ -3,7 +3,6 @@ Shared assertion helpers for marss2l tests.
 """
 
 import numpy as np
-from georeader.geotensor import GeoTensor
 
 
 def assert_valid_flux_result(result, *, expect_std=False):
