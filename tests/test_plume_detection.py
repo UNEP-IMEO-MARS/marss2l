@@ -301,10 +301,8 @@ class TestEdgeCases:
         pred = np.random.rand(100, 100).astype(np.float32)
         pred[50, 50] = np.nan
 
-        try:
-            result = binary_connected_prediction(
-                pred, threshold_prediction=0.5, threshold_pixels=10
-            )
-            assert result.shape == (100, 100)
-        except Exception:
-            pass
+        result = binary_connected_prediction(
+            pred, threshold_prediction=0.5, threshold_pixels=10
+        )
+
+        assert result.shape == (100, 100)
