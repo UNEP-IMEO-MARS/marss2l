@@ -13,6 +13,9 @@ satalign==0.1.1
 xarray
 rasterio
 shapely
+fsspec
+adlfs
+huggingface_hub[cli,torch]
 pytest
 nbmake
 pytest-cov
