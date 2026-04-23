@@ -11,6 +11,7 @@ Tests cover:
 
 import warnings
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -209,14 +210,6 @@ class TestTransmittanceCH4Interpolation:
 # Tests for TransmittanceCH4InterpolationFromLUT
 # ─────────────────────────────────────────────────────────────────────────────
 
-import os
-LUT_PATH = os.path.join(os.path.dirname(__file__), "../marss2l/output_Tch4_LUT_AMF_VZA_0_v2.nc")
-pytestmark_lut = pytest.mark.skipif(
-    not os.path.exists(LUT_PATH),
-    reason=f"LUT file not found: {LUT_PATH}"
-)
-
-@pytestmark_lut
 @patch(
     "marss2l.mars_sentinel2.mixing_ratio_methane.load_srfinterpfun",
     side_effect=_mock_load_srfinterpfun,
@@ -527,7 +520,6 @@ class TestTransmittanceCH4InterpolationFromDict:
 # ─────────────────────────────────────────────────────────────────────────────
 # Tests for export_transmittances function
 # ─────────────────────────────────────────────────────────────────────────────
-@pytestmark_lut
 @patch(
     "marss2l.mars_sentinel2.mixing_ratio_methane.load_srfinterpfun",
     side_effect=_mock_load_srfinterpfun,
@@ -573,7 +565,6 @@ class TestExportTransmittances:
 # ─────────────────────────────────────────────────────────────────────────────
 # Integration tests
 # ─────────────────────────────────────────────────────────────────────────────
-@pytestmark_lut
 @patch(
     "marss2l.mars_sentinel2.mixing_ratio_methane.load_srfinterpfun",
     side_effect=_mock_load_srfinterpfun,

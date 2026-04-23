@@ -611,7 +611,7 @@ class TransmittanceCH4InterpolationFromLUT(TransmittanceCH4Interpolation):
 
 def export_transmittances(
     satellites: List[str] = None,
-    lut_file: str = mixing_ratio_methane.FILE_LUT_GAS,
+    lut_file: str = FILE_LUT_GAS,
     with_ltoa_correction: bool = True,
     background_concentration: float = BACKGROUND_CONCENTRATION,
     trans_tot_as_tbg: bool = False,

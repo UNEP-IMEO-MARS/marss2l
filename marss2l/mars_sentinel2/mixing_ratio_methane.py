@@ -23,6 +23,7 @@ from georeader.geotensor import GeoTensor
 from georeader.readers import S2_SAFE_reader
 from numpy.typing import ArrayLike, NDArray
 from scipy import interpolate
+from marshsi.lut import FILE_LUT_GAS
 
 from .utils import align_images, corregister_images, values
 
@@ -31,10 +32,6 @@ warnings.filterwarnings(
     "ignore", "Unknown extension is not supported and will be removed", UserWarning
 )
 
-
-FILE_LUT_GAS = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "output_Tch4_LUT_AMF_VZA_0_v2.nc"
-)
 
 
 def ratio_bands(
