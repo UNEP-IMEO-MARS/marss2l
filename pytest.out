@@ -1,30 +1,9 @@
-============================= test session starts ==============================
-platform linux -- Python 3.12.12, pytest-8.4.2, pluggy-1.6.0 -- /home/gonzalo/mambaforge/envs/marsmlpy312_dev/bin/python3.12
-cachedir: .pytest_cache
-rootdir: /home/gonzalo/git/marss2l-public
-configfile: pyproject.toml
-plugins: env-1.2.0, anyio-4.12.1, cov-7.0.0, mock-3.15.1, asyncio-1.3.0
-asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collecting ... collected 142 items
+This file contained local `pytest` output and should not be committed.
+Generated test logs may include absolute paths, environment details, plugin versions,
+and frequently changing results that create unnecessary diff noise.
 
-tests/test_calculate_injection_slices.py::TestCalculateInjectionSlices::test_outside_bounds_bottom_right PASSED [  0%]
-tests/test_calculate_injection_slices.py::TestCalculateInjectionSlices::test_outside_bounds_top_left PASSED [  1%]
-tests/test_calculate_injection_slices.py::TestCalculateInjectionSlices::test_partial_overlap_bottom_right PASSED [  2%]
-tests/test_calculate_injection_slices.py::TestCalculateInjectionSlices::test_partial_overlap_top_left PASSED [  2%]
-tests/test_calculate_injection_slices.py::TestCalculateInjectionSlices::test_within_bounds PASSED [  3%]
-tests/test_georeader_utils.py::TestFindPadding::test_find_padding_no_padding_needed PASSED [  4%]
-tests/test_georeader_utils.py::TestFindPadding::test_find_padding_needs_padding PASSED [  4%]
-tests/test_georeader_utils.py::TestFindPadding::test_find_padding_small_value PASSED [  5%]
-tests/test_georeader_utils.py::TestFindPadding::test_find_padding_default_divisor PASSED [  6%]
-tests/test_georeader_utils.py::TestFindPadding::test_find_padding_divisor_32 PASSED [  7%]
-tests/test_georeader_utils.py::TestFindPadding::test_find_padding_exact_divisor PASSED [  7%]
-tests/test_georeader_utils.py::TestFindPadding::test_find_padding_value_zero PASSED [  8%]
-tests/test_georeader_utils.py::TestFindPadding::test_find_padding_large_value PASSED [  9%]
-tests/test_georeader_utils.py::TestFindPadding::test_find_padding_symmetric_when_even PASSED [  9%]
-tests/test_georeader_utils.py::TestFindPadding::test_find_padding_various_divisors PASSED [ 10%]
-tests/test_georeader_utils.py::TestPaddedPredict::test_padded_predict_basic PASSED [ 11%]
-tests/test_georeader_utils.py::TestPaddedPredict::test_padded_predict_preserves_spatial_dimensions PASSED [ 11%]
-tests/test_georeader_utils.py::TestPaddedPredict::test_padded_predict_no_padding_needed PASSED [ 12%]
+Remove this file from version control and add `pytest.out` to `.gitignore`
+if it is commonly generated in local development workflows.
 tests/test_georeader_utils.py::TestPaddedPredict::test_padded_predict_divisor_8 PASSED [ 13%]
 tests/test_georeader_utils.py::TestPaddedPredict::test_padded_predict_non_square PASSED [ 14%]
 tests/test_georeader_utils.py::TestPaddedPredict::test_padded_predict_cpu_device PASSED [ 14%]
