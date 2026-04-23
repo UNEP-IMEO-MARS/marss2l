@@ -29,7 +29,7 @@ dependencies = []  # This will be filled dynamically
 packages = {find = {where = ["."], include = ["marss2l*"]}}
 
 [tool.setuptools.package-data]
-marss2l = ["py.typed"]
+marss2l = ["py.typed", "mars_sentinel2/integrated_transmittances.json"]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["tests"]

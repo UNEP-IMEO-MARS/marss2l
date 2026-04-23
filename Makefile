@@ -8,6 +8,7 @@ PIP = pip
 CONDA = conda
 SHELL = bash
 PKGROOT = marss2l
+NOTEBOOK_KERNEL ?= python3
 
 
 help:	## Display this help
@@ -47,11 +48,43 @@ format: ## Code styling - black, isort
 		make isort
 		@printf "\033[1;34mPassed Formatting!\033[0m\n\n"
 
+
 ##@ Testing
 test:  ## Test code using pytest.
-		@printf "\033[1;34mRunning tests with pytest...\033[0m\n\n"
-		pytest -v tests
-		@printf "\033[1;34mPyTest passes!\033[0m\n\n"
+	@printf "\033[1;34mRunning tests with pytest...\033[0m\n\n"
+	pytest -v tests
+	@printf "\033[1;34mPyTest passes!\033[0m\n\n"
+
+test-cov:  ## Run tests with coverage report
+	@printf "\033[1;34mRunning tests with coverage...\033[0m\n\n"
+	pytest --cov=marss2l --cov-report=term-missing -v tests
+
+test-fast:  ## Run tests, stop on first failure, no warnings
+	@printf "\033[1;34mRunning fast tests (failfast, no warnings)...\033[0m\n\n"
+	pytest -v -x -p no:warnings tests
+
+test-file:  ## Run a specific test file: make test-file FILE=tests/test_plume_detection.py
+	@printf "\033[1;34mRunning tests in file: $(FILE)\033[0m\n\n"
+	pytest -v $(FILE)
+
+test-notebooks:  ## Run notebooks as integration tests with nbmake
+	@printf "\033[1;34mRunning notebooks with nbmake...\033[0m\n\n"
+	pytest --nbmake -v --nbmake-timeout=600 --nbmake-kernel=$(NOTEBOOK_KERNEL) \
+		notebooks/examples/download_and_inference.ipynb \
+		notebooks/examples/plot_images_dataset_train.ipynb \
+		notebooks/examples/plot_plumes_dataset_test.ipynb \
+		notebooks/examples/run_inference.ipynb \
+		notebooks/figures/dataset_stats_by_split_and_geopackage_locations.ipynb \
+		notebooks/figures/figure_number_of_images_per_country.ipynb \
+		notebooks/figures/mdl_exploration_by_case_study.ipynb \
+		notebooks/figures/mdl_exploration_adapted.ipynb \
+		notebooks/figures/figure_wind_speed.ipynb \
+		notebooks/figures/stats_dataset_toareflectances.ipynb \
+		notebooks/figures/eval_model_and_figure_prob_vs_emission_rate.ipynb \
+		notebooks/figures/figure_controlled_releases.ipynb \
+		notebooks/figures/cloudsen12_experiment.ipynb \
+		notebooks/figures/ablation_threshold_pixels.ipynb
+	@printf "\033[1;34mNotebook tests pass!\033[0m\n\n"
 
 ##@ Building
 build: ## Build the marss2l package

@@ -8,6 +8,7 @@ adlfs
 earthengine-api
 segmentation_models_pytorch
 georeader-spaceml>=1.5.9
+marshsi>=0.1.1
 matplotlib
 matplotlib-scalebar
 folium

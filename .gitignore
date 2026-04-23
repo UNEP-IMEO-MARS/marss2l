@@ -240,3 +240,5 @@ notebooks/examples/figures/VEN_0003.pdf
 notebooks/examples/figures/VEN_whwgthbp0.pdf
 notebooks/examples/figures/Y_1.pdf
 notebooks/examples/cloudsen12_models/landsat30.pt
+notebooks/examples/cloudsen12_models/UNetMobV2_V2.pt
+notebooks/examples/GEOS.fp.asm.tavg1_2d_slv_Nx.20250529_1730.V01.nc4
