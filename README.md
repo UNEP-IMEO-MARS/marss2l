@@ -4,7 +4,7 @@
 
 This package contains the operational UNEP International Methane Emissions Observatory (IMEO) pipeline for methane plume detection, segmentation, and quantification in Sentinel-2 and Landsat satellite imagery. The methods and models implemented in this package are described in:
 
-> Allen, Mateo-García, Irakulis-Loitxate et al., *Artificial intelligence for methane detection: from continuous monitoring to verified mitigation* [10.48550/arXiv.2511.21777](https://arxiv.org/abs/2511.21777)
+> Mateo-García, Allen, Irakulis-Loitxate et al., *Artificial intelligence for methane detection: from continuous monitoring to verified mitigation* [10.48550/arXiv.2511.21777](https://arxiv.org/abs/2511.21777)
 
 ### Licence
 
@@ -194,7 +194,7 @@ If you find this work useful, please cite:
 ```bibtex
 @article{allen_2025,
     title = {Artificial intelligence for methane detection: from continuous monitoring to verified mitigation},
-    author = {Allen, Anna and Mateo-Garcia, Gonzalo and Irakulis-Loitxate, Itziar and Martin, Manuel Montesino-San and Watine, Marc and Requeima, James and Gorroño, Javier and Randles, Cynthia and Mokalled, Tharwat and Guanter, Luis and Turner, Richard E. and Cifarelli, Claudio and Caltagirone, Manfredi},
+    author = {Mateo-Garcia, Gonzalo and Allen, Anna and Irakulis-Loitxate, Itziar and Montesino-San Martin, Manuel and Watine, Marc and Randles, Cynthia and Mokalled, Tharwat and Raunak, Alma and Castañeda-Martinez, Carol and Jonhson, Juan Enmmanuel and Gorroño, Javier and Requeima, James and Cifarelli, Claudio and Guanter, Luis and Turner, Richard E. and Caltagirone, Manfredi},
     url = {http://arxiv.org/abs/2511.21777},
     doi = {10.48550/arXiv.2511.21777},
     month = nov,
