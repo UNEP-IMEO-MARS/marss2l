@@ -4,12 +4,14 @@ twine
 pytest
 nbmake
 # Documentation requirements
-mkdocs
-mkdocs-material
-mkdocstrings
-mknotebooks
-mkdocs-awesome-pages-plugin
-mkdocs-same-dir
-pymdown-extensions
-mdx-truly-sane-lists
-ghp-import
+mkdocs==1.6.1
+mkdocs-material==9.7.0
+mkdocstrings==1.0.0
+mknotebooks==0.8.0
+mkdocs-awesome-pages-plugin==2.10.1
+mkdocs-same-dir==0.1.3
+pymdown-extensions==10.19.1
+mdx-truly-sane-lists==1.3
+ghp-import==2.1.0
+nbconvert==7.16.6
+traitlets==5.14.3
