@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.2...v0.2.3) (2026-04-27)
+
+
+### Documentation
+
+* fix bug docs with pinned packages. Add link to docs in readme ([1be6b44](https://github.com/UNEP-IMEO-MARS/marss2l/commit/1be6b44ee7cbd035be51e61c0673c16fccbbab0a))
+
 ## [0.2.2](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.1...v0.2.2) (2026-04-27)
 
 
