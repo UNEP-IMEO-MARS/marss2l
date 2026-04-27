@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.3...v0.2.4) (2026-04-27)
+
+
+### Documentation
+
+* updated notebook and added requirements to pyproject ([68a1956](https://github.com/UNEP-IMEO-MARS/marss2l/commit/68a19565a62a7fe8a69656b22f7b39f3d0e3de20))
+
 ## [0.2.3](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.2...v0.2.3) (2026-04-27)
 
 
