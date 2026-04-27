@@ -1,4 +1,4 @@
-[![MARS-S2L DOI:10.48550/arXiv.2511.21777](https://img.shields.io/badge/MARSS2L%20DOI-10.48550%2FarXiv.2511.21777-blue)](https://doi.org/10.48550/arXiv.2511.21777) [![PyPI](https://img.shields.io/pypi/v/marss2l)](https://pypi.org/project/marss2l/) [![PyPI - License](https://img.shields.io/pypi/l/marss2l)](https://github.com/UNEP-IMEO-MARS/marss2l/blob/main/LICENSE) [![HF](https://img.shields.io/badge/%F0%9F%A4%97-Datasets-yellow)](https://huggingface.co/datasets/UNEP-IMEO/MARS-S2L) [![HF](https://img.shields.io/badge/%F0%9F%A4%97-Models-yellow)](https://huggingface.co/UNEP-IMEO/MARS-S2L)
+[![MARS-S2L DOI:10.48550/arXiv.2511.21777](https://img.shields.io/badge/MARSS2L%20DOI-10.48550%2FarXiv.2511.21777-blue)](https://doi.org/10.48550/arXiv.2511.21777) [![PyPI](https://img.shields.io/pypi/v/marss2l)](https://pypi.org/project/marss2l/) [![PyPI - License](https://img.shields.io/pypi/l/marss2l)](https://github.com/UNEP-IMEO-MARS/marss2l/blob/main/LICENSE) [![HF](https://img.shields.io/badge/%F0%9F%A4%97-Datasets-yellow)](https://huggingface.co/datasets/UNEP-IMEO/MARS-S2L) [![HF](https://img.shields.io/badge/%F0%9F%A4%97-Models-yellow)](https://huggingface.co/UNEP-IMEO/MARS-S2L)[![docs](https://badgen.net/badge/docs/unep-imeo-mars.github.io%2Fmarss2l/blue)](https://unep-imeo-mars.github.io/marss2l/)
 
 # <img src="./notebooks/logo.png" alt="Logo" width='7%'> MARS-S2L
 
@@ -81,7 +81,6 @@ train_logs/
     ├── best_epoch
     ├── config_experiment.json
     └── preds_test_2023.csv
-
 ```
 
 Where:
