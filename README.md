@@ -191,7 +191,7 @@ The code in this package is published under a [GNU Lesser GPL v3 licence](https:
 If you find this work useful, please cite:
 
 ```bibtex
-@article{allen_2025,
+@article{mateogarcia_2025,
     title = {Artificial intelligence for methane detection: from continuous monitoring to verified mitigation},
     author = {Mateo-Garcia, Gonzalo and Allen, Anna and Irakulis-Loitxate, Itziar and Montesino-San Martin, Manuel and Watine, Marc and Randles, Cynthia and Mokalled, Tharwat and Raunak, Alma and Castañeda-Martinez, Carol and Jonhson, Juan Enmmanuel and Gorroño, Javier and Requeima, James and Cifarelli, Claudio and Guanter, Luis and Turner, Richard E. and Caltagirone, Manfredi},
     url = {http://arxiv.org/abs/2511.21777},
