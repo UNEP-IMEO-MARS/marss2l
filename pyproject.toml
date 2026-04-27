@@ -51,8 +51,8 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/gonzmg88/marss2l"
-"Bug Tracker" = "https://github.com/gonzmg88/marss2l/issues"
+"Homepage" = "https://github.com/UNEP-IMEO-MARS/marss2l"
+"Bug Tracker" = "https://github.com/UNEP-IMEO-MARS/marss2l/issues"
 
 [tool.setuptools]
 packages = {find = {where = ["."], include = ["marss2l*"]}}
