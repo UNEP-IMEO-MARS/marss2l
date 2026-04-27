@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.1...v0.2.2) (2026-04-27)
+
+
+### Documentation
+
+* updated docs notebooks ([674b0ed](https://github.com/UNEP-IMEO-MARS/marss2l/commit/674b0ed14d08373a01c5ec24160ddfc86685d913))
+
 ## [0.2.1](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.0...v0.2.1) (2026-04-23)
 
 
