@@ -18,8 +18,37 @@ license = "LGPL-3.0-or-later"
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
-# Dependencies will be read from the specified file
-dependencies = []  # This will be filled dynamically
+dependencies = [
+    "numpy",
+    "torch",
+    "torchvision",
+    "pandas>=2.0",
+    "geopandas>=0.13",
+    "fsspec",
+    "adlfs",
+    "earthengine-api",
+    "segmentation_models_pytorch",
+    "georeader-spaceml>=1.5.9",
+    "marshsi>=0.1.1",
+    "matplotlib",
+    "matplotlib-scalebar",
+    "folium",
+    "tqdm",
+    "scipy",
+    "seaborn",
+    "scikit-image",
+    "satalign==0.1.1",
+    "wandb",
+    "torchmetrics",
+    "scikit-learn",
+    "huggingface_hub[cli,torch]",
+    "xarray",
+    "netcdf4",
+    "rasterio",
+    "shapely",
+    "cloudsen12-models",
+    "cyclopts",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/gonzmg88/marss2l"
@@ -36,7 +65,6 @@ marss2l = ["py.typed", "mars_sentinel2/integrated_transmittances.json"]
 
 [tool.setuptools.dynamic]
 version = {attr = "marss2l.__version__"}
-dependencies = {file = ["environment/package_requirements.txt"]}
 
 [tool.black]
 line-length = 100
