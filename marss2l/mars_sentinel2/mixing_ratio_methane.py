@@ -448,7 +448,8 @@ def difference_bands(
     )
 
     # Average difference across the bands
-    diffimage.values = np.mean(diffimage.values, axis=0)
+    tmp = np.mean(diffimage.values, axis=0)
+    diffimage = GeoTensor(tmp, transform=diffimage.transform, crs=diffimage.crs, fill_value_default=diffimage.fill_value_default)
 
     if valid_mask is not None:
         diffimage.values[~valid_mask] = diffimage.fill_value_default

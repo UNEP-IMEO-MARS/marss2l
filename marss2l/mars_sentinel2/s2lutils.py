@@ -242,7 +242,8 @@ def download_image_and_angles(
         # Compute cloud mask
         geotensor = geotensor.isel({"band": slice(0, -2)})
         geotensor.fill_value_default = 0
-        geotensor.values = (geotensor.values * 10_000).astype(np.uint16)
+        tmp = (geotensor.values * 10_000).astype(np.uint16)
+        geotensor = GeoTensor(tmp, transform=geotensor.transform, crs=geotensor.crs, fill_value_default=geotensor.fill_value_default)
         geotensor.values[:, invalids] = geotensor.fill_value_default
         cloudmask = compute_cloud_mask(geotensor, channels_query_original, satellite=satellite)
 
