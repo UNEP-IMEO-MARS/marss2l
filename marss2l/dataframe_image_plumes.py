@@ -1198,7 +1198,9 @@ def load_image(
 
     gt = GeoTensor.load_file(path, fs=fs)
     if len(gt.shape) == 3 and gt.shape[0] == 1:
-        gt.values = gt.values[0]
+        gt = GeoTensor(
+            gt.values[0], transform=gt.transform, crs=gt.crs, fill_value_default=gt.fill_value_default
+        )
     return gt
 
 
