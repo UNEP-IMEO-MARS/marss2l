@@ -3,6 +3,8 @@ build
 twine
 pytest
 nbmake
+# Lock-file generation (make lock)
+pip-tools
 # Documentation requirements
 mkdocs==1.6.1
 mkdocs-material==9.7.0

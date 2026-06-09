@@ -50,6 +50,16 @@ dependencies = [
     "cyclopts",
 ]
 
+[project.optional-dependencies]
+# Test-only tools. Runtime deps come from `dependencies` above; the fully-pinned
+# CI lock (environment/requirements-test.lock) is generated from both via `make lock`.
+test = [
+    "pytest",
+    "pytest-cov",
+    "nbmake",
+    "ipykernel",
+]
+
 [project.urls]
 "Homepage" = "https://github.com/UNEP-IMEO-MARS/marss2l"
 "Bug Tracker" = "https://github.com/UNEP-IMEO-MARS/marss2l/issues"

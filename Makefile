@@ -1,4 +1,4 @@
-.PHONY: conda black isort format ruff-check-all ruff-check-missing-imports lint test build publish mount-container help
+.PHONY: conda black isort format ruff-check-all ruff-check-missing-imports lint test build publish mount-container help condaenv check-condaenv lock
 .DEFAULT_GOAL = help
 
 PYTHON = python
@@ -10,21 +10,54 @@ SHELL = bash
 PKGROOT = marss2l
 NOTEBOOK_KERNEL ?= python3
 
+# All action targets run inside this conda env; create it with `make condaenv`.
+# We call the env's binaries by absolute path (not `conda run -n ...`) so the right
+# env is targeted even when another conda env is already activated in the shell.
+CONDA_ENV = marss2lpy312
+CONDA_BASE := $(shell $(CONDA) info --base)
+ENV_BIN = $(CONDA_BASE)/envs/$(CONDA_ENV)/bin
+LOCKFILE = environment/requirements-test.lock
+
 
 help:	## Display this help
 		@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+##@ Environment
+check-condaenv:  ## Verify the conda env exists (helpful error if not)
+	@[ -x $(ENV_BIN)/python ] || { \
+		printf "\033[1;31m>>> Conda env '$(CONDA_ENV)' not found. Run 'make condaenv' first.\033[0m\n"; \
+		exit 1; }
+
+condaenv:  ## 🐍 Create the marss2lpy312 conda env (idempotent) and install deps from the lock
+	@[ -x $(ENV_BIN)/python ] || $(CONDA) create -y -n $(CONDA_ENV) python=$(VERSION) pip
+	$(ENV_BIN)/pip install -q pip-tools
+	@if [ -f $(LOCKFILE) ]; then \
+		$(ENV_BIN)/pip install -r $(LOCKFILE) && $(ENV_BIN)/pip install -e . --no-deps; \
+		printf "\033[1;32m>>> ✅ Env $(CONDA_ENV) ready\033[0m\n"; \
+	else \
+		printf "\033[1;33m>>> No lock file yet — run 'make lock', then re-run 'make condaenv'.\033[0m\n"; \
+	fi
+
+##@ Lock File
+lock: check-condaenv  ## 🔒 Regenerate environment/requirements-test.lock (pip-tools, georeader pinned to 2.3.1)
+	$(ENV_BIN)/pip install -q pip-tools
+	$(ENV_BIN)/pip-compile --strip-extras --extra test \
+		-P georeader-spaceml==2.3.1 \
+		--output-file $(LOCKFILE) \
+		pyproject.toml
+	@printf "\033[1;33m>>> Lock regenerated — don't forget to commit $(LOCKFILE)\033[0m\n"
 
 ##@ Linting
 # ruff-lint:  ## Lint Check using ruff
 # 		ruff format ${PKGROOT}/
 
-ruff-check-all:  ## Lint Check using ruff
-		ruff check --fix ${PKGROOT}/  --unsafe-fixes
+ruff-check-all: check-condaenv  ## Lint Check using ruff
+		$(ENV_BIN)/ruff check --fix ${PKGROOT}/  --unsafe-fixes
 		@printf "\033[1;34mruff-linting (missing imports) passes!\033[0m\n\n"
 
-ruff-check-missing-imports:  ## Ruff Check for undefined functions
-		ruff check --fix ${PKGROOT}/ --select F821
-		ruff check --fix ${PKGROOT}/ --select E113
+ruff-check-missing-imports: check-condaenv  ## Ruff Check for undefined functions
+		$(ENV_BIN)/ruff check --fix ${PKGROOT}/ --select F821
+		$(ENV_BIN)/ruff check --fix ${PKGROOT}/ --select E113
 
 lint: ## Code styling - black, isort
 		@printf "\033[1;34mRunning linting with ruff...\033[0m\n\n"
@@ -32,14 +65,14 @@ lint: ## Code styling - black, isort
 		@printf "\033[1;34mruff-linting (missing imports) passes!\033[0m\n\n"
 
 ##@ Formatting
-black:  ## Format code in-place using black.
+black: check-condaenv  ## Format code in-place using black.
 		@printf "\033[1;34mRunning formatting with Black...\033[0m\n\n"
-		black ${PKGROOT}/ -l 100 .
+		$(ENV_BIN)/black ${PKGROOT}/ -l 100 .
 		@printf "\033[1;34mBlack passes...!\033[0m\n\n"
 
-isort:  ## Format imports in-place using isort.
+isort: check-condaenv  ## Format imports in-place using isort.
 		@printf "\033[1;34mRunning formatting with isort...\033[0m\n\n"
-		isort ${PKGROOT}/ 
+		$(ENV_BIN)/isort ${PKGROOT}/
 		@printf "\033[1;34misort passes...!\033[0m\n\n"
 
 format: ## Code styling - black, isort
@@ -50,26 +83,26 @@ format: ## Code styling - black, isort
 
 
 ##@ Testing
-test:  ## Test code using pytest.
+test: check-condaenv  ## Test code using pytest.
 	@printf "\033[1;34mRunning tests with pytest...\033[0m\n\n"
-	pytest -v tests
+	$(ENV_BIN)/pytest -v tests
 	@printf "\033[1;34mPyTest passes!\033[0m\n\n"
 
-test-cov:  ## Run tests with coverage report
+test-cov: check-condaenv  ## Run tests with coverage report
 	@printf "\033[1;34mRunning tests with coverage...\033[0m\n\n"
-	pytest --cov=marss2l --cov-report=term-missing -v tests
+	$(ENV_BIN)/pytest --cov=marss2l --cov-report=term-missing -v tests
 
-test-fast:  ## Run tests, stop on first failure, no warnings
+test-fast: check-condaenv  ## Run tests, stop on first failure, no warnings
 	@printf "\033[1;34mRunning fast tests (failfast, no warnings)...\033[0m\n\n"
-	pytest -v -x -p no:warnings tests
+	$(ENV_BIN)/pytest -v -x -p no:warnings tests
 
-test-file:  ## Run a specific test file: make test-file FILE=tests/test_plume_detection.py
+test-file: check-condaenv  ## Run a specific test file: make test-file FILE=tests/test_plume_detection.py
 	@printf "\033[1;34mRunning tests in file: $(FILE)\033[0m\n\n"
-	pytest -v $(FILE)
+	$(ENV_BIN)/pytest -v $(FILE)
 
-test-notebooks:  ## Run notebooks as integration tests with nbmake
+test-notebooks: check-condaenv  ## Run notebooks as integration tests with nbmake
 	@printf "\033[1;34mRunning notebooks with nbmake...\033[0m\n\n"
-	pytest --nbmake -v --nbmake-timeout=600 --nbmake-kernel=$(NOTEBOOK_KERNEL) \
+	$(ENV_BIN)/pytest --nbmake -v --nbmake-timeout=600 --nbmake-kernel=$(NOTEBOOK_KERNEL) \
 		notebooks/examples/download_and_inference.ipynb \
 		notebooks/examples/plot_images_dataset_train.ipynb \
 		notebooks/examples/plot_plumes_dataset_test.ipynb \
@@ -87,33 +120,33 @@ test-notebooks:  ## Run notebooks as integration tests with nbmake
 	@printf "\033[1;34mNotebook tests pass!\033[0m\n\n"
 
 ##@ Building
-build: ## Build the marss2l package
+build: check-condaenv ## Build the marss2l package
 	@printf "\033[1;34mBuilding package...\033[0m\n\n"
 	rm -rf build/
 	rm -rf dist/
-	python -m build
+	$(ENV_BIN)/python -m build
 
-publish: ## Publish a release to PyPI
+publish: check-condaenv ## Publish a release to PyPI
 	@echo "🚀 Publishing: Dry run."
-	python -m twine check dist/*
-	python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/* --verbose
+	$(ENV_BIN)/python -m twine check dist/*
+	$(ENV_BIN)/python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/* --verbose
 	@echo "🚀 Publishing to PyPI."
-	python -m twine upload dist/*
+	$(ENV_BIN)/python -m twine upload dist/*
 
 ##@ Documentation
 .PHONY: docs-test
-docs-test: ## Test if documentation can be built without warnings or errors
-	mkdocs build -s
+docs-test: check-condaenv ## Test if documentation can be built without warnings or errors
+	$(ENV_BIN)/mkdocs build -s
 
 .PHONY: docs
-docs: ## Build and serve the documentation
-	mkdocs serve
+docs: check-condaenv ## Build and serve the documentation
+	$(ENV_BIN)/mkdocs serve
 
 .PHONY: docs-build
-docs-build: ## Build the documentation
-	mkdocs build
+docs-build: check-condaenv ## Build the documentation
+	$(ENV_BIN)/mkdocs build
 
 .PHONY: docs-publish
-docs-publish: ## Build and publish the documentation to GitHub Pages
-	mkdocs build
-	ghp-import -n -p -f site
+docs-publish: check-condaenv ## Build and publish the documentation to GitHub Pages
+	$(ENV_BIN)/mkdocs build
+	$(ENV_BIN)/ghp-import -n -p -f site
