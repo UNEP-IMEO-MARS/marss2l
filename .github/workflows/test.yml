@@ -23,15 +23,14 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r environment/requirements-test.txt
-          pip install -e .
+          pip install -r environment/requirements-test.lock
+          pip install -e . --no-deps
 
       - name: Run tests
         run: pytest tests/ -v
 
       - name: Register notebook test kernel
         run: |
-          pip install ipykernel
           python -m ipykernel install --user --name marss2l-ci --display-name "Python (marss2l-ci)"
 
       - name: Run notebook integration test (train dataloader)
