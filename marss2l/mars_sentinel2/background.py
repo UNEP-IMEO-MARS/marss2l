@@ -199,22 +199,31 @@ class BackgroundImageSelector:
 
         if image.image is not None:
             return
+        image_to_download = {
+            "asset_id": image.asset_id,
+            "gee_id": image.gee_id,
+            "crs": image.crs,
+            "transform": image.transform,
+            "tile": image.tile,
+        }
+        # Forward the S2 solar/view zenith angle properties so download_image_and_angles
+        # can return them (Sentinel-2 reads the angles from these GEE properties).
+        for key in ("MEAN_SOLAR_ZENITH_ANGLE", "MEAN_INCIDENCE_ZENITH_ANGLE_B12"):
+            if key in image.metadata:
+                image_to_download[key] = image.metadata[key]
+
         geotensor, cloudmask, sza, vza, band_names = download_image_and_angles(
             geometry=image.location.geometry,
-            image_to_download={
-                "asset_id": image.asset_id,
-                "gee_id": image.gee_id,
-                "crs": image.crs,
-                "transform": image.transform,
-                "tile": image.tile,
-            },
+            image_to_download=image_to_download,
             logger=self.logger,
         )
         image.image = geotensor
         image.cloudmask = cloudmask
         image.band_names = band_names
-        image.sza = sza
-        image.vza = vza
+        if sza is not None:
+            image.sza = sza
+        if vza is not None:
+            image.vza = vza
         if image.percentage_clear < 0:
             image.percentage_clear = self.compute_percentage_clear(cloudmask)
             image.observability = (

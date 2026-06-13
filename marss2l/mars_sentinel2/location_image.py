@@ -27,6 +27,11 @@ if TYPE_CHECKING:  # avoid importing heavy/geo deps at module load
 # Deterministic-id namespace so the same GEE scene always maps to the same id_loc_image.
 _NAMESPACE_S2L = uuid.uuid5(uuid.NAMESPACE_URL, "marss2l/background")
 
+# Sentinel-2 angle properties carried through to download_image_and_angles (which reads
+# the solar/view zenith angles from these GEE properties for S2; Landsat reads them from
+# the SZA/VZA bands instead). Kept in ``metadata`` so they flow without bloating the class.
+_S2_ANGLE_KEYS = ("MEAN_SOLAR_ZENITH_ANGLE", "MEAN_INCIDENCE_ZENITH_ANGLE_B12")
+
 
 @runtime_checkable
 class LocationProtocol(Protocol):
@@ -162,6 +167,7 @@ class S2LLocationImage:
 
         tile = str(row.name)
         asset_id = _get("asset_id")
+        metadata = {k: _get(k) for k in _S2_ANGLE_KEYS if _get(k) is not None}
         return cls(
             id_loc_image=cls._id_from_asset(asset_id),
             id_location=location.id_location,
@@ -175,6 +181,7 @@ class S2LLocationImage:
             gee_id=_get("gee_id"),
             crs=_get("crs"),
             transform=_get("transform"),
+            metadata=metadata,
         )
 
     @classmethod
@@ -194,6 +201,7 @@ class S2LLocationImage:
         if info is None:
             raise ValueError(f"Could not resolve tile {tile} from GEE")
         resolved_tile = info.get("tile", tile)
+        metadata = {k: info[k] for k in _S2_ANGLE_KEYS if info.get(k) is not None}
         return cls(
             id_loc_image=cls._id_from_asset(info.get("asset_id")),
             id_location=location.id_location,
@@ -205,4 +213,5 @@ class S2LLocationImage:
             gee_id=info.get("gee_id"),
             crs=info.get("crs"),
             transform=info.get("transform"),
+            metadata=metadata,
         )
