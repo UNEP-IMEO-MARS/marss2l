@@ -24,6 +24,25 @@ Install `marss2l` package:
 pip install marss2l
 ```
 
+### Credentials
+
+All external credentials are read **from environment variables** — no secret
+files are dropped into the package. Copy [`.env.sample`](./.env.sample) to
+`.env`, fill in your values, and load it before running training, inference or
+the notebooks:
+
+```bash
+cp .env.sample .env   # then edit .env with your values
+set -a; source .env; set +a
+```
+
+| Service | Variables |
+|---------|-----------|
+| Weights & Biases | `WANDB_API_KEY`, `WANDB_PROJECT` |
+| Google Earth Engine | `GEE_SERVICE_ACCOUNT_KEY` (service-account JSON), `GEE_PROJECT` |
+| Azure blob storage | `AZURE_STORAGE_ACCOUNT_NAME`, `AZURE_STORAGE_CONTAINER_NAME`, `AZURE_STORAGE_SAS_TOKEN` |
+| Hugging Face | `HF_TOKEN` |
+
 ## *End-to-end* inference [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/UNEP-IMEO-MARS/marss2l/blob/main/notebooks/examples/download_and_inference.ipynb)
 
 [This tutorial](./notebooks/examples/download_and_inference.ipynb) demonstrates an *end-to-end* example of the UNEP IMEO pipeline for detecting methane plumes in Sentinel‑2 and Landsat imagery. It downloads, compute the multi-band, multi-pass (MBMP, [Irakullis‑Loitxate et al., 2022](https://doi.org/10.1021/acs.est.1c04873)) retrieval, run inference with the MARS-S2L model ([Allen et al., 2025](https://arxiv.org/abs/2511.21777)), quantify the retrieval ΔXCH₄ and estimate the flux rate of detected plumes ([Gorroño et al., 2023](https://amt.copernicus.org/articles/16/89/2023/)).
