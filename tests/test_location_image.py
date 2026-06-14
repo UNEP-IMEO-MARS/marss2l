@@ -117,11 +117,12 @@ class TestFromGeeRow:
         img = S2LLocationImage.from_gee_row(row, location=loc)
         assert img.wind_u is None
 
-    def test_captures_s2_angle_metadata(self):
+    def test_captures_s2_angles_in_fields(self):
         loc = make_location()
         row = self._row()
         row["MEAN_SOLAR_ZENITH_ANGLE"] = 30.0
         row["MEAN_INCIDENCE_ZENITH_ANGLE_B12"] = 5.0
         img = S2LLocationImage.from_gee_row(row, location=loc)
-        assert img.metadata["MEAN_SOLAR_ZENITH_ANGLE"] == 30.0
-        assert img.metadata["MEAN_INCIDENCE_ZENITH_ANGLE_B12"] == 5.0
+        assert img.sza == 30.0
+        assert img.vza == 5.0
+        assert img.metadata == {}

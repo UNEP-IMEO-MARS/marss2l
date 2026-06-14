@@ -206,11 +206,12 @@ class BackgroundImageSelector:
             "transform": image.transform,
             "tile": image.tile,
         }
-        # Forward the S2 solar/view zenith angle properties so download_image_and_angles
-        # can return them (Sentinel-2 reads the angles from these GEE properties).
-        for key in ("MEAN_SOLAR_ZENITH_ANGLE", "MEAN_INCIDENCE_ZENITH_ANGLE_B12"):
-            if key in image.metadata:
-                image_to_download[key] = image.metadata[key]
+        # Forward the Sentinel-2 solar/view zenith angles (download_image_and_angles reads
+        # them from these GEE properties for S2; Landsat computes them from the SZA/VZA bands).
+        if image.sza is not None:
+            image_to_download["MEAN_SOLAR_ZENITH_ANGLE"] = image.sza
+        if image.vza is not None:
+            image_to_download["MEAN_INCIDENCE_ZENITH_ANGLE_B12"] = image.vza
 
         geotensor, cloudmask, sza, vza, band_names = download_image_and_angles(
             geometry=image.location.geometry,
