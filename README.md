@@ -28,12 +28,19 @@ pip install marss2l
 
 All external credentials are read **from environment variables** — no secret
 files are dropped into the package. Copy [`.env.sample`](./.env.sample) to
-`.env`, fill in your values, and load it before running training, inference or
-the notebooks:
+`.env` and fill in your values:
 
 ```bash
 cp .env.sample .env   # then edit .env with your values
-set -a; source .env; set +a
+```
+
+`marss2l` automatically loads a `.env` file from the current working directory
+on import (real environment variables take precedence over the file), so no
+manual sourcing is needed. The integration tests can be run with the `.env`
+loaded via:
+
+```bash
+make test-integration
 ```
 
 | Service | Variables |

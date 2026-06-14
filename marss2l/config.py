@@ -25,7 +25,10 @@ Credentials governed here
 
 The MARS-S2L Hugging Face dataset is public, so no token is required to read it.
 
-See ``.env.sample`` at the repo root for an example with mock values.
+On import this module loads a ``.env`` file from the current working directory
+(if present) into ``os.environ`` via :func:`load_dotenv`. Real environment
+variables take precedence over the file. See ``.env.sample`` at the repo root
+for an example with mock values.
 """
 
 from __future__ import annotations
@@ -34,6 +37,49 @@ import json
 import os
 from dataclasses import dataclass
 from typing import ClassVar, Optional, Tuple
+
+# ---------------------------------------------------------------------------
+# .env loading
+# ---------------------------------------------------------------------------
+
+
+def load_dotenv(path: str = ".env") -> None:
+    """Load ``KEY=VALUE`` pairs from a ``.env`` file into ``os.environ``.
+
+    Real environment variables take precedence: a key already present in the
+    environment is never overwritten (so the order of preference is env vars
+    first, then the ``.env`` file in the current working directory if it
+    exists). Blank lines and ``#`` comments are ignored. Only the first ``=``
+    splits a line, so values may contain ``=`` (e.g. SAS tokens); optional
+    surrounding single/double quotes are stripped.
+    """
+    if not os.path.isfile(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            for raw in fh:
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("export "):
+                    line = line[len("export "):]
+                key, sep, value = line.partition("=")
+                if not sep:
+                    continue
+                key = key.strip()
+                if not key:
+                    continue
+                value = value.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                    value = value[1:-1]
+                os.environ.setdefault(key, value)
+    except OSError:
+        pass
+
+
+# Load a .env from the current working directory on import so that the config
+# classes below (and anything reading os.environ) see those values.
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Environment variable names
