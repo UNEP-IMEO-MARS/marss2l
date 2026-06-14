@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from typing import Annotated, Optional
 
 import cyclopts
@@ -15,7 +14,7 @@ from marss2l.dataframe_image_plumes import load_dataframe_split, read_csv_images
 from marss2l.loaders import CSV_PATH_DEFAULT, DatasetPlumes
 from marss2l.metrics import get_pixellevel_metrics, get_scenelevel_metrics
 from marss2l.models import load_model, load_weights
-from marss2l.utils import fs_from_path, setup_file_logger, setup_stream_logger
+from marss2l.utils import fs_for_path, fs_from_path, pathjoin, setup_file_logger, setup_stream_logger
 from marss2l.validation_utils import THRESHOLD_PIXELS, run_validation
 
 # def debug_collate(batch):
@@ -117,20 +116,23 @@ def run_eval(
 
     torch.backends.cudnn.benchmark = True
     device = torch.device(device_name)
-    weights_file = os.path.join(output_dir, weights_file_name)
-    if not os.path.exists(weights_file):
-        logger.error(f"Model weights not found in {output_dir}. It will not run the eval")
-        return
     if fs is None:
         fs = fs_from_path(csv_path)
+    # Filesystem for the model dir (weights / config / preds), independent of the images fs.
+    fsout = fs_for_path(output_dir, fs)
+
+    weights_file = pathjoin(output_dir, weights_file_name)
+    if not fsout.exists(weights_file):
+        logger.error(f"Model weights not found in {output_dir}. It will not run the eval")
+        return
 
     # Load options from config
-    config_file = os.path.join(output_dir, "config_experiment.json")
-    assert os.path.exists(
+    config_file = pathjoin(output_dir, "config_experiment.json")
+    assert fsout.exists(
         config_file
     ), f"Path {config_file} does not exist. Should contain the json with the configuration of the experiment."
     config = config_default.copy()
-    with open(config_file, "r") as f:
+    with fsout.open(config_file, "r") as f:
         config.update(json.load(f))
 
     model_name = config["model"]
@@ -213,7 +215,7 @@ def run_eval(
     )
 
     model = model.to(device)
-    load_weights(model, weights_file, device=device)
+    load_weights(model, weights_file, device=device, fs=fsout)
 
     logger.info(f"Running evaluation on {split} split, file {csv_path} model weights from {weights_file}")
 
@@ -226,7 +228,8 @@ def run_eval(
         )
     
     if not smoke_test:
-        output.to_csv(os.path.join(output_dir, f"preds_{split}{suffix_output}.csv"), index=False)
+        with fsout.open(pathjoin(output_dir, f"preds_{split}{suffix_output}.csv"), "w") as f:
+            output.to_csv(f, index=False)
 
     # Log eval metrics
     outs_merge = output.drop(["location_name", "tile"], axis=1)
@@ -261,10 +264,10 @@ def run_eval(
             pin_memory=False
         )
         output = run_validation(test_loader, model, threshold_pixels=threshold_pixels, mode="test")
-        output.to_csv(
-            os.path.join(output_dir, f"preds_{split}{suffix_output}_site_id_zero.csv"),
-            index=False,
-        )
+        with fsout.open(
+            pathjoin(output_dir, f"preds_{split}{suffix_output}_site_id_zero.csv"), "w"
+        ) as f:
+            output.to_csv(f, index=False)
 
 
 if __name__ == "__main__":

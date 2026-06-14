@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torchmetrics.functional.classification import binary_confusion_matrix
 from marss2l.models import SegmentationModelMARSS2L
-from marss2l.utils import fs_for_output, pathjoin
+from marss2l.utils import fs_for_path, pathjoin
 
 from marss2l.loss import (
     DEFAULT_POS_WEIGHT,
@@ -115,7 +115,7 @@ class Trainer:
 
         # Output filesystem: chosen by save_path, reusing fs only if it is an Azure FS.
         if save_path is not None:
-            self.fswritter = fs_for_output(save_path, fs)
+            self.fswritter = fs_for_path(save_path, fs)
         else:
             self.fswritter = fsspec.filesystem("file")
 

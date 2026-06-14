@@ -73,14 +73,14 @@ def fs_from_path(path: str) -> fsspec.AbstractFileSystem:
     raise ValueError(f"Could not determine filesystem for path: {path}")
 
 
-def fs_for_output(path: str, fs: Optional[fsspec.AbstractFileSystem] = None) -> fsspec.AbstractFileSystem:
+def fs_for_path(path: str, fs: Optional[fsspec.AbstractFileSystem] = None) -> fsspec.AbstractFileSystem:
     """Return the filesystem to use for reading/writing ``path``.
 
     Reuses the (credentialed) ``fs`` only when it already matches the backend of
     ``path`` (i.e. ``fs`` is an Azure FS and ``path`` is on ``az://``); otherwise it
-    derives the right backend from ``path`` (local for non-``az://`` paths). This
-    avoids attempting Azure I/O through a local filesystem when, for example, the
-    input CSV is local but the output dir is on blob.
+    derives the right backend from ``path`` (local for non-``az://`` paths). This lets
+    inputs, outputs and finetuning weights live on independent backends — e.g. images
+    on local disk while weights/outputs are on blob, or vice versa.
     """
     if not path.startswith("az://"):
         return fsspec.filesystem("file")

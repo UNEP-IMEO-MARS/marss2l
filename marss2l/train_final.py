@@ -55,7 +55,7 @@ from marss2l.models import load_model
 from marss2l.trainer import Trainer, DEFAULT_LEARNING_RATE
 from marss2l.utils import (
     CustomJSONEncoder,
-    fs_for_output,
+    fs_for_path,
     fs_from_path,
     pathjoin,
     setup_file_logger,
@@ -188,7 +188,7 @@ def run(
         fsread = fs_from_path(csv_path)
 
     # Output filesystem: chosen by output_dir, reusing fsread only if it is an Azure FS.
-    fswritter = fs_for_output(output_dir, fsread)
+    fswritter = fs_for_path(output_dir, fsread)
 
     if not smoke_test:
         fswritter.makedirs(output_dir, exist_ok=True)
@@ -202,9 +202,8 @@ def run(
         if path_weights_forfinetuning is None:
             raise ValueError("Path to the weights for finetuning is required when finetuning")
 
-        # Read finetuning inputs from blob when the path is on Azure, else local
-        # (chosen by the weights path, not by fsread which may point elsewhere).
-        fsfinetune = fs_for_output(path_weights_forfinetuning, fsread)
+        # Read finetuning inputs from the weights-path backend, independent of fsread.
+        fsfinetune = fs_for_path(path_weights_forfinetuning, fsread)
 
         config_file_for_finetuning = pathjoin(path_weights_forfinetuning, "config_experiment.json")
         best_epoch_file_for_finetuning = pathjoin(
