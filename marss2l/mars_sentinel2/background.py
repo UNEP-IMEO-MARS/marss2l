@@ -238,10 +238,15 @@ class BackgroundImageSelector:
         """Boolean valid mask (``cloudmask == 0``, i.e. clear/land)."""
         if image.cloudmask is None:
             return None
-        validmask = image.cloudmask.copy().squeeze()
-        validmask.values = validmask.values == CLEAR_CLASS
+        cloudmask = image.cloudmask.squeeze()
+        # Build a new GeoTensor: this GeoTensor forbids in-place dtype changes (uint8 -> bool).
+        validmask = GeoTensor(
+            cloudmask.values == CLEAR_CLASS,
+            transform=cloudmask.transform,
+            crs=cloudmask.crs,
+            fill_value_default=False,
+        )
         assert len(validmask.shape) == 2, f"Invalid shape {validmask.shape}"
-        validmask.fill_value_default = False
         return validmask
 
     def band_index(self, image: LocationImageProtocol, band: str) -> int:
