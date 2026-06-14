@@ -105,6 +105,22 @@ class TestFilter:
         bg = make_image(self.loc, satellite="LO08", day_offset=10)
         assert self.sel.filter_background_image(target, bg) is False
 
+    def test_groups_landsat8_and_9(self):
+        # same_satellite_constellation=True groups Landsat-8 and Landsat-9 (as in marsml).
+        t8 = make_image(self.loc, satellite="LC08", day_offset=0)
+        t9 = make_image(self.loc, satellite="LC09", day_offset=0)
+        bg9 = make_image(self.loc, satellite="LC09", day_offset=10)
+        bg8 = make_image(self.loc, satellite="LC08", day_offset=10)
+        assert self.sel.filter_background_image(t8, bg9) is False  # L8 target accepts L9 bg
+        assert self.sel.filter_background_image(t9, bg8) is False  # L9 target accepts L8 bg
+
+    def test_producttype_groups_landsat8_and_9(self):
+        # The GEE query for a Landsat target fetches the whole L8/L9 family.
+        t8 = make_image(self.loc, satellite="LC08")
+        assert self.sel._producttype(
+            t8, same_satellite=False, same_satellite_constellation=True
+        ) == ("Landsat", False)
+
     def test_cross_constellation_allowed_when_disabled(self):
         bg = make_image(self.loc, satellite="LC08", day_offset=10)
         assert (
