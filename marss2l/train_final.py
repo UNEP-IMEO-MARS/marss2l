@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import shutil
 from datetime import datetime
 from typing import Annotated, List, Optional
 
@@ -179,8 +178,6 @@ def run(
         else:
             logger = setup_file_logger("logs", "train_final")
 
-    if not smoke_test:
-        os.makedirs(output_dir, exist_ok=True)
     if not multipass:
         if cat_mbmp:
             logger.warning("cat_mbmp is only available for multipass, we will set it to False")
@@ -188,6 +185,12 @@ def run(
 
     if fsread is None:
         fsread = fs_from_path(csv_path)
+
+    # Output filesystem: reuse the (credentialed) input fs for blob output, else local.
+    fswritter = fsread if output_dir.startswith("az://") else fsspec.filesystem("file")
+
+    if not smoke_test:
+        fswritter.makedirs(output_dir, exist_ok=True)
 
     assert bands_l8, "Only Landsat 8 bands are supported now"
 
@@ -225,11 +228,11 @@ def run(
             assert film_dict_mapping is not None, "Film dict mapping is None but model is FiLM!"
 
     config_file = pathjoin(output_dir, "config_experiment.json")
-    if os.path.exists(config_file):
+    if fswritter.exists(config_file):
         # copy config file to config_experiment_{now}.json
         nowstr = datetime.now().strftime("%Y%m%d_%H%M%S")
         config_file_old = pathjoin(output_dir, f"config_experiment_{nowstr}.json")
-        shutil.copy(config_file, config_file_old)
+        fswritter.copy(config_file, config_file_old)
 
         logger.warning(
             f"Config file found at {config_file}. Copied to {config_file_old}. New config file will be created."
@@ -411,6 +414,7 @@ def run(
         weight_by_noise=weight_by_noise,
         noise_warmup_epochs=noise_warmup_epochs,
         noise_transition_epochs=noise_transition_epochs,
+        fs=fswritter,
     )
 
     # TODO if load_weights load optimizer state dict? trainer.opt
@@ -480,9 +484,9 @@ def run(
         "finetune_class_head": finetune_classification_head,
     }
 
-    inprogress_config_file = os.path.join(output_dir, "config_experiment_inprogress.json")
+    inprogress_config_file = pathjoin(output_dir, "config_experiment_inprogress.json")
     if not smoke_test:
-        with open(inprogress_config_file, "w") as f:
+        with fswritter.open(inprogress_config_file, "w") as f:
             json.dump(config_experiment, f, cls=CustomJSONEncoder)
     # s2l89-model
     with wandb.init(
@@ -499,10 +503,10 @@ def run(
         if not smoke_test:
             config_experiment["wandb_run_url"] = run.get_url()
             config_experiment["wandb_run_id"] = run.id
-            with open(config_file, "w") as f:
+            with fswritter.open(config_file, "w") as f:
                 json.dump(config_experiment, f, cls=CustomJSONEncoder)
 
-            os.remove(inprogress_config_file)
+            fswritter.rm(inprogress_config_file)
 
         logger.info(f"----- Training finished -----")
 

@@ -1,9 +1,8 @@
 import logging
-import os
-import shutil
 from datetime import datetime
 from typing import Callable, Optional, List
 
+import fsspec
 import numpy as np
 import pandas as pd
 import torch
@@ -13,6 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torchmetrics.functional.classification import binary_confusion_matrix
 from marss2l.models import SegmentationModelMARSS2L
+from marss2l.utils import fs_from_path, pathjoin
 
 from marss2l.loss import (
     DEFAULT_POS_WEIGHT,
@@ -72,6 +72,7 @@ class Trainer:
         self,
         model: SegmentationModelMARSS2L,
         save_path: Optional[str] = None,
+        fs: Optional[fsspec.AbstractFileSystem] = None,
         learning_rate: float = DEFAULT_LEARNING_RATE,
         early_stopping=True,
         weight_by_ch4: bool = DEFAULT_WEIGHT_BY_CH4,
@@ -112,9 +113,15 @@ class Trainer:
         self.noise_warmup_epochs = noise_warmup_epochs
         self.noise_transition_epochs = noise_transition_epochs
 
+        # Output filesystem: reuse the (credentialed) fs for blob output, else local.
+        if save_path is not None and save_path.startswith("az://"):
+            self.fswritter = fs if fs is not None else fs_from_path(save_path)
+        else:
+            self.fswritter = fsspec.filesystem("file")
+
         if self.save_path is not None:
-            self.path_best_epoch = os.path.join(self.save_path, best_epoch_name)
-            self.path_last_epoch = os.path.join(self.save_path, last_epoch_name)
+            self.path_best_epoch = pathjoin(self.save_path, best_epoch_name)
+            self.path_last_epoch = pathjoin(self.save_path, last_epoch_name)
         else:
             self.path_best_epoch = None
             self.path_last_epoch = None
@@ -162,18 +169,18 @@ class Trainer:
 
 
         nowstr = datetime.now().strftime("%Y%m%d_%H%M%S")
-        if self.save_path is not None and os.path.exists(self.path_best_epoch):
+        if self.save_path is not None and self.fswritter.exists(self.path_best_epoch):
             path_best_epoch_old = self.path_best_epoch + f"_{nowstr}"
             # Copy old best epoch
-            shutil.copy(self.path_best_epoch, path_best_epoch_old)
+            self.fswritter.copy(self.path_best_epoch, path_best_epoch_old)
             self.logger.warning(
                 f"Best epoch file found at {self.path_best_epoch}. Copied to {path_best_epoch_old} to avoid overwriting."
             )
 
-        if self.save_path is not None and os.path.exists(self.path_last_epoch):
+        if self.save_path is not None and self.fswritter.exists(self.path_last_epoch):
             path_last_epoch_old = self.path_last_epoch + f"_{nowstr}"
             # Copy old last epoch
-            shutil.copy(self.path_last_epoch, path_last_epoch_old)
+            self.fswritter.copy(self.path_last_epoch, path_last_epoch_old)
             self.logger.warning(
                 f"Last epoch file found at {self.path_last_epoch}. Copied to {path_last_epoch_old} to avoid overwriting."
             )
@@ -428,7 +435,8 @@ class Trainer:
                     }
                 )
                 if not smoke_test and self.path_best_epoch is not None:
-                    torch.save(dict_save, self.path_best_epoch)
+                    with self.fswritter.open(self.path_best_epoch, "wb") as f:
+                        torch.save(dict_save, f)
                 best_metric = metric_early_stopping
                 best_epoch = epoch
                 improved = True
@@ -467,6 +475,7 @@ class Trainer:
             }
         )
         if not smoke_test and self.path_last_epoch is not None:
-            torch.save(dict_save, self.path_last_epoch)
+            with self.fswritter.open(self.path_last_epoch, "wb") as f:
+                torch.save(dict_save, f)
 
         self.logger.info("Training complete!")
