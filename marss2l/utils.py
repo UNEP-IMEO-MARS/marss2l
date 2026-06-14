@@ -16,22 +16,21 @@ from shapely.geometry import base, mapping
 
 from marss2l.config import AzureConfig
 
-def get_remote_filesystem(use_account_key: bool = True):
+def get_remote_filesystem():
     cfg = AzureConfig.from_env()
-    kwargs = {
-        "account_name": cfg.account_name,
-        "assume_container_exists": True,
-        "default_fill_cache": False,
-        "default_cache_type": None,
-    }
-
-    if (not use_account_key) or (cfg.sas_token is None):
-        kwargs["anon"] = True
-    else:
-        print("Using SAS token")
-        kwargs["sas_token"] = cfg.sas_token
-
-    return AzureBlobFileSystem(**kwargs)
+    if not cfg.is_configured:
+        raise ValueError(
+            "Azure credentials are not configured. Set "
+            f"{', '.join(AzureConfig.required_env_vars)} (see .env.sample). "
+            "Public data is read from Hugging Face; Azure access requires credentials."
+        )
+    return AzureBlobFileSystem(
+        account_name=cfg.account_name,
+        sas_token=cfg.sas_token,
+        assume_container_exists=True,
+        default_fill_cache=False,
+        default_cache_type=None,
+    )
 
 
 def isremotepath(path: str) -> bool:

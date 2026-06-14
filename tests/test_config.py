@@ -9,7 +9,6 @@ import os
 from unittest.mock import patch
 
 from marss2l.config import (
-    DEFAULT_AZURE_ACCOUNT_NAME,
     DEFAULT_WANDB_PROJECT,
     ENV_AZURE_ACCOUNT_NAME,
     ENV_AZURE_CONTAINER_NAME,
@@ -82,14 +81,17 @@ class TestAzureConfig:
         assert cfg.sas_token == "sv=token"
         assert cfg.is_configured is True
 
-    def test_account_name_defaults(self):
+    def test_unset_is_not_configured(self):
         with patch.dict(os.environ, {}, clear=True):
             cfg = AzureConfig.from_env()
-        assert cfg.account_name == DEFAULT_AZURE_ACCOUNT_NAME
+        assert cfg.account_name is None
         assert cfg.sas_token is None
         assert cfg.is_configured is False
         assert AzureConfig.is_available() is False
 
-    def test_is_available_requires_sas_token(self):
+    def test_is_available_requires_account_and_sas_token(self):
         with patch.dict(os.environ, {ENV_AZURE_SAS_TOKEN: "sv=token"}, clear=True):
+            assert AzureConfig.is_available() is False
+        env = {ENV_AZURE_ACCOUNT_NAME: "myaccount", ENV_AZURE_SAS_TOKEN: "sv=token"}
+        with patch.dict(os.environ, env, clear=True):
             assert AzureConfig.is_available() is True

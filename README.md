@@ -42,7 +42,9 @@ set -a; source .env; set +a
 | Google Earth Engine | `GEE_SERVICE_ACCOUNT_KEY` (service-account JSON), `GEE_PROJECT` |
 | Azure blob storage | `AZURE_STORAGE_ACCOUNT_NAME`, `AZURE_STORAGE_CONTAINER_NAME`, `AZURE_STORAGE_SAS_TOKEN` |
 
-The MARS-S2L Hugging Face dataset is public, so no token is required to read it.
+Public data (including the MARS-S2L dataset) is read from Hugging Face and needs
+no token. Azure access is for private data only and always requires an account
+name and SAS token — there is no anonymous fallback.
 
 ## *End-to-end* inference [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/UNEP-IMEO-MARS/marss2l/blob/main/notebooks/examples/download_and_inference.ipynb)
 

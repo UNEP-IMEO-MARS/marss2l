@@ -54,7 +54,6 @@ ENV_AZURE_SAS_TOKEN = "AZURE_STORAGE_SAS_TOKEN"
 # ---------------------------------------------------------------------------
 
 DEFAULT_WANDB_PROJECT = "s2l89-model"
-DEFAULT_AZURE_ACCOUNT_NAME = "unepazeconomyadlsstorage"
 
 
 @dataclass
@@ -128,20 +127,24 @@ class GEEConfig:
 class AzureConfig:
     """Azure blob storage credentials.
 
-    ``account_name`` falls back to the well-known public MARS account so that
-    anonymous reads keep working when no SAS token is provided.
+    Everything is read from the environment — there is no hardcoded account or
+    container, and no anonymous fallback. Public data is read from Hugging Face;
+    Azure access always requires an account name and a SAS token.
     """
 
-    required_env_vars: ClassVar[Tuple[str, ...]] = (ENV_AZURE_SAS_TOKEN,)
+    required_env_vars: ClassVar[Tuple[str, ...]] = (
+        ENV_AZURE_ACCOUNT_NAME,
+        ENV_AZURE_SAS_TOKEN,
+    )
 
-    account_name: str = DEFAULT_AZURE_ACCOUNT_NAME
+    account_name: Optional[str] = None
     container_name: Optional[str] = None
     sas_token: Optional[str] = None
 
     @classmethod
     def from_env(cls) -> "AzureConfig":
         return cls(
-            account_name=os.environ.get(ENV_AZURE_ACCOUNT_NAME, DEFAULT_AZURE_ACCOUNT_NAME),
+            account_name=os.environ.get(ENV_AZURE_ACCOUNT_NAME),
             container_name=os.environ.get(ENV_AZURE_CONTAINER_NAME),
             sas_token=os.environ.get(ENV_AZURE_SAS_TOKEN),
         )
@@ -152,4 +155,4 @@ class AzureConfig:
 
     @property
     def is_configured(self) -> bool:
-        return self.sas_token is not None
+        return self.account_name is not None and self.sas_token is not None
