@@ -16,12 +16,10 @@ from marss2l.config import (
     ENV_AZURE_SAS_TOKEN,
     ENV_GEE_PROJECT,
     ENV_GEE_SERVICE_ACCOUNT_KEY,
-    ENV_HF_TOKEN,
     ENV_WANDB_API_KEY,
     ENV_WANDB_PROJECT,
     AzureConfig,
     GEEConfig,
-    HFConfig,
     WandbConfig,
 )
 
@@ -95,16 +93,3 @@ class TestAzureConfig:
     def test_is_available_requires_sas_token(self):
         with patch.dict(os.environ, {ENV_AZURE_SAS_TOKEN: "sv=token"}, clear=True):
             assert AzureConfig.is_available() is True
-
-
-class TestHFConfig:
-    def test_from_env(self):
-        with patch.dict(os.environ, {ENV_HF_TOKEN: "hf_abc"}, clear=True):
-            cfg = HFConfig.from_env()
-            assert cfg.token == "hf_abc"
-            assert HFConfig.is_available() is True
-
-    def test_unset(self):
-        with patch.dict(os.environ, {}, clear=True):
-            assert HFConfig.from_env().token is None
-            assert HFConfig.is_available() is False

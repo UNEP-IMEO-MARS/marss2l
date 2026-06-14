@@ -5,9 +5,9 @@ linear model on the real MARS-S2L Hugging Face dataset (reduced batch size,
 on CPU). It calls the ``train_final`` script directly via ``python -m`` so the
 whole CLI entry point is exercised end-to-end.
 
-Gated on the Hugging Face credentials (``HF_TOKEN``) being set — mirroring the
-notebook tests — so it only runs where the dataset is reachable (e.g. CI with
-secrets configured).
+The MARS-S2L Hugging Face dataset is public, so no token is required; this test
+runs whenever the ``integration`` marker is selected (i.e. in the label-gated
+integration CI job).
 """
 
 import os
@@ -16,17 +16,8 @@ import sys
 
 import pytest
 
-from marss2l.config import HFConfig
-
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    not HFConfig.is_available(),
-    reason=(
-        "missing required environment variables: "
-        f"{', '.join(HFConfig.required_env_vars)}"
-    ),
-)
 def test_train_final_linear_smoke(tmp_path):
     """A couple of steps of train_final with the Linear model on the HF dataset."""
     env = dict(os.environ)

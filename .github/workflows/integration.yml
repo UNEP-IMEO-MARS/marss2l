@@ -32,7 +32,6 @@ jobs:
       AZURE_STORAGE_ACCOUNT_NAME: ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}
       AZURE_STORAGE_CONTAINER_NAME: ${{ secrets.AZURE_STORAGE_CONTAINER_NAME }}
       AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
-      HF_TOKEN: ${{ secrets.HF_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

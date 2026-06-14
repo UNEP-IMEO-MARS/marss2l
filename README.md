@@ -41,7 +41,8 @@ set -a; source .env; set +a
 | Weights & Biases | `WANDB_API_KEY`, `WANDB_PROJECT` |
 | Google Earth Engine | `GEE_SERVICE_ACCOUNT_KEY` (service-account JSON), `GEE_PROJECT` |
 | Azure blob storage | `AZURE_STORAGE_ACCOUNT_NAME`, `AZURE_STORAGE_CONTAINER_NAME`, `AZURE_STORAGE_SAS_TOKEN` |
-| Hugging Face | `HF_TOKEN` |
+
+The MARS-S2L Hugging Face dataset is public, so no token is required to read it.
 
 ## *End-to-end* inference [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/UNEP-IMEO-MARS/marss2l/blob/main/notebooks/examples/download_and_inference.ipynb)
 

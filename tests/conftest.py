@@ -20,7 +20,7 @@ from typing import List, Tuple, Type
 
 import pytest
 
-from marss2l.config import AzureConfig, GEEConfig, HFConfig
+from marss2l.config import AzureConfig, GEEConfig
 
 
 @dataclass(frozen=True)
@@ -48,32 +48,23 @@ class NotebookDependency:
         return missing
 
 
-# Maps each notebook exercised by the test-suite to the credentials it needs.
-# HF notebooks read the (gated) MARS-S2L dataset; the figures that pull rasters
-# from Azure also need the Azure SAS token; download_and_inference needs GEE.
+# Maps each notebook to the credentials it needs. The MARS-S2L Hugging Face
+# dataset is public, so HF-only notebooks need no gating and are omitted here
+# (an unlisted notebook always runs). download_and_inference needs GEE; the
+# figures that pull rasters from Azure need the Azure SAS token.
 NOTEBOOK_DEPENDENCIES: Tuple[NotebookDependency, ...] = (
-    NotebookDependency("notebooks/examples/plot_images_dataset_train.ipynb", (HFConfig,)),
-    NotebookDependency("notebooks/examples/plot_plumes_dataset_test.ipynb", (HFConfig,)),
-    NotebookDependency("notebooks/examples/run_inference.ipynb", (HFConfig,)),
     NotebookDependency("notebooks/examples/download_and_inference.ipynb", (GEEConfig,)),
     NotebookDependency(
         "notebooks/figures/dataset_stats_by_split_and_geopackage_locations.ipynb",
-        (HFConfig, AzureConfig),
+        (AzureConfig,),
     ),
-    NotebookDependency("notebooks/figures/figure_number_of_images_per_country.ipynb", (HFConfig,)),
-    NotebookDependency("notebooks/figures/mdl_exploration_by_case_study.ipynb", (HFConfig,)),
-    NotebookDependency("notebooks/figures/mdl_exploration_adapted.ipynb", (HFConfig,)),
-    NotebookDependency("notebooks/figures/figure_wind_speed.ipynb", (HFConfig,)),
-    NotebookDependency("notebooks/figures/stats_dataset_toareflectances.ipynb", (HFConfig,)),
     NotebookDependency(
         "notebooks/figures/eval_model_and_figure_prob_vs_emission_rate.ipynb",
-        (HFConfig, AzureConfig),
+        (AzureConfig,),
     ),
-    NotebookDependency("notebooks/figures/figure_controlled_releases.ipynb", (HFConfig,)),
-    NotebookDependency("notebooks/figures/cloudsen12_experiment.ipynb", (HFConfig,)),
     NotebookDependency(
         "notebooks/figures/ablation_threshold_pixels.ipynb",
-        (HFConfig, AzureConfig),
+        (AzureConfig,),
     ),
 )
 

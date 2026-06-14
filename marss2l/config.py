@@ -22,7 +22,8 @@ Credentials governed here
   ``GEE_PROJECT`` (project id).
 * **Azure blob storage** — ``AZURE_STORAGE_ACCOUNT_NAME`` (account name),
   ``AZURE_STORAGE_CONTAINER_NAME`` (container), ``AZURE_STORAGE_SAS_TOKEN`` (SAS token).
-* **Hugging Face** — ``HF_TOKEN`` (used to access the MARS-S2L dataset).
+
+The MARS-S2L Hugging Face dataset is public, so no token is required to read it.
 
 See ``.env.sample`` at the repo root for an example with mock values.
 """
@@ -47,8 +48,6 @@ ENV_GEE_PROJECT = "GEE_PROJECT"
 ENV_AZURE_ACCOUNT_NAME = "AZURE_STORAGE_ACCOUNT_NAME"
 ENV_AZURE_CONTAINER_NAME = "AZURE_STORAGE_CONTAINER_NAME"
 ENV_AZURE_SAS_TOKEN = "AZURE_STORAGE_SAS_TOKEN"
-
-ENV_HF_TOKEN = "HF_TOKEN"
 
 # ---------------------------------------------------------------------------
 # Defaults (non-secret values that are safe to keep in the source tree)
@@ -154,20 +153,3 @@ class AzureConfig:
     @property
     def is_configured(self) -> bool:
         return self.sas_token is not None
-
-
-@dataclass
-class HFConfig:
-    """Hugging Face credentials for accessing the MARS-S2L dataset."""
-
-    required_env_vars: ClassVar[Tuple[str, ...]] = (ENV_HF_TOKEN,)
-
-    token: Optional[str] = None
-
-    @classmethod
-    def from_env(cls) -> "HFConfig":
-        return cls(token=os.environ.get(ENV_HF_TOKEN))
-
-    @classmethod
-    def is_available(cls) -> bool:
-        return all(os.environ.get(v) for v in cls.required_env_vars)
