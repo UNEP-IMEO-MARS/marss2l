@@ -300,15 +300,13 @@ class BackgroundImageSelector:
             self._log(verbose, f"Filtering {image.tile}: has a plume")
             return True
 
-        # Same satellite constellation (first two characters: S2 / LC / LE / LT).
-        if image_to_process.satellite[:2] != image.satellite[:2]:
-            self._log(verbose, f"Filtering {image.tile}: constellation {image.satellite}")
-            return True
-
         if same_satellite and (image.satellite != image_to_process.satellite):
             self._log(verbose, f"Filtering {image.tile}: satellite {image.satellite}")
             return True
 
+        # Constellation restriction (Sentinel-2 / Landsat-8-9 / Landsat-4-5-7). Note LC08 and
+        # LO08 are both Landsat-8, so a plain satellite[:2] prefix check would be wrong; the
+        # explicit family lists below handle this and allow cross-constellation when disabled.
         if same_satellite_constellation:
             if image_to_process.satellite.startswith("S2") and not image.satellite.startswith("S2"):
                 self._log(verbose, f"Filtering {image.tile}: not Sentinel-2")
@@ -358,13 +356,15 @@ class BackgroundImageSelector:
                 return False
             norm_c = math.sqrt(image_to_process.wind_u**2 + image_to_process.wind_v**2)
             norm_b = math.sqrt(image.wind_u**2 + image.wind_v**2)
-            cosine_similarity = (
-                image_to_process.wind_u / norm_c * image.wind_u / norm_b
-                + image_to_process.wind_v / norm_c * image.wind_v / norm_b
-            )
-            if cosine_similarity > self.threshold_wind_similarity:
-                self._log(verbose, f"Filtering {image.tile}: plume with similar wind")
-                return True
+            # A zero wind vector has no direction → can't assess alignment, so don't reject.
+            if norm_c > 0 and norm_b > 0:
+                cosine_similarity = (
+                    image_to_process.wind_u / norm_c * image.wind_u / norm_b
+                    + image_to_process.wind_v / norm_c * image.wind_v / norm_b
+                )
+                if cosine_similarity > self.threshold_wind_similarity:
+                    self._log(verbose, f"Filtering {image.tile}: plume with similar wind")
+                    return True
 
         return False
 

@@ -99,6 +99,21 @@ class TestFilter:
         bg = make_image(self.loc, satellite="LC08", day_offset=10)
         assert self.sel.filter_background_image(self.target, bg) is True
 
+    def test_accepts_lc_lo_same_landsat8(self):
+        # LC08 and LO08 are both Landsat-8 — a plain satellite[:2] check would wrongly reject.
+        target = make_image(self.loc, satellite="LC08", day_offset=0)
+        bg = make_image(self.loc, satellite="LO08", day_offset=10)
+        assert self.sel.filter_background_image(target, bg) is False
+
+    def test_cross_constellation_allowed_when_disabled(self):
+        bg = make_image(self.loc, satellite="LC08", day_offset=10)
+        assert (
+            self.sel.filter_background_image(
+                self.target, bg, same_satellite_constellation=False
+            )
+            is False
+        )
+
     def test_rejects_cloudy_when_check_cloud(self):
         bg = make_image(self.loc, satellite="S2B", day_offset=10,
                         percentage_clear=90.0, observability="clear")
@@ -140,6 +155,14 @@ class TestFilter:
                                       isplume=True, wind_u=0.0, wind_v=1.0)
         assert self.sel.filter_background_image(target, plume_same_wind) is True
         assert self.sel.filter_background_image(target, plume_cross_wind) is False
+
+    def test_wind_zero_vector_does_not_raise(self):
+        # A zero wind vector has no direction; must not raise ZeroDivisionError or reject.
+        target = make_image(self.loc, satellite="S2A", day_offset=0, wind_u=0.0, wind_v=0.0)
+        plume = make_image(
+            self.loc, satellite="S2B", day_offset=10, isplume=True, wind_u=0.0, wind_v=0.0
+        )
+        assert self.sel.filter_background_image(target, plume) is False
 
 
 class TestFilterAndSortTwoPass:
