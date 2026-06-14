@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.5](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.4...v0.2.5) (2026-06-09)
+
+
+### Bug Fixes
+
+* rebuild GeoTensor instead of assigning .values (georeader 2.0 compat) ([adbada5](https://github.com/UNEP-IMEO-MARS/marss2l/commit/adbada5a74b178ec1bc799408993f5eee331247b))
+
 ## [0.2.4](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.3...v0.2.4) (2026-04-27)
 
 
