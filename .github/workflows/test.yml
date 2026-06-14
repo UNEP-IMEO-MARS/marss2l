@@ -1,4 +1,4 @@
-name: Tests
+name: Unit Tests
 
 on:
   pull_request:
@@ -11,17 +11,6 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    # Credentials come exclusively from the environment (see marss2l/config.py).
-    # Tests that need them are skipped when the corresponding secret is unset.
-    env:
-      WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-      WANDB_PROJECT: ${{ secrets.WANDB_PROJECT }}
-      GEE_SERVICE_ACCOUNT_KEY: ${{ secrets.GEE_SERVICE_ACCOUNT_KEY }}
-      GEE_PROJECT: ${{ secrets.GEE_PROJECT }}
-      AZURE_STORAGE_ACCOUNT_NAME: ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}
-      AZURE_STORAGE_CONTAINER_NAME: ${{ secrets.AZURE_STORAGE_CONTAINER_NAME }}
-      AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
-      HF_TOKEN: ${{ secrets.HF_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,27 +26,7 @@ jobs:
           pip install -r environment/requirements-test.lock
           pip install -e . --no-deps
 
-      - name: Run tests
-        run: pytest tests/ -v
-
-      - name: Register notebook test kernel
-        run: |
-          python -m ipykernel install --user --name marss2l-ci --display-name "Python (marss2l-ci)"
-
-      - name: Run notebook integration tests
-        run: |
-          pytest --nbmake --nbmake-timeout=600 --nbmake-kernel=marss2l-ci -v \
-            notebooks/examples/plot_images_dataset_train.ipynb \
-            notebooks/examples/plot_plumes_dataset_test.ipynb \
-            notebooks/examples/run_inference.ipynb \
-            notebooks/examples/download_and_inference.ipynb \
-            notebooks/figures/dataset_stats_by_split_and_geopackage_locations.ipynb \
-            notebooks/figures/figure_number_of_images_per_country.ipynb \
-            notebooks/figures/mdl_exploration_by_case_study.ipynb \
-            notebooks/figures/mdl_exploration_adapted.ipynb \
-            notebooks/figures/figure_wind_speed.ipynb \
-            notebooks/figures/stats_dataset_toareflectances.ipynb \
-            notebooks/figures/eval_model_and_figure_prob_vs_emission_rate.ipynb \
-            notebooks/figures/figure_controlled_releases.ipynb \
-            notebooks/figures/cloudsen12_experiment.ipynb \
-            notebooks/figures/ablation_threshold_pixels.ipynb
+      - name: Run unit tests
+        # Integration tests (notebooks, train_final) run in integration.yml,
+        # gated on the 'integration' PR label.
+        run: pytest tests/ -v -m "not integration"

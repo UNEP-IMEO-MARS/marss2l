@@ -19,6 +19,7 @@ import pytest
 from marss2l.config import HFConfig
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not HFConfig.is_available(),
     reason=(
