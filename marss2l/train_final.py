@@ -201,17 +201,24 @@ def run(
         if path_weights_forfinetuning is None:
             raise ValueError("Path to the weights for finetuning is required when finetuning")
 
+        # Read finetuning inputs from blob when the path is on Azure, else local.
+        fsfinetune = (
+            fsread
+            if path_weights_forfinetuning.startswith("az://")
+            else fsspec.filesystem("file")
+        )
+
         config_file_for_finetuning = pathjoin(path_weights_forfinetuning, "config_experiment.json")
         best_epoch_file_for_finetuning = pathjoin(
             path_weights_forfinetuning, filename_weights_forfinetuning
         )
-        if not os.path.exists(config_file_for_finetuning) or not os.path.exists(
+        if not fsfinetune.exists(config_file_for_finetuning) or not fsfinetune.exists(
             best_epoch_file_for_finetuning
         ):
             raise ValueError(
                 f"Config file or best epoch file not found at {config_file_for_finetuning} or {best_epoch_file_for_finetuning}"
             )
-        with open(config_file_for_finetuning, "r") as f:
+        with fsfinetune.open(config_file_for_finetuning, "r") as f:
             config_base = json.load(f)
 
         model_name = config_base["model"]
@@ -385,7 +392,7 @@ def run(
     model = model.to(device)
     if load_weights:
         logger.info(f"Loading weights from {best_epoch_file_for_finetuning}")
-        models.load_weights(model, best_epoch_file_for_finetuning, device=None)
+        models.load_weights(model, best_epoch_file_for_finetuning, device=None, fs=fsfinetune)
 
     if data_parallel:
         logger.info("Using DataParallel")
