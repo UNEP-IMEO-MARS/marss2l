@@ -133,13 +133,11 @@ class GEEConfig:
 
     ``service_account_key`` holds the *contents* of the service-account JSON
     (as a string), read from the environment — never a path to a file in the
-    package.
+    package. ``project`` is optional: if unset, Earth Engine is initialised with
+    ``project=None``.
     """
 
-    required_env_vars: ClassVar[Tuple[str, ...]] = (
-        ENV_GEE_SERVICE_ACCOUNT_KEY,
-        ENV_GEE_PROJECT,
-    )
+    required_env_vars: ClassVar[Tuple[str, ...]] = (ENV_GEE_SERVICE_ACCOUNT_KEY,)
 
     service_account_key: Optional[str] = None
     project: Optional[str] = None
@@ -157,7 +155,9 @@ class GEEConfig:
 
     @property
     def is_configured(self) -> bool:
-        return bool(self.service_account_key) and bool(self.project)
+        # An empty string (e.g. an unset GitHub Actions secret) counts as unset.
+        # The project is optional, so it is not required here.
+        return bool(self.service_account_key)
 
     def service_account_dict(self) -> dict:
         """Parse the service-account JSON string into a dict."""

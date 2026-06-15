@@ -14,6 +14,7 @@ core unit-test suite always runs.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Tuple, Type
@@ -40,11 +41,12 @@ class NotebookDependency:
     requires: Tuple[Type, ...] = field(default_factory=tuple)
 
     def missing_env_vars(self) -> List[str]:
-        """Return the env vars that are required but not set."""
+        """Return the required env vars that are actually unset (or empty)."""
         missing: List[str] = []
         for cfg in self.requires:
-            if not cfg.is_available():
-                missing.extend(cfg.required_env_vars)
+            for var in cfg.required_env_vars:
+                if not os.environ.get(var):
+                    missing.append(var)
         return missing
 
 

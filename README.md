@@ -24,35 +24,6 @@ Install `marss2l` package:
 pip install marss2l
 ```
 
-### Credentials
-
-All external credentials are read **from environment variables** — no secret
-files are dropped into the package. Copy [`.env.sample`](./.env.sample) to
-`.env` and fill in your values:
-
-```bash
-cp .env.sample .env   # then edit .env with your values
-```
-
-`marss2l.config` (and any module that imports it, e.g. `marss2l.train_final` / `marss2l.utils`) automatically loads a `.env` file from the current working directory
-on import (real environment variables take precedence over the file), so no
-manual sourcing is needed. The integration tests can be run with the `.env`
-loaded via:
-
-```bash
-make test-integration
-```
-
-| Service | Variables |
-|---------|-----------|
-| Weights & Biases | `WANDB_API_KEY`, `WANDB_PROJECT` |
-| Google Earth Engine | `GEE_SERVICE_ACCOUNT_KEY` (service-account JSON), `GEE_PROJECT` |
-| Azure blob storage | `AZURE_STORAGE_ACCOUNT_NAME`, `AZURE_STORAGE_CONTAINER_NAME`, `AZURE_STORAGE_SAS_TOKEN` |
-
-Public data (including the MARS-S2L dataset) is read from Hugging Face and needs
-no token. Azure access is for private data only and always requires an account
-name and SAS token — there is no anonymous fallback.
-
 ## *End-to-end* inference [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/UNEP-IMEO-MARS/marss2l/blob/main/notebooks/examples/download_and_inference.ipynb)
 
 [This tutorial](./notebooks/examples/download_and_inference.ipynb) demonstrates an *end-to-end* example of the UNEP IMEO pipeline for detecting methane plumes in Sentinel‑2 and Landsat imagery. It downloads, compute the multi-band, multi-pass (MBMP, [Irakullis‑Loitxate et al., 2022](https://doi.org/10.1021/acs.est.1c04873)) retrieval, run inference with the MARS-S2L model ([Allen et al., 2025](https://arxiv.org/abs/2511.21777)), quantify the retrieval ΔXCH₄ and estimate the flux rate of detected plumes ([Gorroño et al., 2023](https://amt.copernicus.org/articles/16/89/2023/)).

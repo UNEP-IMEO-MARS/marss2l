@@ -59,12 +59,17 @@ class TestGEEConfig:
         assert cfg.is_configured is False
         assert GEEConfig.is_available() is False
 
-    def test_is_available_requires_both(self):
+    def test_available_with_key_only_project_optional(self):
+        # The project is optional; only the service-account key gates availability.
         with patch.dict(os.environ, {ENV_GEE_SERVICE_ACCOUNT_KEY: "{}"}, clear=True):
-            assert GEEConfig.is_available() is False
-        env = {ENV_GEE_SERVICE_ACCOUNT_KEY: "{}", ENV_GEE_PROJECT: "proj"}
-        with patch.dict(os.environ, env, clear=True):
             assert GEEConfig.is_available() is True
+            assert GEEConfig.from_env().project is None
+
+    def test_empty_key_is_not_configured(self):
+        # An empty string (e.g. an unset GitHub Actions secret) counts as unset.
+        with patch.dict(os.environ, {ENV_GEE_SERVICE_ACCOUNT_KEY: ""}, clear=True):
+            assert GEEConfig.from_env().is_configured is False
+            assert GEEConfig.is_available() is False
 
 
 class TestAzureConfig:
