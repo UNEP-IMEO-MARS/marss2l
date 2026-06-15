@@ -1,29 +1,37 @@
 name: Integration Tests
 
-# Integration tests exercise the notebooks and the train_final script against
-# the real MARS-S2L Hugging Face dataset and external services. They are NOT
-# run on every PR: add the 'integration-tests' label to a PR to trigger them
-# (or run the workflow manually). This workflow is intentionally not a required
-# check for merging.
-
+# Runs the notebooks and the train_final script as integration tests. Kept
+# separate from the unit tests so it can be (a) run on demand and (b)
+# non-blocking — these hit external services (Hugging Face, Earth Engine, Azure)
+# that can be flaky, and that should never block a merge. tests/conftest.py
+# skips any notebook whose data/credentials are absent.
+#
+# These are expensive, so they do NOT run on every push. Instead they run once
+# each time the `integration-tests` label is added to a PR (the label is then
+# removed automatically so it can be re-added to re-run), and on manual dispatch
+# via the Actions "Run workflow" button.
 on:
   pull_request:
-    types: [labeled, synchronize, reopened]
+    types: [labeled]
   workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   integration:
-    name: Run Integration Tests
-    # Run only when the PR carries the 'integration-tests' label, or on manual dispatch.
+    name: Run integration tests
+    runs-on: ubuntu-latest
+    # Run on manual dispatch, or when the `integration-tests` label is added to a PR.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      contains(github.event.pull_request.labels.*.name, 'integration-tests')
-    runs-on: ubuntu-latest
+      github.event.label.name == 'integration-tests'
+    # Non-blocking: a failure here (e.g. a flaky external service) must not fail
+    # the workflow run or block PR merges.
+    continue-on-error: true
     # Credentials come exclusively from the environment (see marss2l/config.py).
-    # Tests that need them are skipped when the corresponding secret is unset.
+    # Tests/notebooks that need them are skipped when the corresponding secret is unset.
     env:
       WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
       WANDB_PROJECT: ${{ secrets.WANDB_PROJECT }}
@@ -47,16 +55,18 @@ jobs:
           pip install -r environment/requirements-test.lock
           pip install -e . --no-deps
 
+      - name: Register Jupyter kernel
+        run: python -m ipykernel install --user --name marss2l --display-name "Python (marss2l)"
+
       - name: Run train_final integration test
         run: pytest tests/ -v -m integration
 
-      - name: Register notebook test kernel
-        run: |
-          python -m ipykernel install --user --name marss2l-ci --display-name "Python (marss2l-ci)"
-
+      # Notebooks whose data/credentials are absent are skipped by
+      # tests/conftest.py. Runs regardless of the train_final step result.
       - name: Run notebook integration tests
+        if: always()
         run: |
-          pytest --nbmake --nbmake-timeout=600 --nbmake-kernel=marss2l-ci -v \
+          pytest --nbmake -v --nbmake-timeout=600 --nbmake-kernel=marss2l \
             notebooks/examples/plot_images_dataset_train.ipynb \
             notebooks/examples/plot_plumes_dataset_test.ipynb \
             notebooks/examples/run_inference.ipynb \
@@ -71,3 +81,14 @@ jobs:
             notebooks/figures/figure_controlled_releases.ipynb \
             notebooks/figures/cloudsen12_experiment.ipynb \
             notebooks/figures/ablation_threshold_pixels.ipynb
+
+      # Remove the label again so re-adding it re-triggers the suite.
+      # Skipped on manual dispatch (no PR number).
+      - name: Remove integration-tests label
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} \
+            --remove-label "integration-tests" -R ${{ github.repository }} \
+            || echo "Label 'integration-tests' not present"
