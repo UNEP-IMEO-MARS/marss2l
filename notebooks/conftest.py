@@ -29,7 +29,7 @@ from typing import List, Tuple, Type
 
 import pytest
 
-from marss2l.config import AzureConfig, GEEConfig
+from marss2l.config import GEEConfig
 
 
 @dataclass(frozen=True)
@@ -59,23 +59,12 @@ class NotebookDependency:
 
 
 # Maps each notebook to the credentials it needs. The MARS-S2L Hugging Face
-# dataset is public, so HF-only notebooks need no gating and are omitted here
-# (an unlisted notebook always runs). download_and_inference needs GEE; the
-# figures that pull rasters from Azure need the Azure SAS token.
+# dataset and trained models are public, so notebooks that only read from
+# Hugging Face need no gating and are omitted here (an unlisted notebook always
+# runs). Only download_and_inference, which pulls scenes from Google Earth
+# Engine, needs a credential.
 NOTEBOOK_DEPENDENCIES: Tuple[NotebookDependency, ...] = (
     NotebookDependency("notebooks/examples/download_and_inference.ipynb", (GEEConfig,)),
-    NotebookDependency(
-        "notebooks/figures/dataset_stats_by_split_and_geopackage_locations.ipynb",
-        (AzureConfig,),
-    ),
-    NotebookDependency(
-        "notebooks/figures/eval_model_and_figure_prob_vs_emission_rate.ipynb",
-        (AzureConfig,),
-    ),
-    NotebookDependency(
-        "notebooks/figures/ablation_threshold_pixels.ipynb",
-        (AzureConfig,),
-    ),
 )
 
 
