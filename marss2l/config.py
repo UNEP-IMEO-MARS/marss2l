@@ -201,4 +201,4 @@ class AzureConfig:
 
     @property
     def is_configured(self) -> bool:
-        return self.account_name is not None and self.sas_token is not None
+        return bool(self.account_name) and bool(self.sas_token)
