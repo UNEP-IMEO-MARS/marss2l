@@ -427,7 +427,7 @@ class Trainer:
                         "optimizer_state_dict": self.opt.state_dict(),
                     }
                 )
-                if not smoke_test and self.path_best_epoch is not None:
+                if self.path_best_epoch is not None:
                     torch.save(dict_save, self.path_best_epoch)
                 best_metric = metric_early_stopping
                 best_epoch = epoch
@@ -466,7 +466,7 @@ class Trainer:
                 "optimizer_state_dict": self.opt.state_dict(),
             }
         )
-        if not smoke_test and self.path_last_epoch is not None:
+        if self.path_last_epoch is not None:
             torch.save(dict_save, self.path_last_epoch)
 
         self.logger.info("Training complete!")

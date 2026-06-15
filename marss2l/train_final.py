@@ -179,8 +179,7 @@ def run(
         else:
             logger = setup_file_logger("logs", "train_final")
 
-    if not smoke_test:
-        os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     if not multipass:
         if cat_mbmp:
             logger.warning("cat_mbmp is only available for multipass, we will set it to False")
@@ -495,13 +494,16 @@ def run(
         logger.info(f"Training with config {config_experiment}")
         trainer.train(train_loader, val_loader, n_epochs=nepochs, smoke_test=smoke_test)
 
-        # Save the config
+        # Save the config. wandb is disabled in smoke-test mode, so only attach
+        # the run url/id when it is a real run.
         if not smoke_test:
             config_experiment["wandb_run_url"] = run.get_url()
             config_experiment["wandb_run_id"] = run.id
-            with open(config_file, "w") as f:
-                json.dump(config_experiment, f, cls=CustomJSONEncoder)
 
+        with open(config_file, "w") as f:
+            json.dump(config_experiment, f, cls=CustomJSONEncoder)
+
+        if os.path.exists(inprogress_config_file):
             os.remove(inprogress_config_file)
 
         logger.info(f"----- Training finished -----")
