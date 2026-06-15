@@ -28,5 +28,5 @@ jobs:
 
       - name: Run unit tests
         # Integration tests (notebooks, train_final) run in integration.yml,
-        # gated on the 'integration' PR label.
+        # gated on the 'integration-tests' PR label.
         run: pytest tests/ -v -m "not integration"

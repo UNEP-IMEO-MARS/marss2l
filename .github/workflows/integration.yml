@@ -2,9 +2,9 @@ name: Integration Tests
 
 # Integration tests exercise the notebooks and the train_final script against
 # the real MARS-S2L Hugging Face dataset and external services. They are NOT
-# run on every PR: add the 'integration' label to a PR to trigger them (or run
-# the workflow manually). This workflow is intentionally not a required check
-# for merging.
+# run on every PR: add the 'integration-tests' label to a PR to trigger them
+# (or run the workflow manually). This workflow is intentionally not a required
+# check for merging.
 
 on:
   pull_request:
@@ -17,10 +17,10 @@ permissions:
 jobs:
   integration:
     name: Run Integration Tests
-    # Run only when the PR carries the 'integration' label, or on manual dispatch.
+    # Run only when the PR carries the 'integration-tests' label, or on manual dispatch.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      contains(github.event.pull_request.labels.*.name, 'integration')
+      contains(github.event.pull_request.labels.*.name, 'integration-tests')
     runs-on: ubuntu-latest
     # Credentials come exclusively from the environment (see marss2l/config.py).
     # Tests that need them are skipped when the corresponding secret is unset.
