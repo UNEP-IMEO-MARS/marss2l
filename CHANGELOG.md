@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.6](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.5...v0.2.6) (2026-06-15)
+
+
+### Features
+
+* **config:** auto-load .env from cwd; add make test-integration target ([d1cb82f](https://github.com/UNEP-IMEO-MARS/marss2l/commit/d1cb82f473919c478ce978c939fb68acaec1016e))
+* **config:** govern all credentials via environment variables ([060187c](https://github.com/UNEP-IMEO-MARS/marss2l/commit/060187c5fdad87155915e13e35ebb9d69cf0a303))
+* **config:** govern all credentials via environment variables ([b2e9e3c](https://github.com/UNEP-IMEO-MARS/marss2l/commit/b2e9e3cd642010502870f3c4319179b0e33202c4))
+
+
+### Bug Fixes
+
+* **config:** address PR review on GEE creds and external-facing docs ([5649d00](https://github.com/UNEP-IMEO-MARS/marss2l/commit/5649d0047357f57c73ede99ce3e1b2cb14080129))
+* **tests:** don't require an HF token; MARS-S2L dataset is public ([f6ed36e](https://github.com/UNEP-IMEO-MARS/marss2l/commit/f6ed36e7e222186f06bf13a09b3187f6686be9c9))
+
 ## [0.2.5](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.4...v0.2.5) (2026-06-09)
 
 
