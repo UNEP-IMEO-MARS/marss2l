@@ -157,11 +157,11 @@ class GEEConfig:
 
     @property
     def is_configured(self) -> bool:
-        return self.service_account_key is not None
+        return bool(self.service_account_key) and bool(self.project)
 
     def service_account_dict(self) -> dict:
         """Parse the service-account JSON string into a dict."""
-        if self.service_account_key is None:
+        if not self.service_account_key:
             raise ValueError(
                 f"{ENV_GEE_SERVICE_ACCOUNT_KEY} is not set; cannot parse the "
                 "GEE service-account key."
