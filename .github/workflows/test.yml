@@ -1,4 +1,4 @@
-name: Tests
+name: Unit Tests
 
 on:
   pull_request:
@@ -26,14 +26,7 @@ jobs:
           pip install -r environment/requirements-test.lock
           pip install -e . --no-deps
 
-      - name: Run tests
-        run: pytest tests/ -v
-
-      - name: Register notebook test kernel
-        run: |
-          python -m ipykernel install --user --name marss2l-ci --display-name "Python (marss2l-ci)"
-
-      - name: Run notebook integration test (train dataloader)
-        run: |
-          pytest --nbmake --nbmake-timeout=600 --nbmake-kernel=marss2l-ci \
-            notebooks/examples/plot_images_dataset_train.ipynb -v
+      - name: Run unit tests
+        # Integration tests (notebooks, train_final) run in integration.yml,
+        # gated on the 'integration-tests' PR label.
+        run: pytest tests/ -v -m "not integration"

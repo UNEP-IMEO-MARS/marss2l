@@ -14,28 +14,23 @@ from adlfs import AzureBlobFileSystem
 from huggingface_hub.file_download import build_hf_headers
 from shapely.geometry import base, mapping
 
-account_key_file = os.path.dirname(os.path.abspath(__file__)) + "/account_key.json"
+from marss2l.config import AzureConfig
 
-
-def get_remote_filesystem(use_account_key: bool = True):
-    kwargs = {
-        "account_name": "unepazeconomyadlsstorage",
-        "assume_container_exists": True,
-        "default_fill_cache": False,
-        "default_cache_type": None,
-    }
-
-    if (not use_account_key) or (not os.path.exists(account_key_file)):
-        # annon = True
-        kwargs["annon"] = True
-    else:
-        print("Using account key")
-        with open(account_key_file, "r") as f:
-            account_key = json.load(f)
-            kwargs["account_key"] = account_key["account_key"]
-            # os.environ["AZURE_STORAGE_CONNECTION_STRING"] = kwargs["connection_string"]
-
-    return AzureBlobFileSystem(**kwargs)
+def get_remote_filesystem():
+    cfg = AzureConfig.from_env()
+    if not cfg.is_configured:
+        raise ValueError(
+            "Azure credentials are not configured. Set "
+            f"{', '.join(AzureConfig.required_env_vars)} (see .env.sample). "
+            "Public data is read from Hugging Face; Azure access requires credentials."
+        )
+    return AzureBlobFileSystem(
+        account_name=cfg.account_name,
+        sas_token=cfg.sas_token,
+        assume_container_exists=True,
+        default_fill_cache=False,
+        default_cache_type=None,
+    )
 
 
 def isremotepath(path: str) -> bool:

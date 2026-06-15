@@ -18,6 +18,23 @@ CONDA_BASE := $(shell $(CONDA) info --base)
 ENV_BIN = $(CONDA_BASE)/envs/$(CONDA_ENV)/bin
 LOCKFILE = environment/requirements-test.lock
 
+# Notebooks exercised as integration tests.
+NOTEBOOKS = \
+	notebooks/examples/download_and_inference.ipynb \
+	notebooks/examples/plot_images_dataset_train.ipynb \
+	notebooks/examples/plot_plumes_dataset_test.ipynb \
+	notebooks/examples/run_inference.ipynb \
+	notebooks/figures/dataset_stats_by_split_and_geopackage_locations.ipynb \
+	notebooks/figures/figure_number_of_images_per_country.ipynb \
+	notebooks/figures/mdl_exploration_by_case_study.ipynb \
+	notebooks/figures/mdl_exploration_adapted.ipynb \
+	notebooks/figures/figure_wind_speed.ipynb \
+	notebooks/figures/stats_dataset_toareflectances.ipynb \
+	notebooks/figures/eval_model_and_figure_prob_vs_emission_rate.ipynb \
+	notebooks/figures/figure_controlled_releases.ipynb \
+	notebooks/figures/cloudsen12_experiment.ipynb \
+	notebooks/figures/ablation_threshold_pixels.ipynb
+
 
 help:	## Display this help
 		@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
@@ -41,8 +58,11 @@ condaenv:  ## 🐍 Create the marss2lpy312 conda env (idempotent) and install de
 ##@ Lock File
 lock: check-condaenv  ## 🔒 Regenerate environment/requirements-test.lock (pip-tools, georeader pinned to 2.3.1)
 	$(ENV_BIN)/pip install -q pip-tools
+	# --only-binary=basemap: basemap's sdist build-deps (an ancient numpy) don't
+	# build on Python 3.12, so resolve it from its wheel instead of the sdist.
 	$(ENV_BIN)/pip-compile --strip-extras --extra test \
 		-P georeader-spaceml==2.3.1 \
+		--pip-args "--only-binary=basemap" \
 		--output-file $(LOCKFILE) \
 		pyproject.toml
 	@printf "\033[1;33m>>> Lock regenerated — don't forget to commit $(LOCKFILE)\033[0m\n"
@@ -103,21 +123,26 @@ test-file: check-condaenv  ## Run a specific test file: make test-file FILE=test
 test-notebooks: check-condaenv  ## Run notebooks as integration tests with nbmake
 	@printf "\033[1;34mRunning notebooks with nbmake...\033[0m\n\n"
 	$(ENV_BIN)/pytest --nbmake -v --nbmake-timeout=600 --nbmake-kernel=$(NOTEBOOK_KERNEL) \
-		notebooks/examples/download_and_inference.ipynb \
-		notebooks/examples/plot_images_dataset_train.ipynb \
-		notebooks/examples/plot_plumes_dataset_test.ipynb \
-		notebooks/examples/run_inference.ipynb \
-		notebooks/figures/dataset_stats_by_split_and_geopackage_locations.ipynb \
-		notebooks/figures/figure_number_of_images_per_country.ipynb \
-		notebooks/figures/mdl_exploration_by_case_study.ipynb \
-		notebooks/figures/mdl_exploration_adapted.ipynb \
-		notebooks/figures/figure_wind_speed.ipynb \
-		notebooks/figures/stats_dataset_toareflectances.ipynb \
-		notebooks/figures/eval_model_and_figure_prob_vs_emission_rate.ipynb \
-		notebooks/figures/figure_controlled_releases.ipynb \
-		notebooks/figures/cloudsen12_experiment.ipynb \
-		notebooks/figures/ablation_threshold_pixels.ipynb
+		$(NOTEBOOKS)
 	@printf "\033[1;34mNotebook tests pass!\033[0m\n\n"
+
+test-integration: check-condaenv  ## Run integration tests (train_final + notebooks), loading .env if present
+	@printf "\033[1;34mRunning integration tests (loads .env if present)...\033[0m\n\n"
+	@if [ -f .env ]; then \
+		while IFS='=' read -r key val; do \
+			case "$$key" in ''|\#*) continue;; esac; \
+			key="$${key#export }"; \
+			case "$$val" in \
+				\"*\") val="$${val#\"}"; val="$${val%\"}";; \
+				\'*\') val="$${val#\'}"; val="$${val%\'}";; \
+			esac; \
+			export "$$key=$$val"; \
+		done < .env; \
+	fi; \
+	$(ENV_BIN)/pytest -v -m integration tests && \
+	$(ENV_BIN)/pytest --nbmake -v --nbmake-timeout=600 --nbmake-kernel=$(NOTEBOOK_KERNEL) \
+		$(NOTEBOOKS)
+	@printf "\033[1;34mIntegration tests pass!\033[0m\n\n"
 
 ##@ Building
 build: check-condaenv ## Build the marss2l package

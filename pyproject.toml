@@ -58,6 +58,10 @@ test = [
     "pytest-cov",
     "nbmake",
     "ipykernel",
+    # `mpl_toolkits.basemap` (used by some figure notebooks) ships in the
+    # `basemap` PyPI package. Dev/test-only — the runtime package imports it
+    # lazily inside the plotting helper, so it stays out of `dependencies`.
+    "basemap",
 ]
 
 [project.urls]
@@ -75,6 +79,11 @@ marss2l = ["py.typed", "mars_sentinel2/integrated_transmittances.json"]
 
 [tool.setuptools.dynamic]
 version = {attr = "marss2l.__version__"}
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: integration tests that need real external data/credentials (notebooks, train_final); triggered by the 'integration' PR label, not run on the default unit-test job.",
+]
 
 [tool.black]
 line-length = 100

@@ -14,6 +14,7 @@ import wandb
 from torch.utils.data import DataLoader, get_worker_info
 
 from marss2l import models
+from marss2l.config import WandbConfig
 from marss2l.seed import seed_all
 from marss2l.dataframe_image_plumes import (
     CSV_LOCSOURCES_PATH_DEFAULT,
@@ -83,7 +84,6 @@ DEFAULT_WEIGHT_BY_IME = False
 DEFAULT_ONLY_CLASSIFICATION = False
 DEFAULT_SCALE_CH4_LOSS = SCALE_CH4_LOSS
 DEFAULT_WEIGHT_BY_NOISE = False
-DEFAULT_WANDB_PROJECT = "s2l89-model"
 
 
 # Worker initialization function
@@ -164,7 +164,7 @@ def run(
     only_offshore: Annotated[bool, cyclopts.Parameter(help="Train only on offshore locations")] = DEFAULT_ONLY_OFFSHORE,
     path_prepend_data: Annotated[Optional[str], cyclopts.Parameter(help="Prepend path to data files")] = None,
     smoke_test: Annotated[bool, cyclopts.Parameter(help="Run 2 epochs of training with a subset of train and validation data")] = False,
-    wandb_project: Annotated[str, cyclopts.Parameter(help="Wandb project name for logging")] = os.environ.get("WANDB_PROJECT", DEFAULT_WANDB_PROJECT),
+    wandb_project: Annotated[str, cyclopts.Parameter(help="Wandb project name for logging")] = WandbConfig.from_env().project,
     fsread: Optional[fsspec.AbstractFileSystem] = None,
     seed: Annotated[Optional[int], cyclopts.Parameter(help="Random seed for reproducibility (sets all random number generators)")] = None,
 ):
@@ -179,8 +179,7 @@ def run(
         else:
             logger = setup_file_logger("logs", "train_final")
 
-    if not smoke_test:
-        os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     if not multipass:
         if cat_mbmp:
             logger.warning("cat_mbmp is only available for multipass, we will set it to False")
@@ -495,13 +494,16 @@ def run(
         logger.info(f"Training with config {config_experiment}")
         trainer.train(train_loader, val_loader, n_epochs=nepochs, smoke_test=smoke_test)
 
-        # Save the config
+        # Save the config. wandb is disabled in smoke-test mode, so only attach
+        # the run url/id when it is a real run.
         if not smoke_test:
             config_experiment["wandb_run_url"] = run.get_url()
             config_experiment["wandb_run_id"] = run.id
-            with open(config_file, "w") as f:
-                json.dump(config_experiment, f, cls=CustomJSONEncoder)
 
+        with open(config_file, "w") as f:
+            json.dump(config_experiment, f, cls=CustomJSONEncoder)
+
+        if os.path.exists(inprogress_config_file):
             os.remove(inprogress_config_file)
 
         logger.info(f"----- Training finished -----")

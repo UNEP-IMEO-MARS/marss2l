@@ -1,11 +1,11 @@
-import os
+from typing import Optional
+
+from marss2l.config import GEEConfig
 
 ee_initialized = False
 
-account_key_file = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/GCP_token.json"
 
-
-def ee_initialize():
+def ee_initialize(project: Optional[str] = None):
     global ee_initialized
     if ee_initialized:
         return
@@ -13,20 +13,18 @@ def ee_initialize():
     import ee
 
     # https://developers.google.com/earth-engine/guides/service_account#use-a-service-account-with-a-private-key
-    path_to_credentials = account_key_file
-    if not os.path.exists(path_to_credentials):
+    cfg = GEEConfig.from_env()
+    # Explicit project argument wins, then EARTHENGINE_PROJECT env var; None is fine.
+    project = project or cfg.project or None
+    if not cfg.is_configured:
         ee.Authenticate()
-        ee.Initialize()
+        ee.Initialize(project=project)
     else:
-        # read "account" field from json
-        import json
-
         print("Using service account for EE")
-        with open(path_to_credentials, "r") as f:
-            credentials_json = json.load(f)
-            service_account = credentials_json["client_email"]
-
-        credentials = ee.ServiceAccountCredentials(service_account, path_to_credentials)
-        ee.Initialize(credentials)
+        service_account = cfg.service_account_dict()["client_email"]
+        credentials = ee.ServiceAccountCredentials(
+            service_account, key_data=cfg.service_account_key
+        )
+        ee.Initialize(credentials, project=project)
 
     ee_initialized = True

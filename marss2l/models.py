@@ -101,6 +101,33 @@ class UnetOriginal(nn.Module):
         return x[:, 0]
 
 
+class LinearModel(nn.Module):
+    """Minimal linear segmentation model: a single 1x1 convolution.
+
+    Maps the input channels directly to a single-channel logit map. Mainly
+    useful as a fast baseline / smoke-test model that exercises the full
+    training pipeline without the cost of a U-Net.
+    """
+
+    def __init__(self, in_channels, out_channels=1, class_head=False):
+        super().__init__()
+        self.n_channels = in_channels
+        self.class_head = class_head
+        self.out = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1)
+        if self.class_head:
+            self.classification_head = ClassificationHead(in_channels=in_channels, classes=1)
+        else:
+            self.classification_head = None
+
+    def forward(self, x):
+        x = x["y_context_ls0_0"]
+        out = self.out(x)
+        if self.class_head:
+            classification_output = self.classification_head(x)
+            return out[:, 0], classification_output
+        return out[:, 0]
+
+
 def init_weights_film(n_locs: int, nchannels: int) -> torch.Tensor:
     return torch.cat(
         (torch.ones(1, n_locs, nchannels, 1, 1), torch.zeros(1, n_locs, nchannels, 1, 1)), dim=0
@@ -320,7 +347,7 @@ class MyUnetPlusPlus(smp.UnetPlusPlus):
         return pred_padded[:, 0]
 
 
-SegmentationModelMARSS2L = Union[UnetFiLMRefactor, UnetOriginal, MyUnetPlusPlus]
+SegmentationModelMARSS2L = Union[UnetFiLMRefactor, UnetOriginal, MyUnetPlusPlus, LinearModel]
 import logging
 
 
@@ -375,6 +402,13 @@ def load_model(
             div_factor=1,
             class_head=classification_head,
             batch_norm=batch_norm,
+        )
+    elif model_name == "Linear":
+        logger.info("LinearModel")
+        model = LinearModel(
+            in_channels=in_channels,
+            out_channels=1,
+            class_head=classification_head,
         )
     elif model_name == "UnetPlusPlus":
         if classification_head:
