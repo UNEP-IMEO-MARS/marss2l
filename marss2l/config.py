@@ -18,10 +18,10 @@ a test is skipped unless every config it depends on is configured.
 Credentials governed here
 -------------------------
 * **Weights & Biases** — ``WANDB_API_KEY`` (key), ``WANDB_PROJECT`` (project name).
-* **Google Earth Engine** — ``GEE_SERVICE_ACCOUNT_KEY`` (service-account JSON),
-  ``GEE_PROJECT`` (project id).
-* **Azure blob storage** — ``AZURE_STORAGE_ACCOUNT_NAME`` (account name),
-  ``AZURE_STORAGE_CONTAINER_NAME`` (container), ``AZURE_STORAGE_SAS_TOKEN`` (SAS token).
+* **Google Earth Engine** — ``EARTHENGINE_SERVICE_ACCOUNT_KEY`` (service-account
+  JSON). ``EARTHENGINE_PROJECT`` (project id) is optional.
+* **Azure blob storage** — ``AZURE_STORAGE_ACCOUNT`` (account name),
+  ``CONTAINER_NAME`` (container), ``SAS_TOKEN`` (SAS token).
 
 The MARS-S2L Hugging Face dataset is public, so no token is required to read it.
 
@@ -88,12 +88,13 @@ load_dotenv()
 ENV_WANDB_API_KEY = "WANDB_API_KEY"
 ENV_WANDB_PROJECT = "WANDB_PROJECT"
 
-ENV_GEE_SERVICE_ACCOUNT_KEY = "GEE_SERVICE_ACCOUNT_KEY"
-ENV_GEE_PROJECT = "GEE_PROJECT"
+# Earth Engine / Azure variable names follow the georeader convention.
+ENV_EARTHENGINE_SERVICE_ACCOUNT_KEY = "EARTHENGINE_SERVICE_ACCOUNT_KEY"
+ENV_EARTHENGINE_PROJECT = "EARTHENGINE_PROJECT"
 
-ENV_AZURE_ACCOUNT_NAME = "AZURE_STORAGE_ACCOUNT_NAME"
-ENV_AZURE_CONTAINER_NAME = "AZURE_STORAGE_CONTAINER_NAME"
-ENV_AZURE_SAS_TOKEN = "AZURE_STORAGE_SAS_TOKEN"
+ENV_AZURE_ACCOUNT = "AZURE_STORAGE_ACCOUNT"
+ENV_AZURE_CONTAINER = "CONTAINER_NAME"
+ENV_AZURE_SAS_TOKEN = "SAS_TOKEN"
 
 # ---------------------------------------------------------------------------
 # Defaults (non-secret values that are safe to keep in the source tree)
@@ -137,7 +138,7 @@ class GEEConfig:
     ``project=None``.
     """
 
-    required_env_vars: ClassVar[Tuple[str, ...]] = (ENV_GEE_SERVICE_ACCOUNT_KEY,)
+    required_env_vars: ClassVar[Tuple[str, ...]] = (ENV_EARTHENGINE_SERVICE_ACCOUNT_KEY,)
 
     service_account_key: Optional[str] = None
     project: Optional[str] = None
@@ -145,8 +146,8 @@ class GEEConfig:
     @classmethod
     def from_env(cls) -> "GEEConfig":
         return cls(
-            service_account_key=os.environ.get(ENV_GEE_SERVICE_ACCOUNT_KEY),
-            project=os.environ.get(ENV_GEE_PROJECT),
+            service_account_key=os.environ.get(ENV_EARTHENGINE_SERVICE_ACCOUNT_KEY),
+            project=os.environ.get(ENV_EARTHENGINE_PROJECT),
         )
 
     @classmethod
@@ -163,7 +164,7 @@ class GEEConfig:
         """Parse the service-account JSON string into a dict."""
         if not self.service_account_key:
             raise ValueError(
-                f"{ENV_GEE_SERVICE_ACCOUNT_KEY} is not set; cannot parse the "
+                f"{ENV_EARTHENGINE_SERVICE_ACCOUNT_KEY} is not set; cannot parse the "
                 "GEE service-account key."
             )
         return json.loads(self.service_account_key)
@@ -179,7 +180,7 @@ class AzureConfig:
     """
 
     required_env_vars: ClassVar[Tuple[str, ...]] = (
-        ENV_AZURE_ACCOUNT_NAME,
+        ENV_AZURE_ACCOUNT,
         ENV_AZURE_SAS_TOKEN,
     )
 
@@ -190,8 +191,8 @@ class AzureConfig:
     @classmethod
     def from_env(cls) -> "AzureConfig":
         return cls(
-            account_name=os.environ.get(ENV_AZURE_ACCOUNT_NAME),
-            container_name=os.environ.get(ENV_AZURE_CONTAINER_NAME),
+            account_name=os.environ.get(ENV_AZURE_ACCOUNT),
+            container_name=os.environ.get(ENV_AZURE_CONTAINER),
             sas_token=os.environ.get(ENV_AZURE_SAS_TOKEN),
         )
 

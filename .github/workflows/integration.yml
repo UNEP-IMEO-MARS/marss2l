@@ -35,11 +35,11 @@ jobs:
     env:
       WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
       WANDB_PROJECT: ${{ secrets.WANDB_PROJECT }}
-      GEE_SERVICE_ACCOUNT_KEY: ${{ secrets.GEE_SERVICE_ACCOUNT_KEY }}
-      GEE_PROJECT: ${{ secrets.GEE_PROJECT }}
-      AZURE_STORAGE_ACCOUNT_NAME: ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}
-      AZURE_STORAGE_CONTAINER_NAME: ${{ secrets.AZURE_STORAGE_CONTAINER_NAME }}
-      AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
+      EARTHENGINE_SERVICE_ACCOUNT_KEY: ${{ secrets.EARTHENGINE_SERVICE_ACCOUNT_KEY }}
+      EARTHENGINE_PROJECT: ${{ secrets.EARTHENGINE_PROJECT }}
+      AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+      CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}
+      SAS_TOKEN: ${{ secrets.SAS_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

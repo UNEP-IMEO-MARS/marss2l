@@ -14,7 +14,7 @@ def ee_initialize(project: Optional[str] = None):
 
     # https://developers.google.com/earth-engine/guides/service_account#use-a-service-account-with-a-private-key
     cfg = GEEConfig.from_env()
-    # Explicit project argument wins, then GEE_PROJECT env var; None is fine.
+    # Explicit project argument wins, then EARTHENGINE_PROJECT env var; None is fine.
     project = project or cfg.project or None
     if not cfg.is_configured:
         ee.Authenticate()

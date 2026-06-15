@@ -10,11 +10,11 @@ from unittest.mock import patch
 
 from marss2l.config import (
     DEFAULT_WANDB_PROJECT,
-    ENV_AZURE_ACCOUNT_NAME,
-    ENV_AZURE_CONTAINER_NAME,
+    ENV_AZURE_ACCOUNT,
+    ENV_AZURE_CONTAINER,
     ENV_AZURE_SAS_TOKEN,
-    ENV_GEE_PROJECT,
-    ENV_GEE_SERVICE_ACCOUNT_KEY,
+    ENV_EARTHENGINE_PROJECT,
+    ENV_EARTHENGINE_SERVICE_ACCOUNT_KEY,
     ENV_WANDB_API_KEY,
     ENV_WANDB_PROJECT,
     AzureConfig,
@@ -46,7 +46,7 @@ class TestWandbConfig:
 class TestGEEConfig:
     def test_from_env_reads_values(self):
         key = json.dumps({"client_email": "sa@example.com", "private_key": "x"})
-        env = {ENV_GEE_SERVICE_ACCOUNT_KEY: key, ENV_GEE_PROJECT: "proj"}
+        env = {ENV_EARTHENGINE_SERVICE_ACCOUNT_KEY: key, ENV_EARTHENGINE_PROJECT: "proj"}
         with patch.dict(os.environ, env, clear=True):
             cfg = GEEConfig.from_env()
         assert cfg.project == "proj"
@@ -61,13 +61,13 @@ class TestGEEConfig:
 
     def test_available_with_key_only_project_optional(self):
         # The project is optional; only the service-account key gates availability.
-        with patch.dict(os.environ, {ENV_GEE_SERVICE_ACCOUNT_KEY: "{}"}, clear=True):
+        with patch.dict(os.environ, {ENV_EARTHENGINE_SERVICE_ACCOUNT_KEY: "{}"}, clear=True):
             assert GEEConfig.is_available() is True
             assert GEEConfig.from_env().project is None
 
     def test_empty_key_is_not_configured(self):
         # An empty string (e.g. an unset GitHub Actions secret) counts as unset.
-        with patch.dict(os.environ, {ENV_GEE_SERVICE_ACCOUNT_KEY: ""}, clear=True):
+        with patch.dict(os.environ, {ENV_EARTHENGINE_SERVICE_ACCOUNT_KEY: ""}, clear=True):
             assert GEEConfig.from_env().is_configured is False
             assert GEEConfig.is_available() is False
 
@@ -75,8 +75,8 @@ class TestGEEConfig:
 class TestAzureConfig:
     def test_from_env_reads_values(self):
         env = {
-            ENV_AZURE_ACCOUNT_NAME: "myaccount",
-            ENV_AZURE_CONTAINER_NAME: "mycontainer",
+            ENV_AZURE_ACCOUNT: "myaccount",
+            ENV_AZURE_CONTAINER: "mycontainer",
             ENV_AZURE_SAS_TOKEN: "sv=token",
         }
         with patch.dict(os.environ, env, clear=True):
@@ -97,6 +97,6 @@ class TestAzureConfig:
     def test_is_available_requires_account_and_sas_token(self):
         with patch.dict(os.environ, {ENV_AZURE_SAS_TOKEN: "sv=token"}, clear=True):
             assert AzureConfig.is_available() is False
-        env = {ENV_AZURE_ACCOUNT_NAME: "myaccount", ENV_AZURE_SAS_TOKEN: "sv=token"}
+        env = {ENV_AZURE_ACCOUNT: "myaccount", ENV_AZURE_SAS_TOKEN: "sv=token"}
         with patch.dict(os.environ, env, clear=True):
             assert AzureConfig.is_available() is True
