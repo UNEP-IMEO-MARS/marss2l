@@ -1,15 +1,23 @@
-"""Pytest configuration for marss2l.
+"""Pytest configuration for the notebook integration tests under ``notebooks/``.
 
-Notebook (and other credential-dependent) tests are gated on the
-environment, mirroring the georeader pattern: the credential dataclasses in
-:mod:`marss2l.config` *define the dependencies* a test needs, and a test is
-skipped unless every config it depends on is configured via environment
+The notebooks double as integration tests: ``make test-notebooks`` (and the CI
+``integration`` workflow) execute them with ``pytest --nbmake``. Some of them
+need a cloud credential that is not always available, so a notebook is *skipped
+automatically* unless everything it needs is configured.
+
+This file lives **next to the notebooks** on purpose. pytest only loads a
+``conftest.py`` for the directory subtree it sits in, so the skip hook has to be
+under ``notebooks/`` to be applied when collecting ``notebooks/**/*.ipynb`` —
+the same pattern georeader and marshsi use (their notebook-gating conftest lives
+in ``docs/`` alongside their notebooks). The credential dataclasses in
+:mod:`marss2l.config` *define the dependencies* a notebook needs, and a notebook
+is skipped unless every config it depends on is configured via environment
 variables.
 
 In CI the credentials are provided through GitHub Actions secrets. Locally,
 copy ``.env.sample`` to ``.env``, fill it in, and load it before running the
-tests. Tests whose dependencies are unmet are skipped (not failed) so the
-core unit-test suite always runs.
+tests. Notebooks whose dependencies are unmet are skipped (not failed) so the
+suite stays green on a machine with no credentials.
 """
 
 from __future__ import annotations

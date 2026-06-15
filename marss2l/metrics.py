@@ -24,7 +24,14 @@ def get_scenelevel_metrics(
     balanced_accuracy = balanced_accuracy_score(target, preds_discrete)
     avr_precision = average_precision_score(target, scene_pred_cont)
 
-    bce = log_loss(target, scene_pred_cont, labels=[0, 1])
+    # log_loss needs probabilities in [0, 1]. Some baselines (e.g. MBMP) output a
+    # signed, unbounded score rather than a probability, so binary cross-entropy
+    # is not defined for them: skip it (report NaN) instead of raising.
+    scene_pred_arr = np.asarray(scene_pred_cont, dtype=float)
+    if scene_pred_arr.size and (scene_pred_arr.min() < 0 or scene_pred_arr.max() > 1):
+        bce = float("nan")
+    else:
+        bce = log_loss(target, scene_pred_cont, labels=[0, 1])
     fpr_value = fpr(target, preds_discrete)
 
     if as_percentage:

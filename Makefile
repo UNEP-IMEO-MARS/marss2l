@@ -58,8 +58,11 @@ condaenv:  ## 🐍 Create the marss2lpy312 conda env (idempotent) and install de
 ##@ Lock File
 lock: check-condaenv  ## 🔒 Regenerate environment/requirements-test.lock (pip-tools, georeader pinned to 2.3.1)
 	$(ENV_BIN)/pip install -q pip-tools
+	# --only-binary=basemap: basemap's sdist build-deps (an ancient numpy) don't
+	# build on Python 3.12, so resolve it from its wheel instead of the sdist.
 	$(ENV_BIN)/pip-compile --strip-extras --extra test \
 		-P georeader-spaceml==2.3.1 \
+		--pip-args "--only-binary=basemap" \
 		--output-file $(LOCKFILE) \
 		pyproject.toml
 	@printf "\033[1;33m>>> Lock regenerated — don't forget to commit $(LOCKFILE)\033[0m\n"
