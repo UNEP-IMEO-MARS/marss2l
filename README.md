@@ -34,7 +34,7 @@ files are dropped into the package. Copy [`.env.sample`](./.env.sample) to
 cp .env.sample .env   # then edit .env with your values
 ```
 
-`marss2l` automatically loads a `.env` file from the current working directory
+`marss2l.config` (and any module that imports it, e.g. `marss2l.train_final` / `marss2l.utils`) automatically loads a `.env` file from the current working directory
 on import (real environment variables take precedence over the file), so no
 manual sourcing is needed. The integration tests can be run with the `.env`
 loaded via:
