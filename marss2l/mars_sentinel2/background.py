@@ -17,20 +17,37 @@ from __future__ import annotations
 import logging
 import math
 from datetime import timedelta
-from typing import TYPE_CHECKING, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Optional, Protocol, TypeVar, runtime_checkable
 
+import matplotlib.pyplot as plt
 import numpy as np
 from georeader.geotensor import GeoTensor
+from georeader.plot import show
 
+from marss2l.mars_sentinel2 import query_images
+from marss2l.mars_sentinel2.ee import ee_initialize
 from marss2l.mars_sentinel2.location_image import LocationImageProtocol, S2LLocationImage
+from marss2l.mars_sentinel2.mixing_ratio_methane import difference_bands, ratio_IL
+from marss2l.mars_sentinel2.s2lutils import RELATION_CHANNELS_S2_L89, download_image_and_angles
 
 if TYPE_CHECKING:
     import uuid
+
+# Filtering/sorting a list of background candidates preserves the element type, so the
+# pure helpers are generic in it (bound to the LocationImageProtocol contract).
+LocImageT = TypeVar("LocImageT", bound=LocationImageProtocol)
 
 # cloudsen12 cloud-mask encoding: class 0 == clear/land == valid (same in marsml).
 CLEAR_CLASS = 0
 
 DEFAULT_BANDS_DIFFERENCES = ["B02", "B03", "B04", "B11"]
+
+# Landsat-8/9 constellation: LC08/LO08 are both Landsat-8 and LC09/LO09 both Landsat-9.
+# L8 and L9 share an orbit (8-day offset) so they are interchangeable as backgrounds and
+# are grouped; a plain ``satellite[:2]`` prefix check could not express this. The older
+# missions (LT04/LT05/LE07) are decades apart and are NOT interchangeable — each is its
+# own constellation (see _satellite_constellation).
+LANDSAT_89 = ("LC08", "LO08", "LC09", "LO09")
 
 
 @runtime_checkable
@@ -42,17 +59,17 @@ class SimilarityCache(Protocol):
     """
 
     def get(
-        self, id_a: "uuid.UUID", id_b: "uuid.UUID", bands: tuple, corregister: bool
+        self, id_a: "uuid.UUID", id_b: "uuid.UUID", bands: tuple[str, ...], corregister: bool
     ) -> Optional[float]: ...
 
     def put(
         self,
         id_a: "uuid.UUID",
         id_b: "uuid.UUID",
-        bands: tuple,
+        bands: tuple[str, ...],
         corregister: bool,
         similarity: float,
-        metadata: dict,
+        metadata: dict[str, Any],
     ) -> None: ...
 
 
@@ -60,17 +77,29 @@ class InMemorySimilarityCache:
     """Default in-memory :class:`SimilarityCache`."""
 
     def __init__(self) -> None:
-        self._d: dict = {}
+        self._d: dict[Any, tuple[float, dict[str, Any]]] = {}
 
     @staticmethod
-    def _key(id_a, id_b, bands, corregister):
+    def _key(
+        id_a: "uuid.UUID", id_b: "uuid.UUID", bands: tuple[str, ...], corregister: bool
+    ) -> tuple:
         return (frozenset((id_a, id_b)), tuple(bands), bool(corregister))
 
-    def get(self, id_a, id_b, bands, corregister):
+    def get(
+        self, id_a: "uuid.UUID", id_b: "uuid.UUID", bands: tuple[str, ...], corregister: bool
+    ) -> Optional[float]:
         entry = self._d.get(self._key(id_a, id_b, bands, corregister))
         return None if entry is None else entry[0]
 
-    def put(self, id_a, id_b, bands, corregister, similarity, metadata):
+    def put(
+        self,
+        id_a: "uuid.UUID",
+        id_b: "uuid.UUID",
+        bands: tuple[str, ...],
+        corregister: bool,
+        similarity: float,
+        metadata: dict[str, Any],
+    ) -> None:
         self._d[self._key(id_a, id_b, bands, corregister)] = (similarity, metadata)
 
 
@@ -120,17 +149,18 @@ class BackgroundImageSelector:
         force_same_orbit: bool = False,
         same_satellite_constellation: bool = True,
     ) -> list[S2LLocationImage]:
-        """Fetch candidate background images from GEE, with ``percentage_clear`` populated.
+        """Fetch background candidates from GEE, already filtered and sorted.
 
         Downloads (and computes the local cloud mask for) candidates in expanding,
         date-ordered batches: it stops once ``limit_images_most_similar`` clear
         survivors are found, otherwise keeps going until a usable background is found
-        or all metadata-survivors are exhausted. The returned images carry populated
-        ``percentage_clear`` / ``observability`` and are reused for similarity scoring.
+        or all metadata-survivors are exhausted. The downloaded images carry populated
+        ``percentage_clear`` / ``observability``; before returning they are run through
+        the two-pass cloud filter (:meth:`_filter_and_sort_background_images`) and sorted
+        by date proximity, so the result is ready for similarity scoring. A subclass that
+        overrides this step (e.g. the DB-backed one in marsml) is expected to return an
+        already filtered-and-sorted list too.
         """
-        from marss2l.mars_sentinel2 import query_images
-        from marss2l.mars_sentinel2.ee import ee_initialize
-
         ee_initialize()
         producttype, add_landsat457 = self._producttype(
             image_to_process, same_satellite, same_satellite_constellation
@@ -187,7 +217,15 @@ class BackgroundImageSelector:
                 n_clear += 1
             if n_clear >= self.limit_images_most_similar:
                 break
-        return downloaded
+
+        # Filter (two-pass cloud loosening) and sort by date proximity before returning.
+        return self._filter_and_sort_background_images(
+            image_to_process,
+            downloaded,
+            same_satellite=same_satellite,
+            force_same_orbit=force_same_orbit,
+            same_satellite_constellation=same_satellite_constellation,
+        )
 
     def download_image(self, image: S2LLocationImage) -> None:
         """Download pixels, cloud mask and angles from GEE; populate ``percentage_clear``.
@@ -195,8 +233,6 @@ class BackgroundImageSelector:
         Passes the stored ``asset_id``/``crs``/``transform``/``tile`` so the GEE
         catalog is not re-queried.
         """
-        from marss2l.mars_sentinel2.s2lutils import download_image_and_angles
-
         if image.image is not None:
             return
         image_to_download = {
@@ -257,8 +293,6 @@ class BackgroundImageSelector:
         if band in names:
             return names.index(band)
         # Landsat: map the logical S2 band name to the L8/9 band name.
-        from marss2l.mars_sentinel2.s2lutils import RELATION_CHANNELS_S2_L89
-
         target = RELATION_CHANNELS_S2_L89.get(band, band)
         return names.index(target)
 
@@ -309,23 +343,18 @@ class BackgroundImageSelector:
             self._log(verbose, f"Filtering {image.tile}: satellite {image.satellite}")
             return True
 
-        # Constellation restriction (Sentinel-2 / Landsat-8-9 / Landsat-4-5-7). Note LC08 and
-        # LO08 are both Landsat-8, so a plain satellite[:2] prefix check would be wrong; the
-        # explicit family lists below handle this and allow cross-constellation when disabled.
-        if same_satellite_constellation:
-            if image_to_process.satellite.startswith("S2") and not image.satellite.startswith("S2"):
-                self._log(verbose, f"Filtering {image.tile}: not Sentinel-2")
-                return True
-            if image_to_process.satellite in ["LC08", "LO08", "LC09", "LO09"] and (
-                image.satellite not in ["LC08", "LO08", "LC09", "LO09"]
-            ):
-                self._log(verbose, f"Filtering {image.tile}: not Landsat-8/9")
-                return True
-            if image_to_process.satellite in ["LE07", "LT05", "LT04"] and (
-                image.satellite not in ["LE07", "LT05", "LT04"]
-            ):
-                self._log(verbose, f"Filtering {image.tile}: not Landsat-4/5/7")
-                return True
+        # Constellation restriction (Sentinel-2 / Landsat-8-9 / each older Landsat on its own);
+        # see _satellite_constellation for why family lists, not a satellite[:2] prefix, are used.
+        if same_satellite_constellation and (
+            self._satellite_constellation(image.satellite)
+            != self._satellite_constellation(image_to_process.satellite)
+        ):
+            self._log(
+                verbose,
+                f"Filtering {image.tile}: constellation {image.satellite} "
+                f"!= {image_to_process.satellite}",
+            )
+            return True
 
         if force_same_orbit and image_to_process.satellite.startswith("S2"):
             if image.tile[33:37] != image_to_process.tile[33:37]:
@@ -342,11 +371,20 @@ class BackgroundImageSelector:
                 )
                 return True
 
-        # Same acquisition (same satellite, |Δ| < 5 min) — excludes S2A/S2C simultaneous passes.
-        if (image.satellite == image_to_process.satellite) and (
+        # Discard the target's own acquisition and any near-simultaneous pass from the same
+        # satellite constellation (|Δt| < 5 min, as in marsml's s2l89_processor). S2A and S2C
+        # flew in tandem for a few months, so the tandem twin's scene is useless as a
+        # background: in the ~minutes between the two passes the plume has not moved. The key is
+        # the *constellation*, not the exact satellite (marsml compares satellite, but that
+        # would miss the S2A/S2C tandem). This relies on the target and candidate sharing the
+        # same tile_date convention (the S2 datatake stamp) — see S2LLocationImage.from_tile.
+        if (
+            self._satellite_constellation(image.satellite)
+            == self._satellite_constellation(image_to_process.satellite)
+        ) and (
             abs((image.tile_date - image_to_process.tile_date).total_seconds()) < 5 * 60
         ):
-            self._log(verbose, f"Filtering {image.tile}: same image")
+            self._log(verbose, f"Filtering {image.tile}: same acquisition / tandem pass")
             return True
 
         if margin_days_background is None:
@@ -373,10 +411,10 @@ class BackgroundImageSelector:
 
         return False
 
-    def filter_and_sort_background_images(
+    def _filter_and_sort_background_images(
         self,
         image_to_process: LocationImageProtocol,
-        background_images: list,
+        background_images: list[LocImageT],
         *,
         same_satellite: bool = False,
         force_same_orbit: bool = False,
@@ -385,7 +423,7 @@ class BackgroundImageSelector:
         query_only_images_without_plumes: bool = False,
         margin_days_background: Optional[int] = None,
         verbose: bool = False,
-    ) -> list:
+    ) -> list[LocImageT]:
         """Filter candidates (two-pass cloud loosening) and sort by date proximity."""
 
         def _passes(bg, threshold):
@@ -426,20 +464,16 @@ class BackgroundImageSelector:
     def background_images_most_similar_sorted(
         self,
         image_to_process: LocationImageProtocol,
-        background_images: Optional[list] = None,
+        background_images: Optional[list[LocationImageProtocol]] = None,
         limit_images: Optional[int] = None,
         top: Optional[int] = None,
         bands_differences: Optional[list[str]] = None,
         corregister: bool = True,
-    ) -> list:
+    ) -> list[tuple[LocationImageProtocol, float]]:
         """Score candidates by band similarity; return ``[(image, difference), ...]`` ascending."""
-        from marss2l.mars_sentinel2.mixing_ratio_methane import difference_bands
-
         if background_images is None:
+            # query_background_images already returns a filtered-and-sorted list.
             background_images = self.query_background_images(image_to_process)
-            background_images = self.filter_and_sort_background_images(
-                image_to_process, background_images
-            )
         if not background_images:
             return []
 
@@ -517,13 +551,12 @@ class BackgroundImageSelector:
             return image_to_process.metadata["background_image"]
 
         method = method_bg_image or self.method_bg_image
+        # query_background_images already returns a filtered-and-sorted candidate list.
         candidates = self.query_background_images(
             image_to_process,
             same_satellite=(method == "nearest_same_orbit"),
             force_same_orbit=(method == "nearest_same_orbit"),
         )
-        image_to_process.metadata["background_images_list_all"] = candidates
-        candidates = self.filter_and_sort_background_images(image_to_process, candidates)
         image_to_process.metadata["background_images_list"] = candidates
 
         if not candidates:
@@ -551,7 +584,7 @@ class BackgroundImageSelector:
     def plot_all_differences(
         self,
         image_to_process: LocationImageProtocol,
-        background_images: Optional[list] = None,
+        background_images: Optional[list[LocationImageProtocol | tuple[LocationImageProtocol, float]]] = None,
         n_images_plot: int = 16,
         bands_differences: Optional[list[str]] = None,
         corregister: bool = True,
@@ -562,11 +595,6 @@ class BackgroundImageSelector:
         :meth:`background_images_most_similar_sorted`) so the panels read
         most-similar -> least-similar. Returns a matplotlib ``Figure``.
         """
-        import matplotlib.pyplot as plt
-        from georeader.plot import show
-
-        from marss2l.mars_sentinel2.mixing_ratio_methane import difference_bands, ratio_IL
-
         if background_images is None:
             ranked = self.background_images_most_similar_sorted(
                 image_to_process, bands_differences=bands_differences, corregister=corregister
@@ -659,6 +687,21 @@ class BackgroundImageSelector:
         if sat in ["LE07", "LT05", "LT04"]:
             return "Landsat", True
         raise ValueError(f"Unknown satellite {sat}")
+
+    @staticmethod
+    def _satellite_constellation(satellite: str) -> str:
+        """Constellation key grouping satellites whose images are interchangeable backgrounds.
+
+        Sentinel-2 (S2A/S2B/S2C…) is one group and Landsat-8-9 (LC08/LO08/LC09/LO09) another.
+        The older Landsat missions (LT04/LT05/LE07) are decades apart and not interchangeable,
+        so each falls through to its own key (returned verbatim) — an L4 scene is never a
+        background for an L5, etc. An unknown satellite is likewise its own group.
+        """
+        if satellite.startswith("S2"):
+            return "S2"
+        if satellite in LANDSAT_89:
+            return "Landsat-8-9"
+        return satellite
 
     def _log(self, verbose: bool, message: str) -> None:
         if verbose:

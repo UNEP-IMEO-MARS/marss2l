@@ -149,6 +149,36 @@ class TestFilter:
         bg = make_image(self.loc, satellite="S2A", day_offset=0)  # same sat, same instant
         assert self.sel.filter_background_image(self.target, bg) is True
 
+    def test_rejects_tandem_twin_same_instant(self):
+        # Regression: S2A and S2C flew in tandem, so an S2C scene acquired at the same instant
+        # as the S2A target must be discarded (the plume has not moved). The old check compared
+        # exact satellite (S2A != S2C) and wrongly kept it.
+        bg = make_image(self.loc, satellite="S2C", day_offset=0)
+        assert self.sel.filter_background_image(self.target, bg) is True
+
+    def test_rejects_tandem_twin_within_5min(self):
+        # Same constellation within the ±5 min window (as in marsml) is the same acquisition.
+        three_min = make_image(
+            self.loc, satellite="S2C", day_offset=3 / (24 * 60), tile="S2C_tandem_3min"
+        )
+        assert self.sel.filter_background_image(self.target, three_min) is True
+
+    def test_keeps_same_constellation_outside_5min(self):
+        # 8 min apart is a genuinely separate pass → kept (other filters pass).
+        eight_min = make_image(
+            self.loc, satellite="S2C", day_offset=8 / (24 * 60), tile="S2C_8min"
+        )
+        assert self.sel.filter_background_image(self.target, eight_min) is False
+
+    def test_old_landsat_missions_are_distinct_constellations(self):
+        # LT04/LT05/LE07 are decades apart and not interchangeable: an L4 scene is not a
+        # background for an L5 target, even with same_satellite_constellation=True.
+        target = make_image(self.loc, satellite="LT05", day_offset=0)
+        bg_l4 = make_image(self.loc, satellite="LT04", day_offset=10)
+        bg_l5 = make_image(self.loc, satellite="LT05", day_offset=10)
+        assert self.sel.filter_background_image(target, bg_l4) is True   # different constellation
+        assert self.sel.filter_background_image(target, bg_l5) is False  # same mission, kept
+
     def test_rejects_outside_date_window(self):
         bg = make_image(self.loc, satellite="S2A", day_offset=200)
         assert self.sel.filter_background_image(self.target, bg) is True
@@ -189,7 +219,7 @@ class TestFilterAndSortTwoPass:
         # all candidates are 90% clear: fail the 5% pass, pass the 35% pass
         far = make_image(loc, satellite="S2B", day_offset=40, percentage_clear=90.0)
         near = make_image(loc, satellite="S2B", day_offset=20, percentage_clear=90.0)
-        out = sel.filter_and_sort_background_images(target, [far, near])
+        out = sel._filter_and_sort_background_images(target, [far, near])
         assert out == [near, far]  # sorted by |Δdate|
 
     def test_returns_empty_when_all_too_cloudy(self):
@@ -198,7 +228,7 @@ class TestFilterAndSortTwoPass:
         target = make_image(loc, satellite="S2A", day_offset=0)
         bg = make_image(loc, satellite="S2B", day_offset=20,
                         percentage_clear=10.0, observability="cloudy")
-        assert sel.filter_and_sort_background_images(target, [bg]) == []
+        assert sel._filter_and_sort_background_images(target, [bg]) == []
 
 
 # --------------------------------------------------------------------------- cache
@@ -366,7 +396,5 @@ class TestQueryBackgroundImagesExpand:
         target = make_image(make_location(), satellite="S2A", day_offset=0)
         out = sel.query_background_images(target)
         assert sel.download_count == 5  # expanded through all to find the clear one
-        assert len(out) == 5
-        # downstream filter keeps only the clear far candidate
-        kept = sel.filter_and_sort_background_images(target, out)
-        assert [c.tile for c in kept] == ["c5"]
+        # query_background_images returns the filtered+sorted survivors: only the clear one.
+        assert [c.tile for c in out] == ["c5"]

@@ -13,6 +13,24 @@ from shapely.geometry import MultiPolygon, Polygon
 
 MAX_DATE_ERA5 = None
 
+# Sentinel-2 product names embed the datatake sensing-start timestamp. We use it (rather than
+# the granule ``system:time_start``) as the canonical ``utcdatetime`` so that candidates queried
+# here and a target built via ``S2LLocationImage.from_tile`` agree on ``tile_date`` for the same
+# scene. This is the convention marsml uses too, and it is what lets the same-acquisition filter
+# discard the target's own scene.
+_S2_OPER_RE = re.compile(r"S2[A|B]_OPER_")
+
+
+def utcdatetime_from_s2_title(title: str) -> datetime:
+    """Parse the datatake sensing-start timestamp embedded in a Sentinel-2 product name.
+
+    Modern names (``S2A_MSIL1C_20250529T172859_...``) carry it at characters 11:26; legacy OPER
+    names (``S2A_OPER_..._20250529T172859_...``) at characters 25:40. Returns a tz-aware UTC
+    ``datetime``.
+    """
+    substr = title[25 : 25 + 15] if _S2_OPER_RE.match(title) else title[11:26]
+    return pd.to_datetime(substr, utc=True).to_pydatetime()
+
 
 def datetime_with_timezone(date_of_acquisition: datetime) -> datetime:
     """
@@ -350,21 +368,11 @@ def query_gee(
             images_available_gee["mean_solar_zenith_angle"] < 90
         ]
 
-    # If producttype S2 set up the utcdatetime attribute from tile name
+    # If producttype S2 set up the utcdatetime attribute from the tile name (datatake stamp).
     if producttype in ["S2", "S2_SR", "both"]:
-        expr = re.compile(r"S2[A|B]_OPER_")
         s2_images_idx = images_available_gee.satellite.apply(lambda x: x.startswith("S2"))
-        s2_images_oper = images_available_gee.apply(
-            lambda x: expr.match(x.name) is not None, axis=1
-        )
-        images_available_gee.loc[s2_images_idx & ~s2_images_oper, "utcdatetime"] = pd.to_datetime(
-            images_available_gee[s2_images_idx & ~s2_images_oper].index.map(lambda x: x[11:26]),
-            utc=True,
-        )
-        images_available_gee.loc[s2_images_idx & s2_images_oper, "utcdatetime"] = pd.to_datetime(
-            images_available_gee[s2_images_idx & s2_images_oper].index.map(
-                lambda x: x[25 : (25 + 15)]
-            ),
+        images_available_gee.loc[s2_images_idx, "utcdatetime"] = pd.to_datetime(
+            images_available_gee[s2_images_idx].index.map(utcdatetime_from_s2_title),
             utc=True,
         )
 

@@ -201,13 +201,26 @@ class S2LLocationImage:
         if info is None:
             raise ValueError(f"Could not resolve tile {tile} from GEE")
         resolved_tile = info.get("tile", tile)
+        satellite = resolved_tile.split("_")[0]
+        # For S2 use the datatake timestamp from the product name as tile_date (NOT the granule
+        # system:time_start in info["utcdatetime"]): this matches the convention query_gee uses
+        # for candidate tile_date, so the same-acquisition filter can discard the target's own
+        # scene (the two otherwise differ by several minutes). This mirrors marsml, where the
+        # image-to-process and its candidates both come from query_gee. Landsat is unaffected:
+        # query_gee does not override Landsat utcdatetime, so both paths already use time_start.
+        if satellite.startswith("S2"):
+            from marss2l.mars_sentinel2.query_images import utcdatetime_from_s2_title
+
+            tile_date = utcdatetime_from_s2_title(resolved_tile)
+        else:
+            tile_date = info.get("utcdatetime", tile_date)
         return cls(
             id_loc_image=cls._id_from_asset(info.get("asset_id")),
             id_location=location.id_location,
             location=location,
             tile=resolved_tile,
-            satellite=resolved_tile.split("_")[0],
-            tile_date=info.get("utcdatetime", tile_date),
+            satellite=satellite,
+            tile_date=tile_date,
             asset_id=info.get("asset_id"),
             gee_id=info.get("gee_id"),
             crs=info.get("crs"),

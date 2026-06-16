@@ -126,3 +126,54 @@ class TestFromGeeRow:
         assert img.sza == 30.0
         assert img.vza == 5.0
         assert img.metadata == {}
+
+
+class TestFromTile:
+    """from_tile must derive tile_date the same way query_gee does, NOT from system:time_start.
+
+    Otherwise the target and its candidates disagree on tile_date for the same scene by several
+    minutes and the same-acquisition filter keeps the target as its own background.
+    """
+
+    def _patch_info(self, monkeypatch, info):
+        import marss2l.mars_sentinel2.s2lutils as s2lutils
+
+        monkeypatch.setattr(s2lutils, "gee_info_to_download", lambda *a, **k: info)
+
+    def test_s2_tile_date_is_datatake_stamp_not_time_start(self, monkeypatch):
+        loc = make_location()
+        product_id = "S2B_MSIL1C_20250529T172859_N0511_R055_T13SGR_20250529T210525"
+        # system:time_start (granule sensing time) is ~16 min after the datatake stamp.
+        self._patch_info(
+            monkeypatch,
+            {
+                "tile": product_id,
+                "asset_id": f"COPERNICUS/S2_HARMONIZED/{product_id}",
+                "gee_id": product_id,
+                "utcdatetime": datetime(2025, 5, 29, 17, 45, 4, tzinfo=timezone.utc),
+                "crs": "EPSG:32613",
+                "transform": None,
+            },
+        )
+        img = S2LLocationImage.from_tile(product_id, location=loc)
+        # datatake stamp 20250529T172859, NOT the 17:45:04 system:time_start
+        assert img.tile_date == datetime(2025, 5, 29, 17, 28, 59, tzinfo=timezone.utc)
+
+    def test_landsat_tile_date_uses_utcdatetime(self, monkeypatch):
+        loc = make_location()
+        tile = "LC08_L1TP_031037_20250529_20250529_02_T1"
+        ts = datetime(2025, 5, 29, 17, 30, 0, tzinfo=timezone.utc)
+        self._patch_info(
+            monkeypatch,
+            {
+                "tile": tile,
+                "asset_id": f"LANDSAT/LC08/C02/T1_L2/{tile}",
+                "gee_id": tile,
+                "utcdatetime": ts,
+                "crs": "EPSG:32613",
+                "transform": None,
+            },
+        )
+        img = S2LLocationImage.from_tile(tile, location=loc)
+        assert img.satellite == "LC08"
+        assert img.tile_date == ts  # Landsat keeps system:time_start (consistent with query_gee)
