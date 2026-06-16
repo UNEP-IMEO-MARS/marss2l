@@ -360,10 +360,12 @@ class _ExpandSelector(BackgroundImageSelector):
 
 
 def _patch_gee(monkeypatch, rows):
-    import marss2l.mars_sentinel2.ee as ee_mod
+    import marss2l.mars_sentinel2.background as bg_mod
     import marss2l.mars_sentinel2.query_images as qi
 
-    monkeypatch.setattr(ee_mod, "ee_initialize", lambda *a, **k: None)
+    # background.py does `from ...ee import ee_initialize`, so the name is bound in
+    # the background module namespace; patch it there (not on the ee module).
+    monkeypatch.setattr(bg_mod, "ee_initialize", lambda *a, **k: None)
     df = pd.DataFrame(rows).set_index("title")
     monkeypatch.setattr(qi, "query_gee", lambda *a, **k: df)
 
