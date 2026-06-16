@@ -5,11 +5,11 @@ from typing import Annotated, List, Optional
 
 import cyclopts
 import fsspec
-import loguru
 import numpy as np
 import torch
 import torch.nn as nn
 import wandb
+from loguru._logger import Logger
 from torch.utils.data import DataLoader, get_worker_info
 
 from marss2l import models
@@ -127,7 +127,7 @@ def run(
     csv_sources_path: Annotated[Optional[str], cyclopts.Parameter(help="Path to CSV file with source locations for simulation")] = CSV_LOCSOURCES_PATH_DEFAULT,
     split: Annotated[str, cyclopts.Parameter(help="Data split strategy (e.g., 'all', 'spatial', 'temporal')")] = DEFAULT_SPLIT,
     film_train_zero_id: Annotated[bool, cyclopts.Parameter(help="Train FiLM zero ID for unknown locations")] = DEFAULT_FILM_TRAIN_ZERO_ID,
-    logger: Optional[loguru.Logger] = None,
+    logger: Optional[Logger] = None,
     num_workers: Annotated[int, cyclopts.Parameter(help="Number of dataloader workers for training")] = DEFAULT_NUM_WORKERS,
     num_workers_val: Annotated[int, cyclopts.Parameter(help="Number of dataloader workers for validation")] = DEFAULT_NUM_WORKERS_VAL,
     cache_all: Annotated[bool, cyclopts.Parameter(help="Cache all training images in memory")] = True,

@@ -3,10 +3,10 @@ from typing import Annotated, Optional
 
 import cyclopts
 import fsspec
-import loguru
 import numpy as np
 import pandas as pd
 import torch
+from loguru._logger import Logger
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 
@@ -66,7 +66,7 @@ def run_eval(
     split: Annotated[str, cyclopts.Parameter(help="Data split to evaluate (e.g., 'test', 'test_2023', 'post_2022_test')")] = "test_2023",
     csv_path: Annotated[str, cyclopts.Parameter(help="Path to CSV file with image metadata")] = CSV_PATH_DEFAULT,
     device_name: Annotated[str, cyclopts.Parameter(help="Device for inference (cuda or cpu)")] = "cuda",
-    logger: Optional[loguru.Logger] = None,
+    logger: Optional[Logger] = None,
     num_workers: Annotated[int, cyclopts.Parameter(help="Number of dataloader workers")] = 4,
     batch_size: Annotated[int, cyclopts.Parameter(help="Batch size for inference")] = 16,
     suffix_output: Annotated[str, cyclopts.Parameter(help="Suffix to add to output CSV files")] = "",

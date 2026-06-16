@@ -2,10 +2,10 @@ import argparse
 from typing import Optional
 
 import fsspec
-import loguru
 import numpy as np
 import torch
 import torch.nn as nn
+from loguru._logger import Logger
 from torch.utils.data import DataLoader
 
 from marss2l.dataframe_image_plumes import load_dataframe_split, read_csv_images
@@ -30,7 +30,7 @@ def run_eval(
     split: str = "test",
     csv_path: str = CSV_PATH_DEFAULT,
     device_name: str = "cuda",
-    logger: Optional[loguru.Logger] = None,
+    logger: Optional[Logger] = None,
     all_locs=None,
     num_workers: int = 4,
     batch_size: int = 16,

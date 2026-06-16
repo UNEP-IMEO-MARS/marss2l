@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from adlfs import AzureBlobFileSystem
 from huggingface_hub.file_download import build_hf_headers
+from loguru._logger import Logger
 from shapely.geometry import base, mapping
 
 from marss2l import __version__
@@ -113,9 +114,9 @@ def round_seconds(obj: datetime) -> datetime:
 
 
 def setup_stream_logger(
-    logger: Optional["loguru.Logger"] = None,
+    logger: Optional[Logger] = None,
     level: str = "INFO",
-) -> "loguru.Logger":
+) -> Logger:
     """Configure a loguru logger to stream to standard output.
 
     Args:
@@ -216,10 +217,10 @@ class CustomJSONEncoder(json.JSONEncoder):
 def setup_file_logger(
     logdir,
     namefile: str,
-    logger: Optional["loguru.Logger"] = None,
+    logger: Optional[Logger] = None,
     level: str = "INFO",
     stderr_errors: bool = False,
-) -> "loguru.Logger":
+) -> Logger:
     """Configure a loguru logger with stdout, a main log file, and an error sink.
 
     Creates timestamped log files in the specified directory.
