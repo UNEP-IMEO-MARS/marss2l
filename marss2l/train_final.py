@@ -179,7 +179,6 @@ def run(
         else:
             logger = setup_file_logger("logs", "train_final")
 
-    os.makedirs(output_dir, exist_ok=True)
     if not multipass:
         if cat_mbmp:
             logger.warning("cat_mbmp is only available for multipass, we will set it to False")
@@ -190,9 +189,7 @@ def run(
 
     # Output filesystem: chosen by output_dir, reusing fsread only if it is an Azure FS.
     fswritter = fs_for_path(output_dir, fsread)
-
-    if not smoke_test:
-        fswritter.makedirs(output_dir, exist_ok=True)
+    fswritter.makedirs(output_dir, exist_ok=True)
 
     assert bands_l8, "Only Landsat 8 bands are supported now"
 
