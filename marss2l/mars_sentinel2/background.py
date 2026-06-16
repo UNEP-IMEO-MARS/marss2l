@@ -634,6 +634,7 @@ class BackgroundImageSelector:
             )
             min_value = mbmp.values.min()
             show(mbmp, add_colorbar_next_to=True, ax=ax[i, 2], vmax=1,
+                 cmap="plasma_r",
                  vmin=max(min_value, 0.92), title="MBMP I-L")
             for axs in ax[i]:
                 axs.axis("off")

@@ -2,6 +2,8 @@ from typing import Optional
 
 from marss2l.config import GEEConfig
 
+import os
+
 ee_initialized = False
 
 
@@ -21,10 +23,14 @@ def ee_initialize(project: Optional[str] = None):
         ee.Initialize(project=project)
     else:
         print("Using service account for EE")
-        service_account = cfg.service_account_dict()["client_email"]
-        credentials = ee.ServiceAccountCredentials(
-            service_account, key_data=cfg.service_account_key
-        )
-        ee.Initialize(credentials, project=project)
+        if os.path.isfile(cfg.service_account_key):
+            credentials = ee.ServiceAccountCredentials(
+                email=None, key_file=cfg.service_account_key
+            )
+        else:
+            credentials = ee.ServiceAccountCredentials(
+                email=None, key_data=cfg.service_account_key
+            )
+        ee.Initialize(credentials)
 
     ee_initialized = True

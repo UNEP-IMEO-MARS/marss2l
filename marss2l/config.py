@@ -167,6 +167,9 @@ class GEEConfig:
                 f"{ENV_EARTHENGINE_SERVICE_ACCOUNT_KEY} is not set; cannot parse the "
                 "GEE service-account key."
             )
+        if os.path.isfile(self.service_account_key):
+            with open(self.service_account_key, "r", encoding="utf-8") as fh:
+                return json.load(fh)
         return json.loads(self.service_account_key)
 
 
