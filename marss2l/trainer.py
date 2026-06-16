@@ -434,7 +434,7 @@ class Trainer:
                         "optimizer_state_dict": self.opt.state_dict(),
                     }
                 )
-                if not smoke_test and self.path_best_epoch is not None:
+                if self.path_best_epoch is not None:
                     with self.fswritter.open(self.path_best_epoch, "wb") as f:
                         torch.save(dict_save, f)
                 best_metric = metric_early_stopping
@@ -474,7 +474,7 @@ class Trainer:
                 "optimizer_state_dict": self.opt.state_dict(),
             }
         )
-        if not smoke_test and self.path_last_epoch is not None:
+        if self.path_last_epoch is not None:
             with self.fswritter.open(self.path_last_epoch, "wb") as f:
                 torch.save(dict_save, f)
 
