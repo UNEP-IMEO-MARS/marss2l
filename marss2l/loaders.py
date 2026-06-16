@@ -1402,13 +1402,12 @@ class DatasetPlumes(Dataset):
             )
 
         except Exception:
-            self.logger.error(
-                f"""Simulation failed. 
-                            Plume {plume_item['tile']} location name {plume_item['location_name']} with wind {plume_item['wind_u']}, {plume_item['wind_v']}. 
+            self.logger.opt(exception=True).error(
+                f"""Simulation failed.
+                            Plume {plume_item['tile']} location name {plume_item['location_name']} with wind {plume_item['wind_u']}, {plume_item['wind_v']}.
                             Image {item['tile']} location name {item['location_name']} with wind {item['wind_u']}, {item['wind_v']}
                             Window plume: {window_plume}
-                            """,
-                exc_info=True,
+                            """
             )
             # label = torch.zeros_like(s2_data[0,...], device=self.device)
             label = np.zeros(s2_data.shape[1:], dtype=bool)

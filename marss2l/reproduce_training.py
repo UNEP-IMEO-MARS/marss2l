@@ -1,6 +1,5 @@
 import argparse
 import gc
-import logging
 import os
 from collections import OrderedDict
 
@@ -9,7 +8,7 @@ import torch
 
 from marss2l import eval_final, loaders, train_final
 from marss2l.loaders import SPLITS
-from marss2l.utils import fs_from_path, setup_file_logger
+from marss2l.utils import fs_from_path, setup_file_logger, setup_stream_logger
 
 EXPERIMENTS_RUN = OrderedDict(
     {
@@ -151,7 +150,7 @@ if __name__ == "__main__":
     )
 
     args_parsed = parser.parse_args()
-    logger = logging.getLogger(__name__)
+    logger = setup_stream_logger()
 
     csv_path = args_parsed.csv_path
     num_workers = args_parsed.num_workers
@@ -175,7 +174,7 @@ if __name__ == "__main__":
 
     n_samples_per_epoch_train = args_parsed.n_samples_per_epoch_train
 
-    setup_file_logger("logs", "reproduce_training", logger)
+    logger = setup_file_logger("logs", "reproduce_training")
 
     
     fsread = fs_from_path(csv_path)
@@ -219,7 +218,9 @@ if __name__ == "__main__":
                 logger.info(f"Trained model found for experiment: {experiment_name}. Skipping.")
 
         except Exception as e:
-            logger.error(f"Error training model for experiment: {experiment_name}", exc_info=True)
+            logger.opt(exception=e).error(
+                f"Error training model for experiment: {experiment_name}"
+            )
             continue
 
         # Force garbage collection and empty cache of GPU
@@ -257,9 +258,8 @@ if __name__ == "__main__":
                     logger.info(f"Preds found for experiment: {experiment_name}:")
 
             except Exception as e:
-                logger.error(
-                    f"Error evaluating model in split {split_test} for experiment: {experiment_name}",
-                    exc_info=True,
+                logger.opt(exception=e).error(
+                    f"Error evaluating model in split {split_test} for experiment: {experiment_name}"
                 )
                 continue
 

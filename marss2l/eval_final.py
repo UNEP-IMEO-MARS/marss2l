@@ -1,9 +1,9 @@
 import json
-import logging
 from typing import Annotated, Optional
 
 import cyclopts
 import fsspec
+import loguru
 import numpy as np
 import pandas as pd
 import torch
@@ -66,7 +66,7 @@ def run_eval(
     split: Annotated[str, cyclopts.Parameter(help="Data split to evaluate (e.g., 'test', 'test_2023', 'post_2022_test')")] = "test_2023",
     csv_path: Annotated[str, cyclopts.Parameter(help="Path to CSV file with image metadata")] = CSV_PATH_DEFAULT,
     device_name: Annotated[str, cyclopts.Parameter(help="Device for inference (cuda or cpu)")] = "cuda",
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[loguru.Logger] = None,
     num_workers: Annotated[int, cyclopts.Parameter(help="Number of dataloader workers")] = 4,
     batch_size: Annotated[int, cyclopts.Parameter(help="Batch size for inference")] = 16,
     suffix_output: Annotated[str, cyclopts.Parameter(help="Suffix to add to output CSV files")] = "",
@@ -106,7 +106,7 @@ def run_eval(
 
     if logger is None:
         if smoke_test:
-            logger = setup_stream_logger(level=logging.INFO)
+            logger = setup_stream_logger(level="INFO")
         else:
             logger = setup_file_logger("log", "eval_final")
     

@@ -168,7 +168,7 @@ def copy_item_image(
                             fdst.write(fsrc.read())
                 files_processed.append(target_path)
         except Exception as e:
-            logger.error(f"Error processing {path} to {target_path}", exc_info=e)
+            logger.opt(exception=e).error(f"Error processing {path} to {target_path}")
 
     return files_processed
 

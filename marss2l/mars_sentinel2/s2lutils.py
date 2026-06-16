@@ -200,9 +200,8 @@ def download_image_and_angles(
         try:
             image_to_download = gee_info_to_download(tile, geometry=geometry, logger=logger)
         except Exception as e:
-            logger.error(
-                f"Error figuring out info image to download {tile} from GEE",
-                exc_info=e,
+            logger.opt(exception=e).error(
+                f"Error figuring out info image to download {tile} from GEE"
             )
             return
 

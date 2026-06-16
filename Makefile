@@ -13,7 +13,7 @@ NOTEBOOK_KERNEL ?= python3
 # All action targets run inside this conda env; create it with `make condaenv`.
 # We call the env's binaries by absolute path (not `conda run -n ...`) so the right
 # env is targeted even when another conda env is already activated in the shell.
-CONDA_ENV = marss2lpy312
+CONDA_ENV = marss2lpy312_dev
 CONDA_BASE := $(shell $(CONDA) info --base)
 ENV_BIN = $(CONDA_BASE)/envs/$(CONDA_ENV)/bin
 LOCKFILE = environment/requirements-test.lock
@@ -61,7 +61,7 @@ lock: check-condaenv  ## 🔒 Regenerate environment/requirements-test.lock (pip
 	# --only-binary=basemap: basemap's sdist build-deps (an ancient numpy) don't
 	# build on Python 3.12, so resolve it from its wheel instead of the sdist.
 	$(ENV_BIN)/pip-compile --strip-extras --extra test \
-		-P georeader-spaceml==2.3.1 \
+		-P georeader-spaceml==2.3.2 \
 		--pip-args "--only-binary=basemap" \
 		--output-file $(LOCKFILE) \
 		pyproject.toml

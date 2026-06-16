@@ -1,8 +1,8 @@
 import argparse
-import logging
 from typing import Optional
 
 import fsspec
+import loguru
 import numpy as np
 import torch
 import torch.nn as nn
@@ -30,7 +30,7 @@ def run_eval(
     split: str = "test",
     csv_path: str = CSV_PATH_DEFAULT,
     device_name: str = "cuda",
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[loguru.Logger] = None,
     all_locs=None,
     num_workers: int = 4,
     batch_size: int = 16,
@@ -42,8 +42,7 @@ def run_eval(
 ):
 
     if logger is None:
-        logger = logging.getLogger(__name__)
-        setup_stream_logger(logger, logging.INFO)
+        logger = setup_stream_logger(level="INFO")
 
     torch.backends.cudnn.benchmark = True
     device = torch.device(device_name)
@@ -147,7 +146,7 @@ if __name__ == "__main__":
     )
 
     args_parsed = parser.parse_args()
-    logger = logging.getLogger(__name__)
+    logger = setup_stream_logger()
     torch.multiprocessing.set_start_method("spawn")
 
     csv_path = args_parsed.csv_path

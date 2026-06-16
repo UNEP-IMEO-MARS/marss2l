@@ -142,6 +142,12 @@ class S2LLocationImage:
 
     def haswind(self) -> bool:
         return self.wind_u is not None and self.wind_v is not None
+    
+    def wind_speed(self) -> Optional[float]:
+        """Wind speed magnitude (m/s) if wind is available, else None."""
+        if self.haswind():
+            return (self.wind_u**2 + self.wind_v**2) ** 0.5
+        return None
 
     @property
     def day(self) -> str:

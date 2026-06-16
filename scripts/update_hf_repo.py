@@ -68,7 +68,7 @@ def update_images_hf(
                 temp_folder=None,  # Direct upload, no temp folder
             )
         except Exception as e:
-            logger.error(f"Error processing image {id_loc_image}", exc_info=e)
+            logger.opt(exception=e).error(f"Error processing image {id_loc_image}")
 
     # Export CSVs to HuggingFace
     export_dataframe_csvs_to_hf(
