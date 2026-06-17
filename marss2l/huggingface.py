@@ -1,4 +1,3 @@
-import logging
 import os
 import tempfile
 from typing import Optional
@@ -7,6 +6,7 @@ from uuid import UUID
 import fsspec
 import pandas as pd
 from huggingface_hub import hf_hub_url
+from loguru._logger import Logger
 
 REPO_ID = "UNEP-IMEO/MARS-S2L"
 
@@ -116,7 +116,7 @@ def copy_item_image(
     row: pd.Series,
     fsread: fsspec.AbstractFileSystem,
     fswrite: fsspec.AbstractFileSystem,
-    logger: logging.Logger,
+    logger: Logger,
     dry_run: bool = False,
     overwrite: bool = False,
     temp_folder: Optional[str] = None,
@@ -176,7 +176,7 @@ def copy_item_image(
 def export_dataframe_csvs_to_hf(
     dataframe_images: pd.DataFrame,
     fswrite: fsspec.AbstractFileSystem,
-    logger: logging.Logger,
+    logger: Logger,
     dry_run: bool = False,
 ) -> None:
     """
@@ -191,7 +191,7 @@ def export_dataframe_csvs_to_hf(
         dataframe_images (pd.DataFrame): DataFrame with image metadata. Must have columns
             from FIELDS_TO_COPY, 'isplume', 'id_loc_image', 'split_name', and columns in COLUMNS_DF_EXPORT.
         fswrite (fsspec.AbstractFileSystem): Filesystem for writing (e.g., HfFileSystem).
-        logger (logging.Logger): Logger instance for logging messages.
+        logger (Logger): Logger instance for logging messages.
         dry_run (bool, optional): If True, only log actions without uploading files. Defaults to False.
 
     Returns:

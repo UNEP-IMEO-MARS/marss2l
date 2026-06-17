@@ -1,7 +1,7 @@
-import logging
 from typing import Any, Optional
 
 import ee
+import loguru
 import numpy as np
 import rasterio.warp
 import torch
@@ -10,12 +10,12 @@ from georeader import get_utm_epsg, read
 from georeader.geotensor import GeoTensor
 from georeader.readers import S2_SAFE_reader, ee_query
 from georeader.readers.ee_image import export_image, interpolate_20mbands_s2ee
+from loguru._logger import Logger
 from rasterio.transform import Affine
 from shapely.geometry import Polygon, box, mapping, shape
 
 Resampling = rasterio.warp.Resampling
 
-import logging
 from datetime import datetime, timedelta, timezone
 
 from marss2l.mars_sentinel2 import query_images
@@ -52,7 +52,7 @@ def gee_info_to_download(
     band_for_crs_transform: Optional[str] = "B02",
     geometry: Optional[Polygon] = None,
     tile_date: Optional[datetime] = None,
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Logger] = None,
     delta_hours_search: int = 1,
 ) -> dict[str, Any]:
     """
@@ -64,14 +64,14 @@ def gee_info_to_download(
         band_for_crs_transform (Optional[str], optional): Band to get the crs_transform. Defaults to "B02".
         geometry (Optional[Polygon], optional): Geometry to query images if direct tile lookup fails. Defaults to None.
         tile_date (Optional[datetime], optional): Date of the tile for temporal filtering if direct lookup fails. Defaults to None.
-        logger (Optional[logging.Logger], optional): Logger instance for logging messages. Defaults to None.
+        logger (Optional[Logger], optional): Logger instance for logging messages. Defaults to None.
         delta_hours_search (int, optional): Time window in hours for searching images if direct lookup fails. Defaults to 1.
 
     Returns:
         Dict[str, Any]: dictionary with keys collection_name, gee_id and proj
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = loguru.logger
     
     satellite = tile.split("_")[0]
 
@@ -175,7 +175,7 @@ def download_image_and_angles(
     geometry: Polygon,
     image_to_download: dict[str, Any] | None = None,
     tile: str | None = None,
-    logger: logging.Logger | None = None,
+    logger: Logger | None = None,
 ) -> tuple[GeoTensor, GeoTensor, float, float, list[str]]:
     """
     Downloads the image, cloudmask and angles from the Google Earth Engine and process the images
@@ -194,7 +194,7 @@ def download_image_and_angles(
             Name of the bands in the image (`BANDS_S2` or `BANDS_L89`).
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = loguru.logger
 
     if image_to_download is None:
         try:

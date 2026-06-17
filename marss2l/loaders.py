@@ -1,15 +1,16 @@
-import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timezone
 from threading import Lock
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import fsspec
+import loguru
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
 from georeader import plot, rasterize
+from loguru._logger import Logger
 from georeader.geotensor import GeoTensor
 from georeader.readers import S2_SAFE_reader
 from numpy.typing import NDArray
@@ -139,7 +140,7 @@ class DatasetPlumes(Dataset):
         sources_dataframe: Optional[pd.DataFrame] = None,
         strprependlogs: str = SPLITS[DEFAULT_SPLIT][0],
         do_simulation: bool = DEFAULT_DO_SIMULATION,
-        logger: Optional[logging.Logger] = None,
+        logger: Optional[Logger] = None,
         film_dict_mapping: Optional[Dict[str, int]] = None,
         film_train_zero_id: bool = DEFAULT_FILM_TRAIN_ZERO_ID,
         window_size_training: int = WINDOW_SIZE_TRAINING,
@@ -219,7 +220,7 @@ class DatasetPlumes(Dataset):
             sources_dataframe (Optional[pd.DataFrame], optional): DataFrame containing the location of the sources for the simulation. Defaults to None.
             split (str, optional): Split of the dataset, one of "train_2023", "test_2023", "val_2023", "train", "test", "val". Defaults to SPLITS[DEFAULT_SPLIT][0].
             do_simulation (bool, optional): Simulate plumes. Defaults to True.
-            logger (Optional[logging.Logger], optional): Logger to use. Defaults to None.
+            logger (Optional[Logger], optional): Logger to use. Defaults to None.
             film_dict_mapping (Optional[Dict[str, int]], optional): Dictionary mapping location names to site_ids. Defaults to None.
             film_train_zero_id (bool, optional): If True, set site_ids to zero 50% of the time in train mode. Defaults to True.
             window_size_training (int, optional): Size of the training window. Defaults to WINDOW_SIZE_TRAINING.
@@ -269,7 +270,7 @@ class DatasetPlumes(Dataset):
             raise ValueError("image_dataframe should be provided")
 
         if logger is None:
-            self.logger = logging.getLogger(__name__)
+            self.logger = loguru.logger
         else:
             self.logger = logger
 

@@ -1,15 +1,16 @@
-import logging
 import math
 import uuid
 from datetime import datetime, timezone
 from typing import Any, List, Optional, Tuple, Union
 
 import fsspec
+import loguru
 import numpy as np
 import pandas as pd
 import rasterio.warp
 import rasterio.windows
 from georeader import get_utm_epsg, window_utils, read
+from loguru._logger import Logger
 from georeader.geotensor import GeoTensor
 from georeader.abstract_reader import FakeGeoData
 from huggingface_hub import hf_hub_url
@@ -581,7 +582,7 @@ def get_pixel_coordinates_from_lonlat(
     width: int,
     height: int,
     string_id_for_logs: str,
-    logger: logging.Logger,
+    logger: Logger,
     raise_if_out_of_image: bool = False,
 ) -> Tuple[int, int]:
     """
@@ -603,7 +604,7 @@ def get_pixel_coordinates_from_lonlat(
         Height of the image in pixels.
     string_id_for_logs : str
         Identifier string for logging purposes.
-    logger : logging.Logger
+    logger : Logger
         Logger for warnings about out-of-bounds pixel indices.
     raise_if_out_of_image : bool, default False
         If True, raise LonLatOutOfImageException when coordinates fall outside image bounds
@@ -676,7 +677,7 @@ def get_pixel_coordinates_from_lonlat(
 def process_images_and_plumes(
     dataframe_plumes: pd.DataFrame,
     dataframe_images: pd.DataFrame,
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Logger] = None,
     recompute_windows: bool = False,
 ) -> pd.DataFrame:
     """
@@ -693,7 +694,7 @@ def process_images_and_plumes(
         DataFrame containing plume records, must include 'lon', 'lat', 'id_loc_image', and geospatial columns.
     dataframe_images : pd.DataFrame
         DataFrame containing image records, must include columns listed in COLUMNS_MERGE_PLUMES.
-    logger : logging.Logger, optional
+    logger : Logger, optional
         Logger for warnings about out-of-bounds pixel indices.
     recompute_windows : bool, optional
         Whether to recompute the window where the plume lies in the image. Defaults to False.
@@ -705,7 +706,7 @@ def process_images_and_plumes(
         added 'pixel_row' and 'pixel_col' columns.
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = loguru.logger
 
     dataframe_plumes = pd.merge(
         dataframe_plumes, dataframe_images[COLUMNS_MERGE_PLUMES], on="id_loc_image"
@@ -790,7 +791,7 @@ def read_csv_locs_sources(
 def process_images_and_sources(
     dataframe_sources: pd.DataFrame,
     dataframe_images: pd.DataFrame,
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Logger] = None,
 ) -> pd.DataFrame:
     """
     This function joins the images and source dataframe by id_location and compute the pixel coordinates
@@ -814,13 +815,13 @@ def process_images_and_sources(
     Args:
         dataframe_sources (pd.DataFrame): Dataframe with the list of sources for each location.
         dataframe_images (pd.DataFrame): Dataframe with the list of images.
-        logger (Optional[logging.Logger], optional): Logger to use. Defaults to None.
+        logger (Optional[Logger], optional): Logger to use. Defaults to None.
 
     Returns:
         pd.DataFrame: Dataframe with the joined images and sources (excluding out-of-bounds sources).
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = loguru.logger
 
     cols_image_df = ["id_loc_image", "id_location", "crs", "geotransform", "width", "height"]
     cols_sources_df = ["id_location", "id_mars_source", "lon", "lat"]
@@ -872,7 +873,7 @@ def process_images_and_sources(
 
 
 def split_control_releases(
-    dataframe: pd.DataFrame, split: str, logger: Optional[logging.Logger] = None
+    dataframe: pd.DataFrame, split: str, logger: Optional[Logger] = None
 ) -> pd.Series:
     """
     Get boolean mask for control releases split.
@@ -946,7 +947,7 @@ def load_dataframe_split(
     dataframe_or_csv_path_plumes: Optional[Union[str, pd.DataFrame]] = None,
     dataframe_or_csv_path_sources: Optional[Union[str, pd.DataFrame]] = None,
     fs: Optional[fsspec.AbstractFileSystem] = None,
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Logger] = None,
     load_plumes: bool = True,
     all_locs: Optional[List[str]] = None,
     only_onshore: bool = False,
@@ -979,7 +980,7 @@ def load_dataframe_split(
         Path to the sources CSV file or a pre-loaded DataFrame of sources.
     fs : fsspec.AbstractFileSystem, optional
         Filesystem for loading remote CSVs. If None, a suitable filesystem is inferred.
-    logger : logging.Logger, optional
+    logger : Logger, optional
         Logger for messages.
     load_plumes : bool, default True
         If True, load and return the plumes dataframe (second tuple element).
@@ -1014,7 +1015,7 @@ def load_dataframe_split(
     ), "only_onshore and only_offshore cannot be both True"
 
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = loguru.logger
 
     if isinstance(dataframe_or_csv_path, str):
         csv_path = dataframe_or_csv_path

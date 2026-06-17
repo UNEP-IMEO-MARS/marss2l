@@ -1,14 +1,15 @@
 import json
 import os
-import logging
 from collections import OrderedDict
 from typing import Dict, List, Optional, Tuple, Union
 
 import fsspec
+import loguru
 import numpy as np
 import torch
 from georeader.geotensor import GeoTensor
 from georeader.readers import S2_SAFE_reader
+from loguru._logger import Logger
 from numpy.typing import NDArray
 from ..mbmp_torch import to_mbmp
 
@@ -56,7 +57,7 @@ STDS_S2 = [
     1245.1458,
 ]
 
-glogger = logging.getLogger(__name__)
+glogger = loguru.logger
 
 
 class MARSS2LModel:
@@ -94,7 +95,7 @@ class MARSS2LModel:
         Minimum number of connected pixels required for a valid plume detection.
     architecture : Optional[str], default None
         Model architecture ("UnetOriginal", "UnetPlusPlus", or "film"). Auto-detected if None.
-    logger : Optional[logging.Logger], default None
+    logger : Optional[Logger], default None
         Logger instance for logging messages.
     weights : str, default "weights/ch4_model.pt"
         Path to model weights file.
@@ -183,7 +184,7 @@ class MARSS2LModel:
         corregister: bool = True,
         threshold_pixels: int = MINIMUM_NUMBER_PIXELS_PLUME,
         architecture: Optional[str] = None,
-        logger: Optional[logging.Logger] = None,
+        logger: Optional[Logger] = None,
         weights: str = "weights/ch4_model.pt",
         film_dict_mapping: Optional[Dict[str, int]] = None,
         max_index_film: Optional[int] = None,
@@ -609,7 +610,7 @@ def load_model(
     model_name: Optional[str] = "MARS-S2L",
     weights_folder: Optional[str] = None,
     device: torch.device = torch.device("cpu"),
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Logger] = None,
 ) -> MARSS2LModel:
     """
     Load the CH4 model for inference.
@@ -620,7 +621,7 @@ def load_model(
         weights_folder (str, optional): local folder to store the weights. Defaults to None.
             If None, the weights will be stored in ~/.georeader/
         device (torch.device, optional): device to load the model. Defaults to torch.device("cpu").
-        logger (logging.Logger, optional): logger instance. Defaults to None.
+        logger (Logger, optional): logger instance. Defaults to None.
     
     Returns:
         MARSS2LModel: loaded model
@@ -684,7 +685,7 @@ def load_model(
 
 
 def fix_weights_file_if_needed(
-    weights_file: str, fs: fsspec.AbstractFileSystem, logger: logging.Logger
+    weights_file: str, fs: fsspec.AbstractFileSystem, logger: Logger
 ):
     """
     Fixes the weights file so that it can be loaded with weights_only=True
@@ -692,7 +693,7 @@ def fix_weights_file_if_needed(
     Args:
         weights_file (str): weights file path
         fs (fsspec.AbstractFileSystem): filesystem to use to load the weights from remote
-        logger (logging.Logger): logger object
+        logger (Logger): logger object
     """
     assert fs.exists(weights_file), f"weights file {weights_file} not found"
 

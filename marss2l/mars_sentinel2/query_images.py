@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import re
 import warnings
@@ -8,6 +7,7 @@ from typing import Optional, Union
 
 import geopandas as gpd
 import pandas as pd
+from loguru._logger import Logger
 from rasterio.transform import Affine
 from shapely.geometry import MultiPolygon, Polygon
 
@@ -98,7 +98,7 @@ def download_from_gee(
     locations_dates: gpd.GeoDataFrame,
     datetime_column: str = "date_of_acquisition",
     collection_name: str = "ECMWF/ERA5_LAND/HOURLY",
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Logger] = None,
 ) -> gpd.GeoDataFrame:
     """
     Download wind data from GEE. From either of these collections:
@@ -254,7 +254,7 @@ def query_gee(
     add_landsat457: bool = False,
     filter_night_images: bool = True,
     wind_collection="ECMWF/ERA5_LAND/HOURLY",
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Logger] = None,
 ) -> gpd.GeoDataFrame:
     """
     Query GEE for S2 and/or Landsat images available for a given area and time period.
@@ -268,7 +268,7 @@ def query_gee(
         add_landsat457 (bool, optional): If True, will also query from Landsat 4, 5 and 7. Defaults to False.
         filter_night_images (bool, optional): If True, will filter out images with sun elevation lower than 0. Defaults to True.
         wind_collection (str, optional): Name of the collection to download wind data from. Defaults to "ECMWF/ERA5_LAND/HOURLY".
-        logger (Optional[logging.Logger], optional): Logger to use. Defaults to None.
+        logger (Optional[Logger], optional): Logger to use. Defaults to None.
 
     Returns:
         gpd.GeoDataFrame: Images available for the given area and time period.

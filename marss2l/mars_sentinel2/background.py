@@ -14,15 +14,16 @@ mask locally for a bounded set of candidates; in marsml the values come from the
 
 from __future__ import annotations
 
-import logging
 import math
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Optional, Protocol, TypeVar, runtime_checkable
 
+import loguru
 import matplotlib.pyplot as plt
 import numpy as np
 from georeader.geotensor import GeoTensor
 from georeader.plot import show
+from loguru._logger import Logger
 
 from marss2l.mars_sentinel2 import query_images
 from marss2l.mars_sentinel2.ee import ee_initialize
@@ -118,7 +119,7 @@ class BackgroundImageSelector:
         full_product_threshold: float = 95.0,
         bands_differences: Optional[list[str]] = None,
         cache: Optional[SimilarityCache] = None,
-        logger: Optional[logging.Logger] = None,
+        logger: Optional[Logger] = None,
     ) -> None:
         if method_bg_image not in ("most_similar", "nearest_same_orbit"):
             raise ValueError(
@@ -136,7 +137,7 @@ class BackgroundImageSelector:
         self.full_product_threshold = full_product_threshold
         self.bands_differences = bands_differences or list(DEFAULT_BANDS_DIFFERENCES)
         self.cache = cache
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = logger or loguru.logger
 
     # ------------------------------------------------------------------
     # Overridable steps (DB / storage in the marsml subclass)

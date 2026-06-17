@@ -348,7 +348,8 @@ class MyUnetPlusPlus(smp.UnetPlusPlus):
 
 
 SegmentationModelMARSS2L = Union[UnetFiLMRefactor, UnetOriginal, MyUnetPlusPlus, LinearModel]
-import logging
+import loguru
+from loguru._logger import Logger
 
 
 def load_model(
@@ -360,10 +361,10 @@ def load_model(
     one_param_per_channel: bool = True,
     finetune_film: bool = False,
     finetune_class_head: bool = False,
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Logger] = None,
 ) -> SegmentationModelMARSS2L:
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = loguru.logger
 
     if model_name == "film":
         logger.info("FiLM")

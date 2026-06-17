@@ -1,13 +1,14 @@
-import logging
 from datetime import datetime
-from typing import Callable, Optional, List
+from typing import Callable, List, Optional
 
 import fsspec
+import loguru
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import wandb
+from loguru._logger import Logger
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torchmetrics.functional.classification import binary_confusion_matrix
@@ -90,14 +91,14 @@ class Trainer:
         weight_decay: float = 1e-5,
         best_epoch_name: str = "best_epoch",
         last_epoch_name: str = "last_epoch",
-        logger: Optional[logging.Logger] = None,
+        logger: Optional[Logger] = None,
         weight_by_noise: bool = False,
         noise_warmup_epochs: int = 5,
         noise_transition_epochs: int = 20,
     ):
 
         if logger is None:
-            self.logger = logging.getLogger(__name__)
+            self.logger = loguru.logger
         else:
             self.logger = logger
 
