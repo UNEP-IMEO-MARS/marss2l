@@ -166,6 +166,7 @@ def run(
     smoke_test: Annotated[bool, cyclopts.Parameter(help="Run 2 epochs of training with a subset of train and validation data")] = False,
     wandb_project: Annotated[str, cyclopts.Parameter(help="Wandb project name for logging")] = WandbConfig.from_env().project,
     fsread: Optional[fsspec.AbstractFileSystem] = None,
+    fswritter: Optional[fsspec.AbstractFileSystem] = None,
     seed: Annotated[Optional[int], cyclopts.Parameter(help="Random seed for reproducibility (sets all random number generators)")] = None,
 ):
     # Set random seed if provided
@@ -188,7 +189,8 @@ def run(
         fsread = fs_from_path(csv_path)
 
     # Output filesystem: chosen by output_dir, reusing fsread only if it is an Azure FS.
-    fswritter = fs_for_path(output_dir, fsread)
+    if fswritter is None:
+        fswritter = fs_for_path(output_dir, fsread)
     fswritter.makedirs(output_dir, exist_ok=True)
 
     assert bands_l8, "Only Landsat 8 bands are supported now"

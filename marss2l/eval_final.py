@@ -75,6 +75,7 @@ def run_eval(
     path_prepend_data: Annotated[Optional[str], cyclopts.Parameter(help="Prepend path to data files (for HuggingFace datasets)")] = None,
     smoke_test: Annotated[bool, cyclopts.Parameter(help="Run evaluation on subset of data without saving results")] = False,
     fs: Optional[fsspec.AbstractFileSystem] = None,
+    fswritter: Optional[fsspec.AbstractFileSystem] = None,
 ):
     """
     Run model evaluation on a specified data split.
@@ -119,20 +120,21 @@ def run_eval(
     if fs is None:
         fs = fs_from_path(csv_path)
     # Filesystem for the model dir (weights / config / preds), independent of the images fs.
-    fsout = fs_for_path(output_dir, fs)
+    if fswritter is None:
+        fswritter = fs_for_path(output_dir, fs)
 
     weights_file = pathjoin(output_dir, weights_file_name)
-    if not fsout.exists(weights_file):
+    if not fswritter.exists(weights_file):
         logger.error(f"Model weights not found in {output_dir}. It will not run the eval")
         return
 
     # Load options from config
     config_file = pathjoin(output_dir, "config_experiment.json")
-    assert fsout.exists(
+    assert fswritter.exists(
         config_file
     ), f"Path {config_file} does not exist. Should contain the json with the configuration of the experiment."
     config = config_default.copy()
-    with fsout.open(config_file, "r") as f:
+    with fswritter.open(config_file, "r") as f:
         config.update(json.load(f))
 
     model_name = config["model"]
@@ -215,7 +217,7 @@ def run_eval(
     )
 
     model = model.to(device)
-    load_weights(model, weights_file, device=device, fs=fsout)
+    load_weights(model, weights_file, device=device, fs=fswritter)
 
     logger.info(f"Running evaluation on {split} split, file {csv_path} model weights from {weights_file}")
 
@@ -228,7 +230,7 @@ def run_eval(
         )
     
     if not smoke_test:
-        with fsout.open(pathjoin(output_dir, f"preds_{split}{suffix_output}.csv"), "w") as f:
+        with fswritter.open(pathjoin(output_dir, f"preds_{split}{suffix_output}.csv"), "w") as f:
             output.to_csv(f, index=False)
 
     # Log eval metrics
@@ -264,7 +266,7 @@ def run_eval(
             pin_memory=False
         )
         output = run_validation(test_loader, model, threshold_pixels=threshold_pixels, mode="test")
-        with fsout.open(
+        with fswritter.open(
             pathjoin(output_dir, f"preds_{split}{suffix_output}_site_id_zero.csv"), "w"
         ) as f:
             output.to_csv(f, index=False)
