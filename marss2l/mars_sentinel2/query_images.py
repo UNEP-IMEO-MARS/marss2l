@@ -18,7 +18,7 @@ MAX_DATE_ERA5 = None
 # here and a target built via ``S2LLocationImage.from_tile`` agree on ``tile_date`` for the same
 # scene. This is the convention marsml uses too, and it is what lets the same-acquisition filter
 # discard the target's own scene.
-_S2_OPER_RE = re.compile(r"S2[A|B]_OPER_")
+_S2_OPER_RE = re.compile(r"S2[AB]_OPER_")
 
 
 def utcdatetime_from_s2_title(title: str) -> datetime:
