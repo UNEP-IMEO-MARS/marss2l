@@ -1,18 +1,19 @@
-import logging
-import os
-import shutil
 from datetime import datetime
-from typing import Callable, Optional, List
+from typing import Callable, List, Optional
 
+import fsspec
+import loguru
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import wandb
+from loguru._logger import Logger
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torchmetrics.functional.classification import binary_confusion_matrix
 from marss2l.models import SegmentationModelMARSS2L
+from marss2l.utils import fs_for_path, pathjoin
 
 from marss2l.loss import (
     DEFAULT_POS_WEIGHT,
@@ -72,6 +73,7 @@ class Trainer:
         self,
         model: SegmentationModelMARSS2L,
         save_path: Optional[str] = None,
+        fs: Optional[fsspec.AbstractFileSystem] = None,
         learning_rate: float = DEFAULT_LEARNING_RATE,
         early_stopping=True,
         weight_by_ch4: bool = DEFAULT_WEIGHT_BY_CH4,
@@ -89,14 +91,14 @@ class Trainer:
         weight_decay: float = 1e-5,
         best_epoch_name: str = "best_epoch",
         last_epoch_name: str = "last_epoch",
-        logger: Optional[logging.Logger] = None,
+        logger: Optional[Logger] = None,
         weight_by_noise: bool = False,
         noise_warmup_epochs: int = 5,
         noise_transition_epochs: int = 20,
     ):
 
         if logger is None:
-            self.logger = logging.getLogger(__name__)
+            self.logger = loguru.logger
         else:
             self.logger = logger
 
@@ -112,9 +114,15 @@ class Trainer:
         self.noise_warmup_epochs = noise_warmup_epochs
         self.noise_transition_epochs = noise_transition_epochs
 
+        # Output filesystem: chosen by save_path, reusing fs only if it is an Azure FS.
+        if save_path is not None:
+            self.fswritter = fs_for_path(save_path, fs)
+        else:
+            self.fswritter = fsspec.filesystem("file")
+
         if self.save_path is not None:
-            self.path_best_epoch = os.path.join(self.save_path, best_epoch_name)
-            self.path_last_epoch = os.path.join(self.save_path, last_epoch_name)
+            self.path_best_epoch = pathjoin(self.save_path, best_epoch_name)
+            self.path_last_epoch = pathjoin(self.save_path, last_epoch_name)
         else:
             self.path_best_epoch = None
             self.path_last_epoch = None
@@ -162,18 +170,18 @@ class Trainer:
 
 
         nowstr = datetime.now().strftime("%Y%m%d_%H%M%S")
-        if self.save_path is not None and os.path.exists(self.path_best_epoch):
+        if self.save_path is not None and self.fswritter.exists(self.path_best_epoch):
             path_best_epoch_old = self.path_best_epoch + f"_{nowstr}"
             # Copy old best epoch
-            shutil.copy(self.path_best_epoch, path_best_epoch_old)
+            self.fswritter.copy(self.path_best_epoch, path_best_epoch_old)
             self.logger.warning(
                 f"Best epoch file found at {self.path_best_epoch}. Copied to {path_best_epoch_old} to avoid overwriting."
             )
 
-        if self.save_path is not None and os.path.exists(self.path_last_epoch):
+        if self.save_path is not None and self.fswritter.exists(self.path_last_epoch):
             path_last_epoch_old = self.path_last_epoch + f"_{nowstr}"
             # Copy old last epoch
-            shutil.copy(self.path_last_epoch, path_last_epoch_old)
+            self.fswritter.copy(self.path_last_epoch, path_last_epoch_old)
             self.logger.warning(
                 f"Last epoch file found at {self.path_last_epoch}. Copied to {path_last_epoch_old} to avoid overwriting."
             )
@@ -428,7 +436,8 @@ class Trainer:
                     }
                 )
                 if self.path_best_epoch is not None:
-                    torch.save(dict_save, self.path_best_epoch)
+                    with self.fswritter.open(self.path_best_epoch, "wb") as f:
+                        torch.save(dict_save, f)
                 best_metric = metric_early_stopping
                 best_epoch = epoch
                 improved = True
@@ -467,6 +476,7 @@ class Trainer:
             }
         )
         if self.path_last_epoch is not None:
-            torch.save(dict_save, self.path_last_epoch)
+            with self.fswritter.open(self.path_last_epoch, "wb") as f:
+                torch.save(dict_save, f)
 
         self.logger.info("Training complete!")

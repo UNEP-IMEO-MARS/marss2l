@@ -1,17 +1,16 @@
 import argparse
-import logging
-import os
 from typing import Optional
 
 import fsspec
 import numpy as np
 import torch
 import torch.nn as nn
+from loguru._logger import Logger
 from torch.utils.data import DataLoader
 
 from marss2l.dataframe_image_plumes import load_dataframe_split, read_csv_images
 from marss2l.loaders import CSV_PATH_DEFAULT, DatasetPlumes
-from marss2l.utils import fs_from_path, setup_stream_logger
+from marss2l.utils import fs_for_path, fs_from_path, pathjoin, setup_stream_logger
 from marss2l.validation_utils import THRESHOLD_PIXELS, run_validation
 
 config_default = {"batch_norm": True, "film_train_zero_id": True}
@@ -31,7 +30,7 @@ def run_eval(
     split: str = "test",
     csv_path: str = CSV_PATH_DEFAULT,
     device_name: str = "cuda",
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Logger] = None,
     all_locs=None,
     num_workers: int = 4,
     batch_size: int = 16,
@@ -43,13 +42,14 @@ def run_eval(
 ):
 
     if logger is None:
-        logger = logging.getLogger(__name__)
-        setup_stream_logger(logger, logging.INFO)
+        logger = setup_stream_logger(level="INFO")
 
     torch.backends.cudnn.benchmark = True
     device = torch.device(device_name)
     if fs is None:
         fs = fs_from_path(csv_path)
+    # Filesystem for the output dir (preds), independent of the images fs.
+    fsout = fs_for_path(output_dir, fs)
 
     # Load and split dataframe similar to eval_final
     dataframe_images = read_csv_images(csv_path, fs, path_prepend_data=path_prepend_data)
@@ -87,7 +87,7 @@ def run_eval(
 
     model = BaselineModel()
 
-    os.makedirs(output_dir, exist_ok=True)
+    fsout.makedirs(output_dir, exist_ok=True)
     output = run_validation(
             test_loader,
             model,
@@ -97,7 +97,8 @@ def run_eval(
             apply_sigmoid=False,
             extra_keys_to_gpu=["mbmp"],
         )
-    output.to_csv(os.path.join(output_dir, f"preds_{split}{suffix_output}.csv"), index=False)
+    with fsout.open(pathjoin(output_dir, f"preds_{split}{suffix_output}.csv"), "w") as f:
+        output.to_csv(f, index=False)
 
 
 if __name__ == "__main__":
@@ -145,7 +146,7 @@ if __name__ == "__main__":
     )
 
     args_parsed = parser.parse_args()
-    logger = logging.getLogger(__name__)
+    logger = setup_stream_logger()
     torch.multiprocessing.set_start_method("spawn")
 
     csv_path = args_parsed.csv_path

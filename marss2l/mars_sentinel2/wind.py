@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import warnings
 from datetime import datetime, timezone
@@ -10,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
+from loguru._logger import Logger
 from numpy.typing import ArrayLike
 from shapely import Geometry
 from shapely.geometry import Point
@@ -163,7 +163,7 @@ def download_from_gee(
     locations_dates: gpd.GeoDataFrame,
     datetime_column: str = "date_of_acquisition",
     collection_name: str = "ECMWF/ERA5_LAND/HOURLY",
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Logger] = None,
 ) -> gpd.GeoDataFrame:
     """
     Download wind data from GEE. From either of these collections:

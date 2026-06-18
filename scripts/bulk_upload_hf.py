@@ -79,7 +79,7 @@ def export_images_to_hf(
                     if files:
                         logger.debug(f"Prepared {len(files)} files for {row.Index}")
                 except Exception as e:
-                    logger.error(f"Error preparing files for {row.Index}", exc_info=e)
+                    logger.opt(exception=e).error(f"Error preparing files for {row.Index}")
 
             # Check if temp folder has files
             files_in_temp = os.listdir(tmp_folder)
@@ -105,7 +105,7 @@ def export_images_to_hf(
                     )
                     logger.info(f"Uploaded folder {folder_hf_path} with {len(files_in_temp)} files")
                 except Exception as e:
-                    logger.error(f"Error uploading folder {folder_hf_path} to HF", exc_info=e)
+                    logger.opt(exception=e).error(f"Error uploading folder {folder_hf_path} to HF")
 
     # Export CSVs to HuggingFace
     export_dataframe_csvs_to_hf(

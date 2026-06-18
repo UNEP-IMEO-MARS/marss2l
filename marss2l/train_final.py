@@ -1,7 +1,5 @@
 import json
-import logging
 import os
-import shutil
 from datetime import datetime
 from typing import Annotated, List, Optional
 
@@ -11,6 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import wandb
+from loguru._logger import Logger
 from torch.utils.data import DataLoader, get_worker_info
 
 from marss2l import models
@@ -57,6 +56,7 @@ from marss2l.models import load_model
 from marss2l.trainer import Trainer, DEFAULT_LEARNING_RATE
 from marss2l.utils import (
     CustomJSONEncoder,
+    fs_for_path,
     fs_from_path,
     pathjoin,
     setup_file_logger,
@@ -127,7 +127,7 @@ def run(
     csv_sources_path: Annotated[Optional[str], cyclopts.Parameter(help="Path to CSV file with source locations for simulation")] = CSV_LOCSOURCES_PATH_DEFAULT,
     split: Annotated[str, cyclopts.Parameter(help="Data split strategy (e.g., 'all', 'spatial', 'temporal')")] = DEFAULT_SPLIT,
     film_train_zero_id: Annotated[bool, cyclopts.Parameter(help="Train FiLM zero ID for unknown locations")] = DEFAULT_FILM_TRAIN_ZERO_ID,
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Logger] = None,
     num_workers: Annotated[int, cyclopts.Parameter(help="Number of dataloader workers for training")] = DEFAULT_NUM_WORKERS,
     num_workers_val: Annotated[int, cyclopts.Parameter(help="Number of dataloader workers for validation")] = DEFAULT_NUM_WORKERS_VAL,
     cache_all: Annotated[bool, cyclopts.Parameter(help="Cache all training images in memory")] = True,
@@ -166,6 +166,7 @@ def run(
     smoke_test: Annotated[bool, cyclopts.Parameter(help="Run 2 epochs of training with a subset of train and validation data")] = False,
     wandb_project: Annotated[str, cyclopts.Parameter(help="Wandb project name for logging")] = WandbConfig.from_env().project,
     fsread: Optional[fsspec.AbstractFileSystem] = None,
+    fswritter: Optional[fsspec.AbstractFileSystem] = None,
     seed: Annotated[Optional[int], cyclopts.Parameter(help="Random seed for reproducibility (sets all random number generators)")] = None,
 ):
     # Set random seed if provided
@@ -175,11 +176,10 @@ def run(
     # Setup logger
     if logger is None:
         if smoke_test:
-            logger = setup_stream_logger(level=logging.INFO)
+            logger = setup_stream_logger(level="INFO")
         else:
             logger = setup_file_logger("logs", "train_final")
 
-    os.makedirs(output_dir, exist_ok=True)
     if not multipass:
         if cat_mbmp:
             logger.warning("cat_mbmp is only available for multipass, we will set it to False")
@@ -187,6 +187,11 @@ def run(
 
     if fsread is None:
         fsread = fs_from_path(csv_path)
+
+    # Output filesystem: chosen by output_dir, reusing fsread only if it is an Azure FS.
+    if fswritter is None:
+        fswritter = fs_for_path(output_dir, fsread)
+    fswritter.makedirs(output_dir, exist_ok=True)
 
     assert bands_l8, "Only Landsat 8 bands are supported now"
 
@@ -197,17 +202,20 @@ def run(
         if path_weights_forfinetuning is None:
             raise ValueError("Path to the weights for finetuning is required when finetuning")
 
+        # Read finetuning inputs from the weights-path backend, independent of fsread.
+        fsfinetune = fs_for_path(path_weights_forfinetuning, fsread)
+
         config_file_for_finetuning = pathjoin(path_weights_forfinetuning, "config_experiment.json")
         best_epoch_file_for_finetuning = pathjoin(
             path_weights_forfinetuning, filename_weights_forfinetuning
         )
-        if not os.path.exists(config_file_for_finetuning) or not os.path.exists(
+        if not fsfinetune.exists(config_file_for_finetuning) or not fsfinetune.exists(
             best_epoch_file_for_finetuning
         ):
             raise ValueError(
                 f"Config file or best epoch file not found at {config_file_for_finetuning} or {best_epoch_file_for_finetuning}"
             )
-        with open(config_file_for_finetuning, "r") as f:
+        with fsfinetune.open(config_file_for_finetuning, "r") as f:
             config_base = json.load(f)
 
         model_name = config_base["model"]
@@ -224,11 +232,11 @@ def run(
             assert film_dict_mapping is not None, "Film dict mapping is None but model is FiLM!"
 
     config_file = pathjoin(output_dir, "config_experiment.json")
-    if os.path.exists(config_file):
+    if fswritter.exists(config_file):
         # copy config file to config_experiment_{now}.json
         nowstr = datetime.now().strftime("%Y%m%d_%H%M%S")
         config_file_old = pathjoin(output_dir, f"config_experiment_{nowstr}.json")
-        shutil.copy(config_file, config_file_old)
+        fswritter.copy(config_file, config_file_old)
 
         logger.warning(
             f"Config file found at {config_file}. Copied to {config_file_old}. New config file will be created."
@@ -381,7 +389,7 @@ def run(
     model = model.to(device)
     if load_weights:
         logger.info(f"Loading weights from {best_epoch_file_for_finetuning}")
-        models.load_weights(model, best_epoch_file_for_finetuning, device=None)
+        models.load_weights(model, best_epoch_file_for_finetuning, device=None, fs=fsfinetune)
 
     if data_parallel:
         logger.info("Using DataParallel")
@@ -410,6 +418,7 @@ def run(
         weight_by_noise=weight_by_noise,
         noise_warmup_epochs=noise_warmup_epochs,
         noise_transition_epochs=noise_transition_epochs,
+        fs=fswritter,
     )
 
     # TODO if load_weights load optimizer state dict? trainer.opt
@@ -479,9 +488,9 @@ def run(
         "finetune_class_head": finetune_classification_head,
     }
 
-    inprogress_config_file = os.path.join(output_dir, "config_experiment_inprogress.json")
+    inprogress_config_file = pathjoin(output_dir, "config_experiment_inprogress.json")
     if not smoke_test:
-        with open(inprogress_config_file, "w") as f:
+        with fswritter.open(inprogress_config_file, "w") as f:
             json.dump(config_experiment, f, cls=CustomJSONEncoder)
     # s2l89-model
     with wandb.init(
@@ -499,12 +508,11 @@ def run(
         if not smoke_test:
             config_experiment["wandb_run_url"] = run.get_url()
             config_experiment["wandb_run_id"] = run.id
-
-        with open(config_file, "w") as f:
+        with fswritter.open(config_file, "w") as f:
             json.dump(config_experiment, f, cls=CustomJSONEncoder)
 
-        if os.path.exists(inprogress_config_file):
-            os.remove(inprogress_config_file)
+        if fswritter.exists(inprogress_config_file):
+            fswritter.rm(inprogress_config_file)
 
         logger.info(f"----- Training finished -----")
 

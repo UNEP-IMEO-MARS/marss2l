@@ -37,6 +37,7 @@ nav:
   - Home: 
     - README.md
   - End-to-end Inference: notebooks/examples/download_and_inference.ipynb
+  - Background Image Selection: notebooks/examples/background_image_selection.ipynb
   - DataLoader train: notebooks/examples/plot_images_dataset_train.ipynb
   - Dataloader test: notebooks/examples/plot_plumes_dataset_test.ipynb
   - Reproducibility: notebooks/figures/README.md

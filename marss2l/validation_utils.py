@@ -1,14 +1,15 @@
 import json
-import logging
 import os
 import uuid
 from typing import List, Optional, Union
 
+import loguru
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 from fsspec import AbstractFileSystem
+from loguru._logger import Logger
 from torch.utils.data import DataLoader
 
 from marss2l.models import SegmentationModelMARSS2L
@@ -70,7 +71,7 @@ def load_stats_and_config(
     model_name: str,
     basefolder_experiments: str,
     fs: Optional[AbstractFileSystem] = None,
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Logger] = None,
     csv_file: str = "preds_test_2023",
 ) -> tuple[pd.DataFrame, Optional[dict]]:
     """
@@ -90,7 +91,7 @@ def load_stats_and_config(
             model_name (str): Name of the model, which is used to identify the results.
             basefolder_experiments (str): _basefolder_experiment_ is the base folder where the experiments are stored.
             fs (AbstractFileSystem): File system to use for reading the files.
-            logger (Optional[logging.Logger], optional): Logger to use for logging.
+            logger (Optional[Logger], optional): Logger to use for logging.
                 Defaults to None, in which case a logger is created.
             csv_file (str, optional): Name of the CSV file to load.
                 Defaults to "preds_test_2023".
@@ -103,7 +104,7 @@ def load_stats_and_config(
         fs = fs_from_path(basefolder_experiments)
 
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = loguru.logger
 
     csv_file = os.path.splitext(csv_file)[0]
     model_folder = pathjoin(basefolder_experiments, train_folder)

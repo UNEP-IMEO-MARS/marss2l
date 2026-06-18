@@ -3,7 +3,6 @@ This script loads the dataset with all images and compute the stats per band.
 """
 
 import argparse
-import logging
 import os
 from typing import Optional
 
@@ -26,8 +25,7 @@ def run(
     max_iter: Optional[int] = None,
     path_prepend_data: Optional[str] = None,
 ):
-    logger = logging.getLogger(__name__)
-    setup_file_logger("logs", "stats_dataset", logger)
+    logger = setup_file_logger("logs", "stats_dataset")
     fs = fs_from_path(csv_path)
     if output_file is None:
         output_file = pathjoin(os.path.dirname(csv_path), "stats_dataset.csv")

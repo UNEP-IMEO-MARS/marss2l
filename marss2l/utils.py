@@ -1,19 +1,22 @@
 import json
 import logging
 import math
-import os
 import sys
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Optional
 
 import fsspec
+import loguru
 import numpy as np
 import pandas as pd
 from adlfs import AzureBlobFileSystem
 from huggingface_hub.file_download import build_hf_headers
+from loguru._logger import Logger
 from shapely.geometry import base, mapping
 
+from marss2l import __version__
 from marss2l.config import AzureConfig
 
 def get_remote_filesystem():
@@ -68,6 +71,22 @@ def fs_from_path(path: str) -> fsspec.AbstractFileSystem:
     raise ValueError(f"Could not determine filesystem for path: {path}")
 
 
+def fs_for_path(path: str, fs: Optional[fsspec.AbstractFileSystem] = None) -> fsspec.AbstractFileSystem:
+    """Return the filesystem to use for reading/writing ``path``.
+
+    Reuses the (credentialed) ``fs`` only when it already matches the backend of
+    ``path`` (i.e. ``fs`` is an Azure FS and ``path`` is on ``az://``); otherwise it
+    derives the right backend from ``path`` (local for non-``az://`` paths). This lets
+    inputs, outputs and finetuning weights live on independent backends — e.g. images
+    on local disk while weights/outputs are on blob, or vice versa.
+    """
+    if not path.startswith("az://"):
+        return fsspec.filesystem("file")
+    if isinstance(fs, AzureBlobFileSystem):
+        return fs
+    return fs_from_path(path)
+
+
 def pathjoin(*parts):
     if not parts:
         return ""
@@ -94,22 +113,49 @@ def round_seconds(obj: datetime) -> datetime:
     return obj.replace(microsecond=0)
 
 
-def setup_stream_logger(logger: Optional[logging.Logger]=None, level=logging.INFO) -> logging.Logger:
+def setup_stream_logger(
+    logger: Optional[Logger] = None,
+    level: str = "INFO",
+) -> Logger:
+    """Configure a loguru logger to stream to standard output.
+
+    Args:
+        logger: Logger instance to configure. Defaults to the global loguru logger.
+        level: The logging level to set (e.g., "DEBUG", "INFO", "ERROR").
+            Defaults to "INFO".
+
+    Returns:
+        The configured logger instance.
+    """
     if logger is None:
-        logger = logging.getLogger(__name__)
-    """Setup a stream logger for the given logger"""
-    if len(logger.handlers) > 0:
-        ch = logger.handlers[0]
-    else:
-        ch = logging.StreamHandler()
-        ch.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-        logger.addHandler(ch)
-        logger.setLevel(level)
+        logger = loguru.logger
 
-    logger_azure = logging.getLogger("azure.core.pipeline.policies.http_logging_policy")
-    logger_azure.setLevel(logging.WARNING)
+    # Reset existing handlers to avoid duplicate logs
+    logger.remove()
 
-    logger.propagate = False
+    # Configure stdout sink with environment-specific detail levels
+    is_debug = level == "DEBUG"
+    logger.add(
+        sys.stdout,
+        level=level,
+        backtrace=is_debug,
+        diagnose=is_debug,
+    )
+
+    logger.add(
+        sys.stderr,
+        level="ERROR",
+        backtrace=is_debug,
+        diagnose=is_debug,
+    )
+
+    # Silence noisy Azure HTTP logging policy on the stdlib side
+    logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(
+        logging.WARNING
+    )
+
+    logger.info(f"marss2l Version: {__version__}")
+
     return logger
 
 
@@ -169,38 +215,72 @@ class CustomJSONEncoder(json.JSONEncoder):
 
 
 def setup_file_logger(
-    logdir, namefile: str, logger: Optional[logging.Logger] = None
-) -> logging.Logger:
-    if not os.path.exists(logdir):
-        os.makedirs(logdir)
+    logdir,
+    namefile: str,
+    logger: Optional[Logger] = None,
+    level: str = "INFO",
+    stderr_errors: bool = False,
+) -> Logger:
+    """Configure a loguru logger with stdout, a main log file, and an error sink.
 
-    log_file_name = os.path.join(
-        logdir, f"{namefile}_{datetime.now(tz=timezone.utc).strftime('%Y%m%d%H%M')}.log"
-    )
+    Creates timestamped log files in the specified directory.
+
+    Args:
+        logdir: Directory path where log files will be created.
+        namefile: Base name for the generated log files.
+        logger: Logger instance to configure. Defaults to global loguru logger.
+        level: Logging level for stdout and main log file. Defaults to "INFO".
+        stderr_errors: Whether to write ERROR logs to stderr in addition
+            to a dedicated error file. Defaults to False.
+
+    Returns:
+        The configured logger instance.
+    """
+    logdir = Path(logdir)
+    logdir.mkdir(parents=True, exist_ok=True)
+
+    # Generate absolute log file paths
+    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d%H%M")
+    log_file_path = (logdir / f"{namefile}_{timestamp}.log").resolve()
+    errors_log_file_path = log_file_path.with_name(
+        log_file_path.name.replace(".log", "_errors.log")
+    ).resolve()
+
     if logger is None:
-        logger = logging.getLogger(namefile)
+        logger = loguru.logger
 
-    logger.propagate = False
+    # Remove all default/existing handlers
+    logger.remove()
 
-    logger.setLevel(logging.INFO)
+    # Add sinks for standard output and the main log file
+    logger.add(sys.stdout, level=level)
+    logger.add(log_file_path, level=level)
 
-    file_handler = logging.FileHandler(log_file_name)
-    file_handler.setLevel(logging.INFO)
+    # Always add a dedicated error log file
+    logger.add(
+        errors_log_file_path,
+        level="ERROR",
+        backtrace=True,
+        diagnose=True,
+    )
 
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setLevel(logging.INFO)
+    # Optionally add stderr as an additional sink for errors
+    if stderr_errors:
+        logger.add(
+            sys.stderr,
+            level="ERROR",
+            backtrace=True,
+            diagnose=True,
+        )
 
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    # Silence noisy Azure HTTP logging policy on the stdlib side
+    logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(
+        logging.WARNING
+    )
 
-    # Set the formatter for the handlers
-    file_handler.setFormatter(formatter)
-    stream_handler.setFormatter(formatter)
-
-    # Add the handlers to the logger
-    logger.addHandler(file_handler)
-    logger.addHandler(stream_handler)
-
-    logger_azure = logging.getLogger("azure.core.pipeline.policies.http_logging_policy")
-    logger_azure.setLevel(logging.WARNING)
+    # Record initialization metadata
+    logger.info(f"marss2l Version: {__version__}")
+    logger.info(f"Log File Path: {log_file_path}")
+    logger.info(f"Error Log File Path: {errors_log_file_path}")
 
     return logger
