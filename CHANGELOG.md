@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.7](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.6...v0.2.7) (2026-06-18)
+
+
+### Features
+
+* background-image selection, blob-aware training, GEE module split, loguru ([3df077c](https://github.com/UNEP-IMEO-MARS/marss2l/commit/3df077c2aeb41f7a80ac29f66bb269598615cc71))
+
 ## [0.2.6](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.5...v0.2.6) (2026-06-15)
 
 
