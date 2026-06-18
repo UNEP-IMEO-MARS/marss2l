@@ -21,6 +21,7 @@ LOCKFILE = environment/requirements-test.lock
 # Notebooks exercised as integration tests.
 NOTEBOOKS = \
 	notebooks/examples/download_and_inference.ipynb \
+	notebooks/examples/background_image_selection.ipynb \
 	notebooks/examples/plot_images_dataset_train.ipynb \
 	notebooks/examples/plot_plumes_dataset_test.ipynb \
 	notebooks/examples/run_inference.ipynb \

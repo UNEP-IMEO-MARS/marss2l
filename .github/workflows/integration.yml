@@ -71,6 +71,7 @@ jobs:
             notebooks/examples/plot_plumes_dataset_test.ipynb \
             notebooks/examples/run_inference.ipynb \
             notebooks/examples/download_and_inference.ipynb \
+            notebooks/examples/background_image_selection.ipynb \
             notebooks/figures/dataset_stats_by_split_and_geopackage_locations.ipynb \
             notebooks/figures/figure_number_of_images_per_country.ipynb \
             notebooks/figures/mdl_exploration_by_case_study.ipynb \
