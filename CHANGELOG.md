@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.8](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.7...v0.2.8) (2026-06-30)
+
+
+### Documentation
+
+* fix docs notebooks to be consistent ([9064b85](https://github.com/UNEP-IMEO-MARS/marss2l/commit/9064b8537c466f1ff45f837e04a2e212379e9863))
+* fix docs notebooks to be consistent ([5fc1564](https://github.com/UNEP-IMEO-MARS/marss2l/commit/5fc1564e9634e6f0072b33b1b26401e3635d0956))
+
 ## [0.2.7](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.6...v0.2.7) (2026-06-18)
 
 
