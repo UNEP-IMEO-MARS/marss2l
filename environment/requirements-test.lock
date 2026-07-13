@@ -46,6 +46,8 @@ basemap-data==2.0.0
     # via basemap
 branca==0.8.2
     # via folium
+cartopy==0.25.0
+    # via marss2l (pyproject.toml)
 certifi==2026.5.20
     # via
     #   httpcore
@@ -258,6 +260,7 @@ marshsi==0.1.6
 matplotlib==3.10.9
     # via
     #   basemap
+    #   cartopy
     #   marss2l (pyproject.toml)
     #   matplotlib-scalebar
     #   seaborn
@@ -304,6 +307,7 @@ networkx==3.6.1
 numpy==2.3.5
     # via
     #   basemap
+    #   cartopy
     #   cftime
     #   cloudsen12-models
     #   contourpy
@@ -380,6 +384,7 @@ opencv-python==4.13.0.92
 packaging==25.0
     # via
     #   basemap
+    #   cartopy
     #   geopandas
     #   h5netcdf
     #   huggingface-hub
@@ -475,9 +480,12 @@ pyparsing==3.3.2
 pyproj==3.7.2
     # via
     #   basemap
+    #   cartopy
     #   geopandas
 pyshp==2.3.1
-    # via basemap
+    # via
+    #   basemap
+    #   cartopy
 pysolar==0.13
     # via marshsi
 pytest==9.0.3
@@ -562,6 +570,7 @@ sentry-sdk==2.62.0
     # via wandb
 shapely==2.1.2
     # via
+    #   cartopy
     #   geopandas
     #   georeader-spaceml
     #   marss2l (pyproject.toml)
