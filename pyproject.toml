@@ -63,6 +63,9 @@ test = [
     # `basemap` PyPI package. Dev/test-only — the runtime package imports it
     # lazily inside the plotting helper, so it stays out of `dependencies`.
     "basemap",
+    # `cartopy` — used by `marss2l.plot.map_ch4_background` (imported lazily) and
+    # exercised by the figure notebooks. Dev/test-only, same rationale as `basemap`.
+    "cartopy",
 ]
 
 [project.urls]
