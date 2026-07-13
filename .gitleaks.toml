@@ -1,0 +1,13 @@
+# gitleaks configuration for this public repository.
+title = "marss2l gitleaks config"
+
+[extend]
+# Start from gitleaks' built-in ruleset (Azure, AWS, GCP, generic keys, JWTs, ...).
+useDefault = true
+
+[allowlist]
+description = "Ignore intentional mock secrets in sample env files"
+paths = [
+  '''\.env\.sample$''',
+  '''\.env\.example$''',
+]

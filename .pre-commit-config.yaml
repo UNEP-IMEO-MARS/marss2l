@@ -1,0 +1,34 @@
+# Pre-commit guardrails for this PUBLIC repository.
+#
+# One-time setup:   pre-commit install
+# Run on demand:    pre-commit run --all-files   (or: make pre-commit)
+#
+# Focus is leak prevention, not formatting (ruff/black/isort live in the Makefile).
+minimum_pre_commit_version: "3.0.0"
+repos:
+  # Generic secret detection (keys, tokens, SAS, connection strings, JWTs).
+  # Configuration + allowlist for mock .env.sample secrets is in .gitleaks.toml.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: detect-private-key
+        exclude: '\.env\.sample$'   # ships an intentional MOCK private key
+      - id: check-merge-conflict
+
+  # Project-specific: block internal MARS infrastructure references.
+  - repo: local
+    hooks:
+      - id: mars-internal-refs
+        name: Block internal MARS references (public repo)
+        entry: scripts/check_internal_refs.sh
+        language: script
+        types: [text]
+        # Notebooks are scanned by gitleaks for secrets only; their pre-existing
+        # outputs may contain local paths and are intentionally left untouched.
+        exclude: '\.ipynb$|\.env\.(sample|example)$|^scripts/\.internal-blocklist'
+        require_serial: true

@@ -124,6 +124,10 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# Internal-reference blocklist for the mars-internal-refs pre-commit hook
+# (real literals live here and must NOT be committed; template is tracked).
+scripts/.internal-blocklist
+
 # Environments
 .env
 .venv

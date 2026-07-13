@@ -3,6 +3,8 @@ build
 twine
 pytest
 nbmake
+# Pre-commit guardrails (secret + internal-reference scan)
+pre-commit
 # Lock-file generation (make lock)
 pip-tools
 # Documentation requirements
