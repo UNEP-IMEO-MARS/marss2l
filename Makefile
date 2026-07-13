@@ -1,4 +1,4 @@
-.PHONY: conda black isort format ruff-check-all ruff-check-missing-imports lint test build publish mount-container help condaenv check-condaenv lock
+.PHONY: conda black isort format ruff-check-all ruff-check-missing-imports lint test build publish mount-container help condaenv check-condaenv lock pre-commit
 .DEFAULT_GOAL = help
 
 PYTHON = python
@@ -84,6 +84,10 @@ lint: ## Code styling - black, isort
 		@printf "\033[1;34mRunning linting with ruff...\033[0m\n\n"
 		make ruff-check-missing-imports
 		@printf "\033[1;34mruff-linting (missing imports) passes!\033[0m\n\n"
+
+pre-commit: check-condaenv  ## 🔒 Run the pre-commit guardrails (secret + internal-reference scan) on all files
+		@printf "\033[1;34mRunning pre-commit guardrails...\033[0m\n\n"
+		$(ENV_BIN)/pre-commit run --all-files
 
 ##@ Formatting
 black: check-condaenv  ## Format code in-place using black.

@@ -1,11 +1,11 @@
 """Slim location/image data classes and input protocols for background selection.
 
-These mirror marsml's ``EmissionsLocation`` and ``MarsLocationImage`` field-for-field
+These mirror the internal MARS pipeline's ``EmissionsLocation`` and ``MarsLocationImage`` field-for-field
 (same names, ``uuid.UUID`` ids, ``GeoTensor`` rasters) so that:
 
 * the GEE-only :class:`~marss2l.mars_sentinel2.background.BackgroundImageSelector`
   can operate on them, and
-* marsml's ``MarsLocationImage`` satisfies :class:`LocationImageProtocol` unmodified.
+* the internal MARS pipeline's ``MarsLocationImage`` satisfies :class:`LocationImageProtocol` unmodified.
 
 No heavy dependencies are imported at module load; GEE helpers are imported lazily
 inside the constructors that need them.
@@ -35,7 +35,7 @@ _GEE_VZA_KEY = "MEAN_INCIDENCE_ZENITH_ANGLE_B12"
 
 @runtime_checkable
 class LocationProtocol(Protocol):
-    """Minimal location contract (satisfied by marsml ``EmissionsLocation``)."""
+    """Minimal location contract (satisfied by the internal MARS pipeline ``EmissionsLocation``)."""
 
     id_location: uuid.UUID
     location_name: str
@@ -47,7 +47,7 @@ class LocationProtocol(Protocol):
 class LocationImageProtocol(Protocol):
     """Input contract for :class:`BackgroundImageSelector`.
 
-    Every member is an attribute marsml's ``MarsLocationImage`` already exposes, so
+    Every member is an attribute the internal MARS pipeline's ``MarsLocationImage`` already exposes, so
     that class satisfies this protocol without modification.
     """
 
@@ -73,7 +73,7 @@ class LocationImageProtocol(Protocol):
 
 @dataclass
 class Location:
-    """Slim mirror of marsml's ``EmissionsLocation`` (only fields the selector needs).
+    """Slim mirror of the internal MARS pipeline's ``EmissionsLocation`` (only fields the selector needs).
 
     Reusable as a lightweight monitoring-site object in notebooks/tutorials.
     """
@@ -111,7 +111,7 @@ class Location:
 
 @dataclass
 class S2LLocationImage:
-    """Slim mirror of marsml's ``MarsLocationImage`` for background selection."""
+    """Slim mirror of the internal MARS pipeline's ``MarsLocationImage`` for background selection."""
 
     # --- identity (same names/types as MarsLocationImage) ---
     id_loc_image: uuid.UUID
@@ -211,7 +211,7 @@ class S2LLocationImage:
         # For S2 use the datatake timestamp from the product name as tile_date (NOT the granule
         # system:time_start in info["utcdatetime"]): this matches the convention query_gee uses
         # for candidate tile_date, so the same-acquisition filter can discard the target's own
-        # scene (the two otherwise differ by several minutes). This mirrors marsml, where the
+        # scene (the two otherwise differ by several minutes). This mirrors the internal MARS pipeline, where the
         # image-to-process and its candidates both come from query_gee. Landsat is unaffected:
         # query_gee does not override Landsat utcdatetime, so both paths already use time_start.
         if satellite.startswith("S2"):

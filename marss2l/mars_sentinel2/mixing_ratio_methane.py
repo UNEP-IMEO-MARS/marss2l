@@ -743,9 +743,9 @@ def load_srfinterpfun(
 # # import xlrd
 
 # FILE_LUT_GAS = './t_mr_ch4/output_Tch4_LUT_AMF_VZA_0_v2.nc'
-# S2SRF = '/home/gorrono/Desktop/UPV/L2ARUT/data/S2-SRF_COPE-GSEG-EOPG-TN-15-0007_3.0.xlsx'
-# L8OLISRF = '/home/gorrono/Desktop/UPV/Methane/L8_OLI_RSR.xlsx'
-# L9OLISRF = '/home/gorrono/Desktop/UPV/Methane/L9_OLI2_RSR.xlsx'
+# S2SRF = 'data/S2-SRF_COPE-GSEG-EOPG-TN-15-0007_3.0.xlsx'
+# L8OLISRF = 'data/L8_OLI_RSR.xlsx'
+# L9OLISRF = 'data/L9_OLI2_RSR.xlsx'
 # PROD_CH4 = 'S2B_MSIL1C_20220930T100729_N0400_R022_T33UWA_20220930T121519.zip'
 
 # def get_mixingratio(vza,sza):

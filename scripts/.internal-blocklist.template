@@ -1,0 +1,20 @@
+# Optional blocklist of org-specific literals for the `mars-internal-refs`
+# pre-commit check (scripts/check_internal_refs.sh).
+#
+# HOW TO USE
+#   cp scripts/.internal-blocklist.template scripts/.internal-blocklist
+#   then add ONE term per line below (real private-repo names, internal storage
+#   account, DB host prefix, internal git host, internal usernames, ...).
+#
+# The real `scripts/.internal-blocklist` is git-ignored, so these literals never
+# land in this public repo. Matching is case-insensitive substring. Lines that
+# are empty or start with `#` are ignored. If the file is absent, this sub-check
+# is skipped and the generic shape-based patterns still apply.
+#
+# Replace the placeholders below with your real values (in the private file only):
+#   <private-repo-name>
+#   <another-private-repo-name>
+#   <internal-storage-account-name>
+#   <internal-db-host-prefix>
+#   <internal-git-host>
+#   <internal-username>
