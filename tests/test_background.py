@@ -106,7 +106,7 @@ class TestFilter:
         assert self.sel.filter_background_image(target, bg) is False
 
     def test_groups_landsat8_and_9(self):
-        # same_satellite_constellation=True groups Landsat-8 and Landsat-9 (as in marsml).
+        # same_satellite_constellation=True groups Landsat-8 and Landsat-9 (as in the internal MARS pipeline).
         t8 = make_image(self.loc, satellite="LC08", day_offset=0)
         t9 = make_image(self.loc, satellite="LC09", day_offset=0)
         bg9 = make_image(self.loc, satellite="LC09", day_offset=10)
@@ -157,7 +157,7 @@ class TestFilter:
         assert self.sel.filter_background_image(self.target, bg) is True
 
     def test_rejects_tandem_twin_within_5min(self):
-        # Same constellation within the ±5 min window (as in marsml) is the same acquisition.
+        # Same constellation within the ±5 min window (as in the internal MARS pipeline) is the same acquisition.
         three_min = make_image(
             self.loc, satellite="S2C", day_offset=3 / (24 * 60), tile="S2C_tandem_3min"
         )

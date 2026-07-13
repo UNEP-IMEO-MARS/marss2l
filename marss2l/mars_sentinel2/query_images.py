@@ -16,7 +16,7 @@ MAX_DATE_ERA5 = None
 # Sentinel-2 product names embed the datatake sensing-start timestamp. We use it (rather than
 # the granule ``system:time_start``) as the canonical ``utcdatetime`` so that candidates queried
 # here and a target built via ``S2LLocationImage.from_tile`` agree on ``tile_date`` for the same
-# scene. This is the convention marsml uses too, and it is what lets the same-acquisition filter
+# scene. This is the convention the internal MARS pipeline uses too, and it is what lets the same-acquisition filter
 # discard the target's own scene.
 _S2_OPER_RE = re.compile(r"S2[AB]_OPER_")
 
@@ -57,7 +57,7 @@ def max_date_era5() -> datetime:
         return MAX_DATE_ERA5
 
     home_dir = os.path.join(os.path.expanduser("~"), ".georeader")
-    json_file = os.path.join(home_dir, "marsml.json")
+    json_file = os.path.join(home_dir, "s2l_image_cache.json")
 
     if os.path.exists(json_file):
         with open(json_file, "r") as f:

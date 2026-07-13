@@ -4,12 +4,12 @@
 background" workflow. In marss2l the candidate source is Google Earth Engine only
 (no database). The two methods :meth:`BackgroundImageSelector.query_background_images`
 and :meth:`BackgroundImageSelector.download_image` are the only overridable steps;
-in marsml a subclass overrides them to read from the database / blob storage.
+in the internal MARS pipeline a subclass overrides them to read from the database / blob storage.
 
 The filtering and ranking code is **pure**: it reads ``percentage_clear`` /
 ``observability`` as already-populated attributes and never downloads. Populating
 them is the job of the candidate step — in marss2l that means downloading the cloud
-mask locally for a bounded set of candidates; in marsml the values come from the DB.
+mask locally for a bounded set of candidates; in the internal MARS pipeline the values come from the DB.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 # pure helpers are generic in it (bound to the LocationImageProtocol contract).
 LocImageT = TypeVar("LocImageT", bound=LocationImageProtocol)
 
-# cloudsen12 cloud-mask encoding: class 0 == clear/land == valid (same in marsml).
+# cloudsen12 cloud-mask encoding: class 0 == clear/land == valid (same in the internal MARS pipeline).
 CLEAR_CLASS = 0
 
 DEFAULT_BANDS_DIFFERENCES = ["B02", "B03", "B04", "B11"]
@@ -140,7 +140,7 @@ class BackgroundImageSelector:
         self.logger = logger or loguru.logger
 
     # ------------------------------------------------------------------
-    # Overridable steps (DB / storage in the marsml subclass)
+    # Overridable steps (DB / storage in the internal MARS pipeline subclass)
     # ------------------------------------------------------------------
     def query_background_images(
         self,
@@ -159,7 +159,7 @@ class BackgroundImageSelector:
         ``percentage_clear`` / ``observability``; before returning they are run through
         the two-pass cloud filter (:meth:`_filter_and_sort_background_images`) and sorted
         by date proximity, so the result is ready for similarity scoring. A subclass that
-        overrides this step (e.g. the DB-backed one in marsml) is expected to return an
+        overrides this step (e.g. the DB-backed one in the internal MARS pipeline) is expected to return an
         already filtered-and-sorted list too.
         """
         ee_initialize()
@@ -269,7 +269,7 @@ class BackgroundImageSelector:
             )
 
     # ------------------------------------------------------------------
-    # Helpers (marsml names; derive from the protocol, never from a processor)
+    # Helpers (the internal MARS pipeline names; derive from the protocol, never from a processor)
     # ------------------------------------------------------------------
     def validmask(self, image: LocationImageProtocol) -> Optional[GeoTensor]:
         """Boolean valid mask (``cloudmask == 0``, i.e. clear/land)."""
@@ -373,10 +373,10 @@ class BackgroundImageSelector:
                 return True
 
         # Discard the target's own acquisition and any near-simultaneous pass from the same
-        # satellite constellation (|Δt| < 5 min, as in marsml's s2l89_processor). S2A and S2C
+        # satellite constellation (|Δt| < 5 min, as in the internal MARS pipeline's s2l89_processor). S2A and S2C
         # flew in tandem for a few months, so the tandem twin's scene is useless as a
         # background: in the ~minutes between the two passes the plume has not moved. The key is
-        # the *constellation*, not the exact satellite (marsml compares satellite, but that
+        # the *constellation*, not the exact satellite (the internal MARS pipeline compares satellite, but that
         # would miss the S2A/S2C tandem). This relies on the target and candidate sharing the
         # same tile_date convention (the S2 datatake stamp) — see S2LLocationImage.from_tile.
         if (

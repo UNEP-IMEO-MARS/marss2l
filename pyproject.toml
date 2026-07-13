@@ -59,6 +59,7 @@ test = [
     "pytest-cov",
     "nbmake",
     "ipykernel",
+    "pre-commit",
     # `mpl_toolkits.basemap` (used by some figure notebooks) ships in the
     # `basemap` PyPI package. Dev/test-only — the runtime package imports it
     # lazily inside the plotting helper, so it stays out of `dependencies`.
