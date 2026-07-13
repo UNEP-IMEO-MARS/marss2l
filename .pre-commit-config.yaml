@@ -30,5 +30,7 @@ repos:
         types: [text]
         # Notebooks are scanned by gitleaks for secrets only; their pre-existing
         # outputs may contain local paths and are intentionally left untouched.
-        exclude: '\.ipynb$|\.env\.(sample|example)$|^scripts/\.internal-blocklist'
+        # The blocklist exclude is anchored ($) so it skips only the git-ignored
+        # real file, NOT the tracked .template (which must stay scanned).
+        exclude: '\.ipynb$|\.env\.(sample|example)$|^scripts/\.internal-blocklist$'
         require_serial: true
