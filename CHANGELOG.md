@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.9](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.8...v0.2.9) (2026-07-13)
+
+
+### Bug Fixes
+
+* fix bug in stats cloudSEN12 and added map of noise per region. ([82fabf1](https://github.com/UNEP-IMEO-MARS/marss2l/commit/82fabf1e8d9063e96a39c26cbfbca6fd84967c13))
+* fix bug in stats cloudSEN12 and added map of noise per region. Use logscale for flux rates and concentrations ([7338228](https://github.com/UNEP-IMEO-MARS/marss2l/commit/7338228abaccd1b3a1144ce0864c98864efb6a11))
+
 ## [0.2.8](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.7...v0.2.8) (2026-06-30)
 
 
