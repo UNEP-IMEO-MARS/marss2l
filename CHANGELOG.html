@@ -1,0 +1,960 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="🛰️ MARS-S2L - Methane detection in Sentinel-2 and Landsat imagery">
+      
+      
+        <meta name="author" content="Gonzalo Mateo-García">
+      
+      
+        <link rel="canonical" href="https://UNEP-IMEO-MARS.github.io/marss2l/CHANGELOG.html">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="notebooks/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+    
+    
+      
+        <title>Changelog - MARS-S2L</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.618322db.min.css">
+      
+        
+        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="assets/style.css">
+    
+      <link rel="stylesheet" href="css/ansi-colours.css">
+    
+      <link rel="stylesheet" href="css/jupyter-cells.css">
+    
+      <link rel="stylesheet" href="css/pandas-dataframe.css">
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#changelog" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="." title="MARS-S2L" class="md-header__button md-logo" aria-label="MARS-S2L" data-md-component="logo">
+      
+  <img src="notebooks/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MARS-S2L
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Changelog
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/UNEP-IMEO-MARS/marss2l" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    marss2l
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="." title="MARS-S2L" class="md-nav__button md-logo" aria-label="MARS-S2L" data-md-component="logo">
+      
+  <img src="notebooks/logo.png" alt="logo">
+
+    </a>
+    MARS-S2L
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/UNEP-IMEO-MARS/marss2l" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    marss2l
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Home
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="notebooks/examples/download_and_inference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    End-to-end Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="notebooks/examples/background_image_selection.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background Image Selection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="notebooks/examples/plot_images_dataset_train.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DataLoader train
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="notebooks/examples/plot_plumes_dataset_test.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dataloader test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="notebooks/figures/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproducibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0210-2026-07-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.10 (2026-07-13)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.2.10 (2026-07-13)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#029-2026-07-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.9 (2026-07-13)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.2.9 (2026-07-13)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#028-2026-06-30" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.8 (2026-06-30)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.2.8 (2026-06-30)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#027-2026-06-18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.7 (2026-06-18)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.2.7 (2026-06-18)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#026-2026-06-15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.6 (2026-06-15)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.2.6 (2026-06-15)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#025-2026-06-09" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.5 (2026-06-09)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.2.5 (2026-06-09)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#024-2026-04-27" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.4 (2026-04-27)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.2.4 (2026-04-27)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documentation_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#023-2026-04-27" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.3 (2026-04-27)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.2.3 (2026-04-27)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documentation_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#022-2026-04-27" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.2 (2026-04-27)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.2.2 (2026-04-27)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documentation_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#021-2026-04-23" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.1 (2026-04-23)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.2.1 (2026-04-23)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#changelog_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changelog
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="changelog">Changelog</h1>
+<h2 id="0210-2026-07-13"><a href="https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.9...v0.2.10">0.2.10</a> (2026-07-13)</h2>
+<h3 id="bug-fixes">Bug Fixes</h3>
+<ul>
+<li>remove internal references and add leak-prevention guardrails (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/5800024014a8b59f02b1eac8f652d7bbd4d8382e">5800024</a>)</li>
+</ul>
+<h2 id="029-2026-07-13"><a href="https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.8...v0.2.9">0.2.9</a> (2026-07-13)</h2>
+<h3 id="bug-fixes_1">Bug Fixes</h3>
+<ul>
+<li>fix bug in stats cloudSEN12 and added map of noise per region. (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/82fabf1e8d9063e96a39c26cbfbca6fd84967c13">82fabf1</a>)</li>
+<li>fix bug in stats cloudSEN12 and added map of noise per region. Use logscale for flux rates and concentrations (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/7338228abaccd1b3a1144ce0864c98864efb6a11">7338228</a>)</li>
+</ul>
+<h2 id="028-2026-06-30"><a href="https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.7...v0.2.8">0.2.8</a> (2026-06-30)</h2>
+<h3 id="documentation">Documentation</h3>
+<ul>
+<li>fix docs notebooks to be consistent (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/9064b8537c466f1ff45f837e04a2e212379e9863">9064b85</a>)</li>
+<li>fix docs notebooks to be consistent (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/5fc1564e9634e6f0072b33b1b26401e3635d0956">5fc1564</a>)</li>
+</ul>
+<h2 id="027-2026-06-18"><a href="https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.6...v0.2.7">0.2.7</a> (2026-06-18)</h2>
+<h3 id="features">Features</h3>
+<ul>
+<li>background-image selection, blob-aware training, GEE module split, loguru (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/3df077c2aeb41f7a80ac29f66bb269598615cc71">3df077c</a>)</li>
+</ul>
+<h2 id="026-2026-06-15"><a href="https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.5...v0.2.6">0.2.6</a> (2026-06-15)</h2>
+<h3 id="features_1">Features</h3>
+<ul>
+<li><strong>config:</strong> auto-load .env from cwd; add make test-integration target (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/d1cb82f473919c478ce978c939fb68acaec1016e">d1cb82f</a>)</li>
+<li><strong>config:</strong> govern all credentials via environment variables (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/060187c5fdad87155915e13e35ebb9d69cf0a303">060187c</a>)</li>
+<li><strong>config:</strong> govern all credentials via environment variables (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/b2e9e3cd642010502870f3c4319179b0e33202c4">b2e9e3c</a>)</li>
+</ul>
+<h3 id="bug-fixes_2">Bug Fixes</h3>
+<ul>
+<li><strong>config:</strong> address PR review on GEE creds and external-facing docs (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/5649d0047357f57c73ede99ce3e1b2cb14080129">5649d00</a>)</li>
+<li><strong>tests:</strong> don't require an HF token; MARS-S2L dataset is public (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/f6ed36e7e222186f06bf13a09b3187f6686be9c9">f6ed36e</a>)</li>
+</ul>
+<h2 id="025-2026-06-09"><a href="https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.4...v0.2.5">0.2.5</a> (2026-06-09)</h2>
+<h3 id="bug-fixes_3">Bug Fixes</h3>
+<ul>
+<li>rebuild GeoTensor instead of assigning .values (georeader 2.0 compat) (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/adbada5a74b178ec1bc799408993f5eee331247b">adbada5</a>)</li>
+</ul>
+<h2 id="024-2026-04-27"><a href="https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.3...v0.2.4">0.2.4</a> (2026-04-27)</h2>
+<h3 id="documentation_1">Documentation</h3>
+<ul>
+<li>updated notebook and added requirements to pyproject (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/68a19565a62a7fe8a69656b22f7b39f3d0e3de20">68a1956</a>)</li>
+</ul>
+<h2 id="023-2026-04-27"><a href="https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.2...v0.2.3">0.2.3</a> (2026-04-27)</h2>
+<h3 id="documentation_2">Documentation</h3>
+<ul>
+<li>fix bug docs with pinned packages. Add link to docs in readme (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/1be6b44ee7cbd035be51e61c0673c16fccbbab0a">1be6b44</a>)</li>
+</ul>
+<h2 id="022-2026-04-27"><a href="https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.1...v0.2.2">0.2.2</a> (2026-04-27)</h2>
+<h3 id="documentation_3">Documentation</h3>
+<ul>
+<li>updated docs notebooks (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/674b0ed14d08373a01c5ec24160ddfc86685d913">674b0ed</a>)</li>
+</ul>
+<h2 id="021-2026-04-23"><a href="https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.0...v0.2.1">0.2.1</a> (2026-04-23)</h2>
+<h3 id="features_2">Features</h3>
+<ul>
+<li><strong>ci,release:</strong> externalize LUT from marshsi package and add notebook/release automation (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/0adbac6be82590a378c9235e42027cf0eba16a68">0adbac6</a>)</li>
+</ul>
+<h3 id="bug-fixes_4">Bug Fixes</h3>
+<ul>
+<li>use valid semver version string 0.2.0 (<a href="https://github.com/UNEP-IMEO-MARS/marss2l/commit/e9275e97b922014403f0e6ef2ec80a3e44d9a8a7">e9275e9</a>)</li>
+</ul>
+<h2 id="changelog_1">Changelog</h2>
+<p>All notable changes to this project will be documented in this file.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="assets/javascripts/bundle.e71a0d61.min.js"></script>
+      
+    
+  </body>
+</html>

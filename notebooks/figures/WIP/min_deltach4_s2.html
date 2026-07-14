@@ -1,0 +1,1521 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="🛰️ MARS-S2L - Methane detection in Sentinel-2 and Landsat imagery">
+      
+      
+        <meta name="author" content="Gonzalo Mateo-García">
+      
+      
+        <link rel="canonical" href="https://UNEP-IMEO-MARS.github.io/marss2l/notebooks/figures/WIP/min_deltach4_s2.html">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+    
+    
+      
+        <title>Min deltach4 s2 - MARS-S2L</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.618322db.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../assets/style.css">
+    
+      <link rel="stylesheet" href="../../../css/ansi-colours.css">
+    
+      <link rel="stylesheet" href="../../../css/jupyter-cells.css">
+    
+      <link rel="stylesheet" href="../../../css/pandas-dataframe.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="MARS-S2L" class="md-header__button md-logo" aria-label="MARS-S2L" data-md-component="logo">
+      
+  <img src="../../logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MARS-S2L
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Min deltach4 s2
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/UNEP-IMEO-MARS/marss2l" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    marss2l
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="MARS-S2L" class="md-nav__button md-logo" aria-label="MARS-S2L" data-md-component="logo">
+      
+  <img src="../../logo.png" alt="logo">
+
+    </a>
+    MARS-S2L
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/UNEP-IMEO-MARS/marss2l" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    marss2l
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Home
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/download_and_inference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    End-to-end Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/background_image_selection.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background Image Selection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/plot_images_dataset_train.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DataLoader train
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/plot_plumes_dataset_test.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dataloader test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproducibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+  <h1>Min deltach4 s2</h1>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+<script>
+(function() {
+  function addWidgetsRenderer() {
+    var requireJsScript = document.createElement('script');
+    requireJsScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js';
+
+    var mimeElement = document.querySelector('script[type="application/vnd.jupyter.widget-view+json"]');
+    var jupyterWidgetsScript = document.createElement('script');
+    var widgetRendererSrc = 'https://unpkg.com/@jupyter-widgets/html-manager@*/dist/embed-amd.js';
+    var widgetState;
+
+    // Fallback for older version:
+    try {
+      widgetState = mimeElement && JSON.parse(mimeElement.innerHTML);
+
+      if (widgetState && (widgetState.version_major < 2 || !widgetState.version_major)) {
+        widgetRendererSrc = 'jupyter-js-widgets@*/dist/embed.js';
+      }
+    } catch(e) {}
+
+    jupyterWidgetsScript.src = widgetRendererSrc;
+
+    document.body.appendChild(requireJsScript);
+    document.body.appendChild(jupyterWidgetsScript);
+  }
+
+  document.addEventListener('DOMContentLoaded', addWidgetsRenderer);
+}());
+</script>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">marss2l.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">setup_stream_logger</span><span class="p">,</span> <span class="n">get_remote_filesystem</span><span class="p">,</span> <span class="n">pathjoin</span>
+<span class="n">fs</span> <span class="o">=</span> <span class="n">get_remote_filesystem</span><span class="p">()</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+<code>Using account key
+</code>
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">marss2l</span><span class="w"> </span><span class="kn">import</span> <span class="n">loaders</span>
+
+<span class="n">dataframe_data_traintest</span> <span class="o">=</span> <span class="n">loaders</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">add_columns_for_analysis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fs</span><span class="o">=</span><span class="n">fs</span><span class="p">,</span> <span class="n">split</span><span class="o">=</span><span class="s2">&quot;all&quot;</span><span class="p">,</span> <span class="n">add_case_study</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                                           <span class="n">add_loc_type</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">dataframe_data_traintest</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+<code>Removed 2 rows with percent_overlap &lt; 0.5
+</code>
+</pre>
+</div>
+</div>
+<div class="output_area">
+<div class="output_html rendered_html output_subarea output_execute_result">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+<thead>
+<tr style="text-align: right;">
+<th></th>
+<th>id_loc_image</th>
+<th>s2path</th>
+<th>plumepath</th>
+<th>cloudmaskpath</th>
+<th>ch4path</th>
+<th>location_name_short</th>
+<th>wind_u</th>
+<th>wind_v</th>
+<th>wind_speed</th>
+<th>vza</th>
+<th>...</th>
+<th>geotransform</th>
+<th>date</th>
+<th>satellite_constellation</th>
+<th>year_quarter</th>
+<th>ch4_fluxrate_th</th>
+<th>interval_ch4_fluxrate</th>
+<th>interval_ch4_fluxrate_str</th>
+<th>split_name</th>
+<th>loc_type</th>
+<th>case_study</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th>0</th>
+<td>6c766e53-1c19-450a-93d8-4a136721b930</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>011-4K-0011</td>
+<td>0.410492</td>
+<td>-1.204330</td>
+<td>1.272366</td>
+<td>2.680000</td>
+<td>...</td>
+<td>(10.0, 0.0, 729855.0, 0.0, -10.0, 3205635.0, 0...</td>
+<td>2024-12-30</td>
+<td>Landsat</td>
+<td>2024-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>test_2023</td>
+<td>no samples</td>
+<td>Libya</td>
+</tr>
+<tr>
+<th>1</th>
+<td>b2fdc3f5-4476-4902-a4d1-58523e54dada</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>011-4K-0011</td>
+<td>9.142639</td>
+<td>-2.482208</td>
+<td>9.473606</td>
+<td>7.114630</td>
+<td>...</td>
+<td>(10.0, 0.0, 729850.0, 0.0, -10.0, 3205650.0, 0...</td>
+<td>2024-12-26</td>
+<td>Sentinel-2</td>
+<td>2024-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>test_2023</td>
+<td>no samples</td>
+<td>Libya</td>
+</tr>
+<tr>
+<th>2</th>
+<td>7b31ece7-ad31-4ff4-85cd-b156babad647</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>011-4K-0011</td>
+<td>1.702469</td>
+<td>-2.103516</td>
+<td>2.706137</td>
+<td>7.110202</td>
+<td>...</td>
+<td>(10.0, 0.0, 729850.0, 0.0, -10.0, 3205650.0, 0...</td>
+<td>2024-12-21</td>
+<td>Sentinel-2</td>
+<td>2024-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>test_2023</td>
+<td>no samples</td>
+<td>Libya</td>
+</tr>
+<tr>
+<th>3</th>
+<td>1f01fdd9-0240-4999-a389-3a4b1e0a1186</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>011-4K-0011</td>
+<td>-0.854843</td>
+<td>-2.715822</td>
+<td>2.847182</td>
+<td>2.830000</td>
+<td>...</td>
+<td>(10.0, 0.0, 729855.0, 0.0, -10.0, 3205635.0, 0...</td>
+<td>2024-09-25</td>
+<td>Landsat</td>
+<td>2024-3Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>test_2023</td>
+<td>no samples</td>
+<td>Libya</td>
+</tr>
+<tr>
+<th>4</th>
+<td>8fab1041-ca3b-454c-8a1d-5870723814e6</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>011-4K-0011</td>
+<td>-1.500580</td>
+<td>2.065903</td>
+<td>2.553369</td>
+<td>2.680000</td>
+<td>...</td>
+<td>(10.0, 0.0, 729855.0, 0.0, -10.0, 3205635.0, 0...</td>
+<td>2024-09-09</td>
+<td>Landsat</td>
+<td>2024-3Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>test_2023</td>
+<td>no samples</td>
+<td>Libya</td>
+</tr>
+<tr>
+<th>...</th>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+<tr>
+<th>93576</th>
+<td>f513ee30-4f85-4f8e-b2be-9d917afe4761</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>y</td>
+<td>-1.849564</td>
+<td>1.823120</td>
+<td>2.597047</td>
+<td>3.009351</td>
+<td>...</td>
+<td>(10.0, 0.0, 646250.0, 0.0, -10.0, 3572170.0, 0...</td>
+<td>2023-12-06</td>
+<td>Sentinel-2</td>
+<td>2023-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>Not Used</td>
+<td>few samples</td>
+<td>United States of America</td>
+</tr>
+<tr>
+<th>93577</th>
+<td>4ee22ec9-7384-482d-8a88-630609abb85b</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>y</td>
+<td>-2.483368</td>
+<td>-3.101227</td>
+<td>3.972999</td>
+<td>0.980000</td>
+<td>...</td>
+<td>(10.0, 0.0, 646235.0, 0.0, -10.0, 3572175.0, 0...</td>
+<td>2023-12-05</td>
+<td>Landsat</td>
+<td>2023-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>Not Used</td>
+<td>few samples</td>
+<td>United States of America</td>
+</tr>
+<tr>
+<th>93578</th>
+<td>fdd27e24-80fd-48bd-b4c5-4b2e41d835df</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>y</td>
+<td>-1.838806</td>
+<td>-2.353096</td>
+<td>2.986347</td>
+<td>3.004482</td>
+<td>...</td>
+<td>(10.0, 0.0, 646250.0, 0.0, -10.0, 3572170.0, 0...</td>
+<td>2023-11-26</td>
+<td>Sentinel-2</td>
+<td>2023-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>train_2023</td>
+<td>few samples</td>
+<td>United States of America</td>
+</tr>
+<tr>
+<th>93579</th>
+<td>c6dbe321-d88c-4523-a848-6a37a76c6a8a</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>y</td>
+<td>-1.729721</td>
+<td>-7.339478</td>
+<td>7.540548</td>
+<td>3.004474</td>
+<td>...</td>
+<td>(10.0, 0.0, 646250.0, 0.0, -10.0, 3572170.0, 0...</td>
+<td>2023-11-21</td>
+<td>Sentinel-2</td>
+<td>2023-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>train_2023</td>
+<td>few samples</td>
+<td>United States of America</td>
+</tr>
+<tr>
+<th>93580</th>
+<td>27412cc4-8dc2-400c-bdce-e8ad7dfe6276</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>y</td>
+<td>-3.514435</td>
+<td>3.078857</td>
+<td>4.672324</td>
+<td>1.120000</td>
+<td>...</td>
+<td>(10.0, 0.0, 646235.0, 0.0, -10.0, 3572175.0, 0...</td>
+<td>2024-01-14</td>
+<td>Landsat</td>
+<td>2024-1Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>test_2023</td>
+<td>few samples</td>
+<td>United States of America</td>
+</tr>
+</tbody>
+</table>
+<p>93581 rows × 60 columns</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">marss2l.mars_sentinel2</span><span class="w"> </span><span class="kn">import</span> <span class="n">mixing_ratio_methane</span>
+
+<span class="n">dataframe_data_traintest</span><span class="p">[</span><span class="s2">&quot;amf&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dataframe_data_traintest</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">mli</span><span class="p">:</span> <span class="n">mixing_ratio_methane</span><span class="o">.</span><span class="n">air_mass_factor</span><span class="p">(</span><span class="n">sza</span><span class="o">=</span><span class="n">mli</span><span class="o">.</span><span class="n">sza</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="n">mli</span><span class="o">.</span><span class="n">vza</span><span class="p">),</span>
+                                                                 <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">dataframe_data_traintest</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_html rendered_html output_subarea output_execute_result">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+<thead>
+<tr style="text-align: right;">
+<th></th>
+<th>id_loc_image</th>
+<th>s2path</th>
+<th>plumepath</th>
+<th>cloudmaskpath</th>
+<th>ch4path</th>
+<th>location_name_short</th>
+<th>wind_u</th>
+<th>wind_v</th>
+<th>wind_speed</th>
+<th>vza</th>
+<th>...</th>
+<th>date</th>
+<th>satellite_constellation</th>
+<th>year_quarter</th>
+<th>ch4_fluxrate_th</th>
+<th>interval_ch4_fluxrate</th>
+<th>interval_ch4_fluxrate_str</th>
+<th>split_name</th>
+<th>loc_type</th>
+<th>case_study</th>
+<th>amf</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th>0</th>
+<td>6c766e53-1c19-450a-93d8-4a136721b930</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>011-4K-0011</td>
+<td>0.410492</td>
+<td>-1.204330</td>
+<td>1.272366</td>
+<td>2.680000</td>
+<td>...</td>
+<td>2024-12-30</td>
+<td>Landsat</td>
+<td>2024-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>test_2023</td>
+<td>no samples</td>
+<td>Libya</td>
+<td>2.822513</td>
+</tr>
+<tr>
+<th>1</th>
+<td>b2fdc3f5-4476-4902-a4d1-58523e54dada</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>011-4K-0011</td>
+<td>9.142639</td>
+<td>-2.482208</td>
+<td>9.473606</td>
+<td>7.114630</td>
+<td>...</td>
+<td>2024-12-26</td>
+<td>Sentinel-2</td>
+<td>2024-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>test_2023</td>
+<td>no samples</td>
+<td>Libya</td>
+<td>2.756047</td>
+</tr>
+<tr>
+<th>2</th>
+<td>7b31ece7-ad31-4ff4-85cd-b156babad647</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>011-4K-0011</td>
+<td>1.702469</td>
+<td>-2.103516</td>
+<td>2.706137</td>
+<td>7.110202</td>
+<td>...</td>
+<td>2024-12-21</td>
+<td>Sentinel-2</td>
+<td>2024-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>test_2023</td>
+<td>no samples</td>
+<td>Libya</td>
+<td>2.752670</td>
+</tr>
+<tr>
+<th>3</th>
+<td>1f01fdd9-0240-4999-a389-3a4b1e0a1186</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>011-4K-0011</td>
+<td>-0.854843</td>
+<td>-2.715822</td>
+<td>2.847182</td>
+<td>2.830000</td>
+<td>...</td>
+<td>2024-09-25</td>
+<td>Landsat</td>
+<td>2024-3Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>test_2023</td>
+<td>no samples</td>
+<td>Libya</td>
+<td>2.236350</td>
+</tr>
+<tr>
+<th>4</th>
+<td>8fab1041-ca3b-454c-8a1d-5870723814e6</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>011-4K-0011</td>
+<td>-1.500580</td>
+<td>2.065903</td>
+<td>2.553369</td>
+<td>2.680000</td>
+<td>...</td>
+<td>2024-09-09</td>
+<td>Landsat</td>
+<td>2024-3Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>test_2023</td>
+<td>no samples</td>
+<td>Libya</td>
+<td>2.176571</td>
+</tr>
+<tr>
+<th>...</th>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+<tr>
+<th>93576</th>
+<td>f513ee30-4f85-4f8e-b2be-9d917afe4761</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>y</td>
+<td>-1.849564</td>
+<td>1.823120</td>
+<td>2.597047</td>
+<td>3.009351</td>
+<td>...</td>
+<td>2023-12-06</td>
+<td>Sentinel-2</td>
+<td>2023-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>Not Used</td>
+<td>few samples</td>
+<td>United States of America</td>
+<td>2.806956</td>
+</tr>
+<tr>
+<th>93577</th>
+<td>4ee22ec9-7384-482d-8a88-630609abb85b</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>y</td>
+<td>-2.483368</td>
+<td>-3.101227</td>
+<td>3.972999</td>
+<td>0.980000</td>
+<td>...</td>
+<td>2023-12-05</td>
+<td>Landsat</td>
+<td>2023-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>Not Used</td>
+<td>few samples</td>
+<td>United States of America</td>
+<td>2.870022</td>
+</tr>
+<tr>
+<th>93578</th>
+<td>fdd27e24-80fd-48bd-b4c5-4b2e41d835df</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>y</td>
+<td>-1.838806</td>
+<td>-2.353096</td>
+<td>2.986347</td>
+<td>3.004482</td>
+<td>...</td>
+<td>2023-11-26</td>
+<td>Sentinel-2</td>
+<td>2023-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>train_2023</td>
+<td>few samples</td>
+<td>United States of America</td>
+<td>2.730460</td>
+</tr>
+<tr>
+<th>93579</th>
+<td>c6dbe321-d88c-4523-a848-6a37a76c6a8a</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>y</td>
+<td>-1.729721</td>
+<td>-7.339478</td>
+<td>7.540548</td>
+<td>3.004474</td>
+<td>...</td>
+<td>2023-11-21</td>
+<td>Sentinel-2</td>
+<td>2023-4Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>train_2023</td>
+<td>few samples</td>
+<td>United States of America</td>
+<td>2.686441</td>
+</tr>
+<tr>
+<th>93580</th>
+<td>27412cc4-8dc2-400c-bdce-e8ad7dfe6276</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>az://imeodata/models/data/marss2l_20250302/mod...</td>
+<td>y</td>
+<td>-3.514435</td>
+<td>3.078857</td>
+<td>4.672324</td>
+<td>1.120000</td>
+<td>...</td>
+<td>2024-01-14</td>
+<td>Landsat</td>
+<td>2024-1Q</td>
+<td>0.0</td>
+<td>(-0.001001, 0.0]</td>
+<td>[0, 0]</td>
+<td>test_2023</td>
+<td>few samples</td>
+<td>United States of America</td>
+<td>2.898953</td>
+</tr>
+</tbody>
+</table>
+<p>93581 rows × 61 columns</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">dataframe_data_traintest</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">dataframe_data_traintest</span><span class="o">.</span><span class="n">satellite</span><span class="o">.</span><span class="n">isin</span><span class="p">([</span><span class="s2">&quot;S2A&quot;</span><span class="p">,</span><span class="s2">&quot;S2B&quot;</span><span class="p">]),</span><span class="s2">&quot;amf&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">bins</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_text output_subarea output_execute_result">
+<pre>
+<code>&lt;Axes: &gt;</code>
+</pre>
+</div>
+</div>
+<div class="output_area">
+<div class="output_png output_subarea">
+<img alt="No description has been provided for this image" src="data:image/png;base64,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UceOHbuu74P0JW5X+dDZs2clffsfYDSPqqoqvfnmmzp//jxf39EM0tPTlZycrISEhJaeitGOHTummJgY/eM//qNSU1N14sSJlp6SUTZs2KCBAwdqwoQJioyMVP/+/fXb3/62padltMrKSv3+97/Xo48++r0JOBK3q3ymurpa06ZN0+DBg9WrV6+Wno5xDh48qPj4eF28eFE33XST1q1bpx49erT0tIzy5ptv6uOPP1ZxcXFLT8VogwYN0po1a9S1a1f95S9/0axZszR06FAdOnRIHTt2bOnpGeFPf/qTli9frszMTL3wwgsqLi7WU089pcDAQE2ePLmlp2ek9evX68yZM/q3f/u3lp6KF25X+cgTTzyh9957Tx9++KFuvfXWlp6OcSorK3XixAmdPXtW77zzjl577TXt2LGDoOMjX331lQYOHCiHw2E9izN8+HBuV9ngzJkz6tKlixYsWMDtVx8JDAzUwIEDtWvXLmvdU089peLiYjmdzhacmbmSkpIUGBiod999t6Wn4oXbVT6QkZGhjRs36r//+78JOM0kMDBQd9xxhwYMGKDc3Fz17dtXixYtaulpGaOkpESnTp3SnXfeKX9/f/n7+2vHjh1avHix/P39vR4uhG+FhYXphz/8oT7//POWnooxOnfuXO9/gLp3785twWby5Zdf6v3339djjz3W0lOph9tV16GmpkZPPvmk1q1bpw8++EBxcXEtPaUbRnV1tSoqKlp6GsYYMWKEDh486LXuZz/7mbp166bnn39ebdu2baGZme/cuXP63//9Xz3yyCMtPRVjDB48uN7HeXz22Wfq0qVLC83IbKtXr1ZkZKSSk5Nbeir1EHKuQ3p6ugoKCvTHP/5RHTt2lMvlkiSFhoaqXbt2LTw7c2RlZWn06NG67bbb9M0336igoEAffPCBtm7d2tJTM0bHjh3rPUvWoUMHderUiWfMfOw//uM/9MADD6hLly46efKkfvnLX6pt27aaOHFiS0/NGM8884zuvfdevfTSS/rpT3+qvXv3auXKlVq5cmVLT8041dXVWr16tSZPnvy9/CiE79+MWpHly5dL+vbZhbpWr179vXv4qjU7deqUJk2apL/85S8KDQ1Vnz59tHXrVo0cObKlpwY02p///GdNnDhRf/vb33TLLbdoyJAh2r17t2655ZaWnpox7rrrLq1bt05ZWVmaPXu24uLitHDhQqWmprb01Izz/vvv68SJE3r00UdbeioN4sFjAABgJB48BgAARiLkAAAAIxFyAACAkQg5AADASIQcAABgJEIOAAAwEiEHAAAYiZADAACMRMgBAABGIuQAAAAjEXIAAICRCDkAAMBI/w/0mz+ZhBJ66QAAAABJRU5ErkJggg=="/>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">dataframe_data_traintest</span><span class="p">[</span><span class="s2">&quot;amf&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">dataframe_data_traintest</span><span class="p">[</span><span class="s2">&quot;amf&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> 
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_text output_subarea output_execute_result">
+<pre>
+<code>(2.0000000013285413, 7.081178095832302)</code>
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">marss2l.mars_sentinel2</span><span class="w"> </span><span class="kn">import</span> <span class="n">transmittance_to_ch4</span>
+<span class="n">t2ch4</span> <span class="o">=</span> <span class="n">transmittance_to_ch4</span><span class="o">.</span><span class="n">TransmittanceCH4InterpolationFromDict</span><span class="p">()</span>
+<span class="n">t2ch4</span><span class="o">.</span><span class="n">amf_arr_max</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_text output_subarea output_execute_result">
+<pre>
+<code>3.92380428314209</code>
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">importlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">reload</span>
+<span class="n">reload</span><span class="p">(</span><span class="n">transmittance_to_ch4</span><span class="p">)</span>
+
+<span class="n">amf_max</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">amf_arr_max</span>
+<span class="n">amf_min</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">delta_toa</span> <span class="o">=</span> <span class="mf">1e-4</span>
+
+<span class="n">toa_b12</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">delta_toa</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">,</span> <span class="n">delta_toa</span><span class="p">)</span>
+<span class="n">tr_b12</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">delta_toa</span><span class="o">/</span><span class="n">toa_b12</span>
+<span class="n">delta_ch4_amf_min</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">deltach4_from_B12_transmittance</span><span class="p">(</span><span class="s2">&quot;S2B&quot;</span><span class="p">,</span> <span class="n">sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trans_b12</span><span class="o">=</span><span class="n">tr_b12</span><span class="p">,</span> <span class="n">amf</span><span class="o">=</span><span class="n">amf_min</span><span class="p">)</span>
+<span class="n">delta_ch4_amf_max</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">deltach4_from_B12_transmittance</span><span class="p">(</span><span class="s2">&quot;S2B&quot;</span><span class="p">,</span> <span class="n">sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trans_b12</span><span class="o">=</span><span class="n">tr_b12</span><span class="p">,</span> <span class="n">amf</span><span class="o">=</span><span class="n">amf_max</span><span class="p">)</span>
+
+<span class="n">delta_ch4_amf_min_b11</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">deltach4_from_B11_transmittance</span><span class="p">(</span><span class="s2">&quot;S2B&quot;</span><span class="p">,</span> <span class="n">sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trans_b11</span><span class="o">=</span><span class="n">tr_b12</span><span class="p">,</span> <span class="n">amf</span><span class="o">=</span><span class="n">amf_min</span><span class="p">)</span>
+<span class="n">delta_ch4_amf_max_b11</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">deltach4_from_B11_transmittance</span><span class="p">(</span><span class="s2">&quot;S2B&quot;</span><span class="p">,</span> <span class="n">sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trans_b11</span><span class="o">=</span><span class="n">tr_b12</span><span class="p">,</span> <span class="n">amf</span><span class="o">=</span><span class="n">amf_max</span><span class="p">)</span>
+
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">4</span><span class="p">),</span><span class="n">tight_layout</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sharey</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="c1"># ax[0].plot(toa_b12,delta_ch4_amf_min,label=&quot;min AMF&quot;)</span>
+<span class="c1"># ax[0].plot(toa_b12,delta_ch4_amf_max,label=&quot;max AMF&quot;)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">toa_b12</span><span class="p">,</span> <span class="n">delta_ch4_amf_min</span><span class="p">,</span> <span class="n">delta_ch4_amf_max</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">.7</span><span class="p">)</span>
+
+<span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">toa_b12</span><span class="p">,</span> <span class="n">delta_ch4_amf_min_b11</span><span class="p">,</span> <span class="n">delta_ch4_amf_max_b11</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">.7</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">700</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;B12&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;B11&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;Minimum $\Delta$CH$_4$ that can be observed (ppb)&quot;</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">axi</span> <span class="ow">in</span> <span class="n">ax</span><span class="p">:</span>
+    <span class="n">axi</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;ToA reflectance&quot;</span><span class="p">)</span>
+    <span class="n">axi</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">1.05</span><span class="p">,</span><span class="mf">.1</span><span class="p">))</span>
+    <span class="n">axi</span><span class="o">.</span><span class="n">grid</span><span class="p">()</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_subarea output_text output_error">
+<pre>
+<span class="ansi-red-fg">---------------------------------------------------------------------------</span>
+<span class="ansi-red-fg">AttributeError</span>                            Traceback (most recent call last)
+Cell <span class="ansi-green-fg">In[7], line 13</span>
+<span class="ansi-green-intense-fg ansi-bold">     11</span> toa_b12 <span style="color: rgb(98,98,98)">=</span> np<span style="color: rgb(98,98,98)">.</span>arange(delta_toa, <span style="color: rgb(98,98,98)">0.7</span>, delta_toa)
+<span class="ansi-green-intense-fg ansi-bold">     12</span> tr_b12 <span style="color: rgb(98,98,98)">=</span> <span style="color: rgb(98,98,98)">1</span> <span style="color: rgb(98,98,98)">-</span> delta_toa<span style="color: rgb(98,98,98)">/</span>toa_b12
+<span class="ansi-green-fg">---&gt; 13</span> delta_ch4_amf_min <span style="color: rgb(98,98,98)">=</span> <span class="ansi-yellow-bg">t2ch4</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">deltach4_from_B12_transmittance</span>(<span style="color: rgb(175,0,0)">"</span><span style="color: rgb(175,0,0)">S2B</span><span style="color: rgb(175,0,0)">"</span>, sza<span style="color: rgb(98,98,98)">=</span><span class="ansi-bold" style="color: rgb(0,135,0)">None</span>, vza<span style="color: rgb(98,98,98)">=</span><span class="ansi-bold" style="color: rgb(0,135,0)">None</span>, trans_b12<span style="color: rgb(98,98,98)">=</span>tr_b12, amf<span style="color: rgb(98,98,98)">=</span>amf_min)
+<span class="ansi-green-intense-fg ansi-bold">     14</span> delta_ch4_amf_max <span style="color: rgb(98,98,98)">=</span> t2ch4<span style="color: rgb(98,98,98)">.</span>deltach4_from_B12_transmittance(<span style="color: rgb(175,0,0)">"</span><span style="color: rgb(175,0,0)">S2B</span><span style="color: rgb(175,0,0)">"</span>, sza<span style="color: rgb(98,98,98)">=</span><span class="ansi-bold" style="color: rgb(0,135,0)">None</span>, vza<span style="color: rgb(98,98,98)">=</span><span class="ansi-bold" style="color: rgb(0,135,0)">None</span>, trans_b12<span style="color: rgb(98,98,98)">=</span>tr_b12, amf<span style="color: rgb(98,98,98)">=</span>amf_max)
+<span class="ansi-green-intense-fg ansi-bold">     16</span> delta_ch4_amf_min_b11 <span style="color: rgb(98,98,98)">=</span> t2ch4<span style="color: rgb(98,98,98)">.</span>deltach4_from_B11_transmittance(<span style="color: rgb(175,0,0)">"</span><span style="color: rgb(175,0,0)">S2B</span><span style="color: rgb(175,0,0)">"</span>, sza<span style="color: rgb(98,98,98)">=</span><span class="ansi-bold" style="color: rgb(0,135,0)">None</span>, vza<span style="color: rgb(98,98,98)">=</span><span class="ansi-bold" style="color: rgb(0,135,0)">None</span>, trans_b11<span style="color: rgb(98,98,98)">=</span>tr_b12, amf<span style="color: rgb(98,98,98)">=</span>amf_min)
+
+<span class="ansi-red-fg">AttributeError</span>: 'TransmittanceCH4InterpolationFromDict' object has no attribute 'deltach4_from_B12_transmittance'</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>https://s2.pages.eopf.copernicus.eu/pdfs-adfs/MSI/L2/PDFS_S2_MSI_L2.myst.html</p>
+<p>Radiometric resolution is routinely expressed as a bit number, typically in the range of 8 to 16 bits. The radiometric resolution of the MSI instrument is 12 bit[1], enabling the image to be acquired over a range of 0 to 4095 potential light intensity values. The radiometric accuracy is less than 5% (goal 3%). Radiometric resolution is also dependent upon the Signal to Noise Ratio (SNR) of the detector.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span><span class="mi">4</span><span class="p">),</span><span class="n">tight_layout</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sharey</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">yscale</span><span class="p">(</span><span class="s1">&#39;log&#39;</span><span class="p">)</span>
+
+<span class="n">delta_ch4_amf_max_annual_report</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">deltach4_from_B12_transmittance</span><span class="p">(</span><span class="s2">&quot;S2B&quot;</span><span class="p">,</span> <span class="n">sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trans_b12</span><span class="o">=</span><span class="mi">1</span><span class="o">-</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">amf</span><span class="o">=</span><span class="n">amf_max</span><span class="p">)</span>
+<span class="n">delta_ch4_amf_min_annual_report</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">deltach4_from_B12_transmittance</span><span class="p">(</span><span class="s2">&quot;S2B&quot;</span><span class="p">,</span> <span class="n">sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trans_b12</span><span class="o">=</span><span class="mi">1</span><span class="o">-</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">amf</span><span class="o">=</span><span class="n">amf_min</span><span class="p">)</span>
+<span class="n">delta_ch4_amf_max_b11_annual_report</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">deltach4_from_B11_transmittance</span><span class="p">(</span><span class="s2">&quot;S2B&quot;</span><span class="p">,</span> <span class="n">sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trans_b11</span><span class="o">=</span><span class="mi">1</span><span class="o">-</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">amf</span><span class="o">=</span><span class="n">amf_max</span><span class="p">)</span>
+<span class="n">delta_ch4_amf_min_b11_annual_report</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">deltach4_from_B11_transmittance</span><span class="p">(</span><span class="s2">&quot;S2B&quot;</span><span class="p">,</span> <span class="n">sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trans_b11</span><span class="o">=</span><span class="mi">1</span><span class="o">-</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">amf</span><span class="o">=</span><span class="n">amf_min</span><span class="p">)</span>
+<span class="c1"># ax[0].plot(toa_b12,delta_ch4_amf_min,label=&quot;min AMF&quot;)</span>
+<span class="c1"># ax[0].plot(toa_b12,delta_ch4_amf_max,label=&quot;max AMF&quot;)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">toa_b12</span><span class="p">,</span> <span class="n">delta_ch4_amf_min</span><span class="p">,</span> <span class="n">delta_ch4_amf_max</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">.7</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Radimetric resolution&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">toa_b12</span><span class="p">,</span> 
+                   <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">delta_ch4_amf_min_annual_report</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">toa_b12</span><span class="p">)),</span> 
+                   <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">delta_ch4_amf_max_annual_report</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">toa_b12</span><span class="p">)),</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">.7</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Quality assessment&quot;</span><span class="p">)</span>
+
+<span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">toa_b12</span><span class="p">,</span> <span class="n">delta_ch4_amf_min_b11</span><span class="p">,</span> <span class="n">delta_ch4_amf_max_b11</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">.7</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Radimetric resolution&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">toa_b12</span><span class="p">,</span> 
+                   <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">delta_ch4_amf_min_b11_annual_report</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">toa_b12</span><span class="p">)),</span> 
+                   <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">delta_ch4_amf_max_b11_annual_report</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">toa_b12</span><span class="p">)),</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">.7</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Quality assessment&quot;</span><span class="p">)</span>
+<span class="c1"># ax[0].set_ylim(0,700)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;B12&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;B11&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;Minimum $\Delta X$CH$_4$ (ppb)&quot;</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">axi</span> <span class="ow">in</span> <span class="n">ax</span><span class="p">:</span>
+    <span class="n">axi</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;ToA reflectance&quot;</span><span class="p">)</span>
+    <span class="n">axi</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">1.05</span><span class="p">,</span><span class="mf">.1</span><span class="p">))</span>
+    <span class="n">axi</span><span class="o">.</span><span class="n">grid</span><span class="p">()</span>
+
+<span class="n">axi</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;figures/min_delta_ch4.pdf&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">delta_ch4_amf_min_b11</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">toa_b12</span><span class="p">))</span>
+</code></pre></div>
+
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>5% error in radiometric accuracy means that: $B\in (0.95B, 1.05B)$:
+$$
+B \sim \mathcal{N}(B, 0.05/2B)
+$$</p>
+<p>For a couple of observed values $b1$ and $b2$ drawn from B r.v.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">delta_ch4_amf_max</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">deltach4_from_B12_transmittance</span><span class="p">(</span><span class="s2">&quot;S2B&quot;</span><span class="p">,</span> <span class="n">sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trans_b12</span><span class="o">=</span><span class="mf">0.95</span><span class="p">,</span> <span class="n">amf</span><span class="o">=</span><span class="n">amf_max</span><span class="p">)</span>
+<span class="n">delta_ch4_amf_min</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">deltach4_from_B12_transmittance</span><span class="p">(</span><span class="s2">&quot;S2B&quot;</span><span class="p">,</span> <span class="n">sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trans_b12</span><span class="o">=</span><span class="mf">0.95</span><span class="p">,</span> <span class="n">amf</span><span class="o">=</span><span class="n">amf_min</span><span class="p">)</span>
+<span class="n">delta_ch4_amf_max</span><span class="p">,</span> <span class="n">delta_ch4_amf_min</span>
+</code></pre></div>
+
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>https://sentiwiki.copernicus.eu/__attachments/1673423/OMPC.CS.APR.003%20-%20S2%20MSI%20Annual%20Performance%20Report%202023%20-%201.0.pdf?inst-v=88058fef-2c79-4802-ad1d-e3f03e84f7b7 Figs 28 y 29 shows the absoulute error.</p>
+<p>Section 5.1.2.2 shows the signal to noise ratio (165-169 for B12 and 156-164 for B11).</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="c1"># For 3%</span>
+<span class="n">delta_ch4_amf_max</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">deltach4_from_B12_transmittance</span><span class="p">(</span><span class="s2">&quot;S2B&quot;</span><span class="p">,</span> <span class="n">sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trans_b12</span><span class="o">=</span><span class="mf">0.97</span><span class="p">,</span> <span class="n">amf</span><span class="o">=</span><span class="n">amf_max</span><span class="p">)</span>
+<span class="n">delta_ch4_amf_min</span> <span class="o">=</span> <span class="n">t2ch4</span><span class="o">.</span><span class="n">deltach4_from_B12_transmittance</span><span class="p">(</span><span class="s2">&quot;S2B&quot;</span><span class="p">,</span> <span class="n">sza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vza</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trans_b12</span><span class="o">=</span><span class="mf">0.97</span><span class="p">,</span> <span class="n">amf</span><span class="o">=</span><span class="n">amf_min</span><span class="p">)</span>
+<span class="n">delta_ch4_amf_max</span><span class="p">,</span> <span class="n">delta_ch4_amf_min</span>
+</code></pre></div>
+
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code>
+</code></pre></div>
+
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code>
+</code></pre></div>
+
+</div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": [], "search": "../../../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.e71a0d61.min.js"></script>
+      
+    
+  </body>
+</html>

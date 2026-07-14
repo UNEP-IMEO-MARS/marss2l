@@ -1,0 +1,1773 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="🛰️ MARS-S2L - Methane detection in Sentinel-2 and Landsat imagery">
+      
+      
+        <meta name="author" content="Gonzalo Mateo-García">
+      
+      
+        <link rel="canonical" href="https://UNEP-IMEO-MARS.github.io/marss2l/notebooks/figures/iea_estimates_of_emissions.html">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+    
+    
+      
+        <title>Iea estimates of emissions - MARS-S2L</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.618322db.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../assets/style.css">
+    
+      <link rel="stylesheet" href="../../css/ansi-colours.css">
+    
+      <link rel="stylesheet" href="../../css/jupyter-cells.css">
+    
+      <link rel="stylesheet" href="../../css/pandas-dataframe.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#iea-2023-methane-emissions-data" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="MARS-S2L" class="md-header__button md-logo" aria-label="MARS-S2L" data-md-component="logo">
+      
+  <img src="../logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MARS-S2L
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Iea estimates of emissions
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/UNEP-IMEO-MARS/marss2l" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    marss2l
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="MARS-S2L" class="md-nav__button md-logo" aria-label="MARS-S2L" data-md-component="logo">
+      
+  <img src="../logo.png" alt="logo">
+
+    </a>
+    MARS-S2L
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/UNEP-IMEO-MARS/marss2l" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    marss2l
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Home
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/download_and_inference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    End-to-end Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/background_image_selection.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background Image Selection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/plot_images_dataset_train.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DataLoader train
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/plot_plumes_dataset_test.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dataloader test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproducibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#iea-2023-methane-emissions-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IEA 2023 Methane Emissions data
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#select-data-from-the-oil-and-gas-sector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Select data from the Oil and Gas sector
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Select data from the Oil and Gas sector">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compute-percentage-of-emissions-on-each-of-the-12-geographical-regions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compute percentage of emissions on each of the 12 geographical regions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#percentage-of-emissions-by-country" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Percentage of emissions by country
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#countries-with-significant-percentage-of-og-upstream-emissions-not-covered-in-the-mars-s2l-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Countries with significant percentage of O&amp;G upstream emissions not covered in the MARS-S2L dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+<script>
+(function() {
+  function addWidgetsRenderer() {
+    var requireJsScript = document.createElement('script');
+    requireJsScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js';
+
+    var mimeElement = document.querySelector('script[type="application/vnd.jupyter.widget-view+json"]');
+    var jupyterWidgetsScript = document.createElement('script');
+    var widgetRendererSrc = 'https://unpkg.com/@jupyter-widgets/html-manager@*/dist/embed-amd.js';
+    var widgetState;
+
+    // Fallback for older version:
+    try {
+      widgetState = mimeElement && JSON.parse(mimeElement.innerHTML);
+
+      if (widgetState && (widgetState.version_major < 2 || !widgetState.version_major)) {
+        widgetRendererSrc = 'jupyter-js-widgets@*/dist/embed.js';
+      }
+    } catch(e) {}
+
+    jupyterWidgetsScript.src = widgetRendererSrc;
+
+    document.body.appendChild(requireJsScript);
+    document.body.appendChild(jupyterWidgetsScript);
+  }
+
+  document.addEventListener('DOMContentLoaded', addWidgetsRenderer);
+}());
+</script>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">marss2l.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">setup_stream_logger</span><span class="p">,</span> <span class="n">get_remote_filesystem</span><span class="p">,</span> <span class="n">pathjoin</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">setup_stream_logger</span><span class="p">()</span>
+</code></pre></div>
+
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="iea-2023-methane-emissions-data">IEA 2023 Methane Emissions data</h2>
+<p>CSV file downloaded from <a href="https://www.iea.org/reports/global-methane-tracker-2025/understanding-methane-emissions">IEA data portal</a>.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="n">worlddata</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;IEA-MethaneEmissionsComparison-World.csv&quot;</span><span class="p">)</span>
+<span class="n">worlddata</span> <span class="o">=</span>  <span class="n">worlddata</span><span class="p">[</span><span class="o">~</span><span class="n">worlddata</span><span class="o">.</span><span class="n">country</span><span class="o">.</span><span class="n">isna</span><span class="p">()]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="n">worlddata</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_html rendered_html output_subarea output_execute_result">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+<thead>
+<tr style="text-align: right;">
+<th></th>
+<th>region</th>
+<th>country</th>
+<th>emissions</th>
+<th>source</th>
+<th>type</th>
+<th>segment</th>
+<th>reason</th>
+<th>baseYear</th>
+<th>emissionsRank</th>
+<th>energyRank</th>
+<th>notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th>0</th>
+<td>Africa</td>
+<td>Algeria</td>
+<td>261</td>
+<td>IEA</td>
+<td>Agriculture</td>
+<td>Total</td>
+<td>All</td>
+<td>2019-2021</td>
+<td>19.0</td>
+<td>11.0</td>
+<td>Average based on United Nations Framework Conv...</td>
+</tr>
+<tr>
+<th>1</th>
+<td>Africa</td>
+<td>Algeria</td>
+<td>0</td>
+<td>IEA</td>
+<td>Energy</td>
+<td>Bioenergy</td>
+<td>All</td>
+<td>2023</td>
+<td>19.0</td>
+<td>11.0</td>
+<td>Estimates from end-uses are for 2020 or 2021 (...</td>
+</tr>
+<tr>
+<th>2</th>
+<td>Africa</td>
+<td>Algeria</td>
+<td>45</td>
+<td>IEA</td>
+<td>Energy</td>
+<td>Gas pipelines and LNG facilities</td>
+<td>Fugitive</td>
+<td>2023</td>
+<td>19.0</td>
+<td>11.0</td>
+<td>NaN</td>
+</tr>
+<tr>
+<th>3</th>
+<td>Africa</td>
+<td>Algeria</td>
+<td>71</td>
+<td>IEA</td>
+<td>Energy</td>
+<td>Gas pipelines and LNG facilities</td>
+<td>Vented</td>
+<td>2023</td>
+<td>19.0</td>
+<td>11.0</td>
+<td>NaN</td>
+</tr>
+<tr>
+<th>4</th>
+<td>Africa</td>
+<td>Algeria</td>
+<td>191</td>
+<td>IEA</td>
+<td>Energy</td>
+<td>Onshore gas</td>
+<td>Fugitive</td>
+<td>2023</td>
+<td>19.0</td>
+<td>11.0</td>
+<td>NaN</td>
+</tr>
+<tr>
+<th>...</th>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+<tr>
+<th>1479</th>
+<td>Russia &amp; Caspian</td>
+<td>Uzbekistan</td>
+<td>20</td>
+<td>IEA</td>
+<td>Energy</td>
+<td>Other from oil and gas</td>
+<td>All</td>
+<td>2023</td>
+<td>33.0</td>
+<td>25.0</td>
+<td>Estimates from end-uses are for 2020 or 2021 (...</td>
+</tr>
+<tr>
+<th>1480</th>
+<td>Russia &amp; Caspian</td>
+<td>Uzbekistan</td>
+<td>57</td>
+<td>IEA</td>
+<td>Energy</td>
+<td>Satellite-detected large oil and gas emissions</td>
+<td>All</td>
+<td>2023</td>
+<td>33.0</td>
+<td>25.0</td>
+<td>NaN</td>
+</tr>
+<tr>
+<th>1481</th>
+<td>Russia &amp; Caspian</td>
+<td>Uzbekistan</td>
+<td>933</td>
+<td>IEA</td>
+<td>Energy</td>
+<td>Total</td>
+<td>All</td>
+<td>2023</td>
+<td>33.0</td>
+<td>25.0</td>
+<td>Estimates from end-uses are for 2020 or 2021 (...</td>
+</tr>
+<tr>
+<th>1482</th>
+<td>Russia &amp; Caspian</td>
+<td>Uzbekistan</td>
+<td>6</td>
+<td>IEA</td>
+<td>Other</td>
+<td>Total</td>
+<td>All</td>
+<td>2019-2021</td>
+<td>33.0</td>
+<td>25.0</td>
+<td>Average based on United Nations Framework Conv...</td>
+</tr>
+<tr>
+<th>1483</th>
+<td>Russia &amp; Caspian</td>
+<td>Uzbekistan</td>
+<td>281</td>
+<td>IEA</td>
+<td>Waste</td>
+<td>Total</td>
+<td>All</td>
+<td>2019-2021</td>
+<td>33.0</td>
+<td>25.0</td>
+<td>Average based on United Nations Framework Conv...</td>
+</tr>
+</tbody>
+</table>
+<p>1484 rows × 11 columns</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Our test set is stratified in 11 geographical regions: </p>
+<ul>
+<li>Algeria, Egypt, Libya, Venezuela, ,Arabian peninsula, Iran, Iraq, Syria, United States of America, Uzbekistan &amp; Kazakhstan, Turkmenistan, Offshore and Rest. </li>
+</ul>
+<p>Set the MARS-S2L case study that the country belongs to.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">marss2l</span><span class="w"> </span><span class="kn">import</span> <span class="n">loaders</span>
+<span class="n">worlddata</span><span class="p">[</span><span class="s2">&quot;case_study_marss2l&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">worlddata</span><span class="o">.</span><span class="n">country</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">loaders</span><span class="o">.</span><span class="n">_set_case_study</span><span class="p">)</span>
+
+<span class="n">case_studies</span> <span class="o">=</span> <span class="n">worlddata</span><span class="o">.</span><span class="n">case_study_marss2l</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">ce</span> <span class="ow">in</span> <span class="n">case_studies</span><span class="p">:</span>
+    <span class="n">countries</span> <span class="o">=</span> <span class="n">worlddata</span><span class="o">.</span><span class="n">country</span><span class="p">[</span><span class="n">worlddata</span><span class="o">.</span><span class="n">case_study_marss2l</span> <span class="o">==</span> <span class="n">ce</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">countries</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">countries</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="nb">str</span><span class="p">)])</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ce</span><span class="si">}</span><span class="s2"> -&amp;gt; </span><span class="si">{</span><span class="n">countries</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+<code>Algeria -&gt; ['Algeria']
+Rest -&gt; ['Angola', 'Argentina', 'Australia', 'Azerbaijan', 'Bangladesh', 'Benin', 'Bolivia', 'Botswana', 'Brazil', 'Brunei', 'Cameroon', 'Canada', 'Chad', 'China', 'Colombia', 'Congo', "Cote d'Ivoire", 'Cuba', 'Democratic Republic of Congo', 'Denmark', 'Ecuador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Ethiopia', 'France', 'Gabon', 'Germany', 'Ghana', 'Guyana', 'India', 'Indonesia', 'Israel', 'Italy', 'Japan', 'Jordan', 'Kenya', 'Korea', 'Lebanon', 'Malaysia', 'Mexico', 'Mongolia', 'Morocco', 'Mozambique', 'Namibia', 'Netherlands', 'New Zealand', 'Niger', 'Nigeria', 'Norway', 'Other', 'Other EU17 countries', 'Other EU7 countries', 'Other countries in Europe', 'Other countries in Southeast Asia', 'Pakistan', 'Paraguay', 'Peru', 'Philippines', 'Poland', 'Romania', 'Russia', 'Senegal', 'Slovenia', 'South Africa', 'South Sudan', 'Sudan', 'Sweden', 'Tanzania', 'Thailand', 'Togo', 'Trinidad and Tobago', 'Tunisia', 'Ukraine', 'United Kingdom', 'Uruguay', 'Viet Nam']
+Egypt -&gt; ['Egypt']
+Libya -&gt; ['Libya']
+Venezuela -&gt; ['Venezuela']
+Arabian peninsula -&gt; ['Bahrain', 'Kuwait', 'Oman', 'Qatar', 'Saudi Arabia', 'United Arab Emirates', 'Yemen']
+Iran (Islamic Republic of) -&gt; ['Iran']
+Iraq -&gt; ['Iraq']
+Syrian Arab Republic -&gt; ['Syria']
+United States of America -&gt; ['United States']
+Uzbekistan &amp; Kazakhstan -&gt; ['Kazakhstan', 'Uzbekistan']
+Turkmenistan -&gt; ['Turkmenistan']
+</code>
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="nb">print</span><span class="p">(</span><span class="n">case_studies</span><span class="p">)</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+<code>['Algeria' 'Rest' 'Egypt' 'Libya' 'Venezuela' 'Arabian peninsula'
+ 'Iran (Islamic Republic of)' 'Iraq' 'Syrian Arab Republic'
+ 'United States of America' 'Uzbekistan &amp; Kazakhstan' 'Turkmenistan']
+</code>
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="select-data-from-the-oil-and-gas-sector">Select data from the Oil and Gas sector</h1>
+<p>We selected data with <code>type</code> "Energy" and  and <code>segment</code> onshore or offshore gas.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">segments</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Onshore oil&quot;</span><span class="p">,</span> <span class="s2">&quot;Offshore oil&quot;</span><span class="p">,</span> <span class="s2">&quot;Onshore gas&quot;</span><span class="p">,</span> <span class="s2">&quot;Offshore gas&quot;</span><span class="p">]</span>
+<span class="n">worlddata_og_upstream_all</span> <span class="o">=</span> <span class="n">worlddata</span><span class="p">[(</span><span class="n">worlddata</span><span class="o">.</span><span class="n">type</span><span class="o">==</span><span class="s2">&quot;Energy&quot;</span><span class="p">)</span> <span class="o">&amp;</span><span class="n">amp</span><span class="p">;</span> <span class="n">worlddata</span><span class="o">.</span><span class="n">segment</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">segments</span><span class="p">)]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="n">worlddata_og_upstream_all</span><span class="p">[</span><span class="s2">&quot;offshore&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">worlddata_og_upstream_all</span><span class="o">.</span><span class="n">segment</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="s2">&quot;Offshore&quot;</span> <span class="ow">in</span> <span class="n">x</span><span class="p">)</span>
+</code></pre></div>
+
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">worlddata_og_upstream_all</span><span class="o">.</span><span class="n">reason</span><span class="o">.</span><span class="n">value_counts</span><span class="p">()</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_text output_subarea output_execute_result">
+<pre>
+<code>reason
+Fugitive    250
+Vented      250
+Flared      120
+Name: count, dtype: int64</code>
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="compute-percentage-of-emissions-on-each-of-the-12-geographical-regions">Compute percentage of emissions on each of the 12 geographical regions</h2>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">worlddata_og_upstream_onshore</span> <span class="o">=</span> <span class="n">worlddata_og_upstream_all</span><span class="p">[</span><span class="o">~</span><span class="n">worlddata_og_upstream_all</span><span class="o">.</span><span class="n">offshore</span><span class="p">]</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;case_study_marss2l&quot;</span><span class="p">)[[</span><span class="s2">&quot;emissions&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+<span class="c1"># worlddata_og_upstream_onshore[&quot;percentage emissions&quot;] = worlddata_og_upstream_onshore.emissions / worlddata_og_upstream_onshore.emissions.sum() * 100</span>
+
+<span class="n">emissions_offshore</span> <span class="o">=</span> <span class="n">worlddata_og_upstream_all</span><span class="p">[</span><span class="n">worlddata_og_upstream_all</span><span class="o">.</span><span class="n">offshore</span><span class="p">][[</span><span class="s2">&quot;emissions&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+<span class="n">emissions_offshore_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([{</span><span class="s2">&quot;case_study_marss2l&quot;</span><span class="p">:</span> <span class="s2">&quot;Offshore&quot;</span><span class="p">,</span> <span class="s2">&quot;emissions&quot;</span><span class="p">:</span> <span class="n">emissions_offshore</span><span class="p">}])</span>
+<span class="n">worlddata_og_upstream</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">worlddata_og_upstream_onshore</span><span class="p">,</span> <span class="n">emissions_offshore_df</span><span class="p">],</span> 
+                                  <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">worlddata_og_upstream</span><span class="p">[</span><span class="s2">&quot;percentage emissions&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">worlddata_og_upstream</span><span class="o">.</span><span class="n">emissions</span> <span class="o">/</span> <span class="n">worlddata_og_upstream</span><span class="o">.</span><span class="n">emissions</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">*</span> <span class="mi">100</span>
+<span class="n">worlddata_og_upstream</span> <span class="o">=</span> <span class="n">worlddata_og_upstream</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s2">&quot;emissions&quot;</span><span class="p">,</span><span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="c1"># worlddata_og_upstream = pd.concat([worlddata_og_upstream_onshore,],axis=0)</span>
+<span class="n">worlddata_og_upstream</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_html rendered_html output_subarea output_execute_result">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+<thead>
+<tr style="text-align: right;">
+<th></th>
+<th>case_study_marss2l</th>
+<th>emissions</th>
+<th>percentage emissions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th>0</th>
+<td>Rest</td>
+<td>19319</td>
+<td>29.445655</td>
+</tr>
+<tr>
+<th>1</th>
+<td>Offshore</td>
+<td>15011</td>
+<td>22.879483</td>
+</tr>
+<tr>
+<th>2</th>
+<td>United States of America</td>
+<td>10133</td>
+<td>15.444527</td>
+</tr>
+<tr>
+<th>3</th>
+<td>Arabian peninsula</td>
+<td>4113</td>
+<td>6.268957</td>
+</tr>
+<tr>
+<th>4</th>
+<td>Iran (Islamic Republic of)</td>
+<td>3645</td>
+<td>5.555640</td>
+</tr>
+<tr>
+<th>5</th>
+<td>Algeria</td>
+<td>2572</td>
+<td>3.920194</td>
+</tr>
+<tr>
+<th>6</th>
+<td>Venezuela</td>
+<td>2542</td>
+<td>3.874468</td>
+</tr>
+<tr>
+<th>7</th>
+<td>Iraq</td>
+<td>2259</td>
+<td>3.443125</td>
+</tr>
+<tr>
+<th>8</th>
+<td>Turkmenistan</td>
+<td>1915</td>
+<td>2.918807</td>
+</tr>
+<tr>
+<th>9</th>
+<td>Uzbekistan &amp; Kazakhstan</td>
+<td>1818</td>
+<td>2.770961</td>
+</tr>
+<tr>
+<th>10</th>
+<td>Libya</td>
+<td>1566</td>
+<td>2.386868</td>
+</tr>
+<tr>
+<th>11</th>
+<td>Syrian Arab Republic</td>
+<td>381</td>
+<td>0.580713</td>
+</tr>
+<tr>
+<th>12</th>
+<td>Egypt</td>
+<td>335</td>
+<td>0.510601</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Best estimate</strong>: including offshore excluding countries not in case-studies</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">worlddata_og_upstream</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">worlddata_og_upstream</span><span class="o">.</span><span class="n">case_study_marss2l</span> <span class="o">!=</span> <span class="s2">&quot;Rest&quot;</span><span class="p">,</span> <span class="s2">&quot;percentage emissions&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_text output_subarea output_execute_result">
+<pre>
+<code>70.55434467832157</code>
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>More conservative estimate</strong>: excluding offshore and Venezuela (as detection limit in Venezuela and Offshore is much higher)</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">worlddata_og_upstream</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="o">~</span><span class="n">worlddata_og_upstream</span><span class="o">.</span><span class="n">case_study_marss2l</span><span class="o">.</span><span class="n">isin</span><span class="p">([</span><span class="s2">&quot;Rest&quot;</span><span class="p">,</span> <span class="s2">&quot;Offshore&quot;</span><span class="p">,</span> <span class="s2">&quot;Venezuela&quot;</span><span class="p">]),</span> <span class="s2">&quot;percentage emissions&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_text output_subarea output_execute_result">
+<pre>
+<code>43.8003932387325</code>
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="percentage-of-emissions-by-country">Percentage of emissions by country</h2>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">worlddata_og_upstream_by_country_onshore</span> <span class="o">=</span> <span class="n">worlddata_og_upstream_all</span><span class="p">[</span><span class="o">~</span><span class="n">worlddata_og_upstream_all</span><span class="o">.</span><span class="n">offshore</span><span class="p">]</span><span class="o">.</span><span class="n">groupby</span><span class="p">([</span><span class="s2">&quot;country&quot;</span><span class="p">])[[</span><span class="s2">&quot;emissions&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+<span class="c1"># Concat offshore</span>
+<span class="n">emissions_offshore_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([{</span><span class="s2">&quot;country&quot;</span><span class="p">:</span> <span class="s2">&quot;Offshore&quot;</span><span class="p">,</span> <span class="s2">&quot;emissions&quot;</span><span class="p">:</span> <span class="n">emissions_offshore</span><span class="p">}])</span>
+<span class="n">worlddata_og_upstream_by_country</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">worlddata_og_upstream_by_country_onshore</span><span class="p">,</span> <span class="n">emissions_offshore_df</span><span class="p">],</span> 
+                                             <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="n">worlddata_og_upstream_by_country</span><span class="p">[</span><span class="s2">&quot;case_study_marss2l&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">worlddata_og_upstream_by_country</span><span class="o">.</span><span class="n">country</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">loaders</span><span class="o">.</span><span class="n">_set_case_study</span><span class="p">)</span>
+<span class="n">worlddata_og_upstream_by_country</span><span class="p">[</span><span class="s2">&quot;percentage emissions&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">worlddata_og_upstream_by_country</span><span class="o">.</span><span class="n">emissions</span> <span class="o">/</span> <span class="n">worlddata_og_upstream_by_country</span><span class="o">.</span><span class="n">emissions</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">*</span> <span class="mi">100</span>
+<span class="n">worlddata_og_upstream_by_country</span> <span class="o">=</span> <span class="n">worlddata_og_upstream_by_country</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s2">&quot;emissions&quot;</span><span class="p">,</span><span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">worlddata_og_upstream_by_country</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:</span><span class="mi">25</span><span class="p">]</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_html rendered_html output_subarea output_execute_result">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+<thead>
+<tr style="text-align: right;">
+<th></th>
+<th>country</th>
+<th>emissions</th>
+<th>case_study_marss2l</th>
+<th>percentage emissions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th>0</th>
+<td>Offshore</td>
+<td>15011</td>
+<td>Offshore</td>
+<td>22.879483</td>
+</tr>
+<tr>
+<th>1</th>
+<td>United States</td>
+<td>10133</td>
+<td>United States of America</td>
+<td>15.444527</td>
+</tr>
+<tr>
+<th>2</th>
+<td>Russia</td>
+<td>9525</td>
+<td>Rest</td>
+<td>14.517825</td>
+</tr>
+<tr>
+<th>3</th>
+<td>Iran</td>
+<td>3645</td>
+<td>Iran (Islamic Republic of)</td>
+<td>5.555640</td>
+</tr>
+<tr>
+<th>4</th>
+<td>Algeria</td>
+<td>2572</td>
+<td>Algeria</td>
+<td>3.920194</td>
+</tr>
+<tr>
+<th>5</th>
+<td>Venezuela</td>
+<td>2542</td>
+<td>Venezuela</td>
+<td>3.874468</td>
+</tr>
+<tr>
+<th>6</th>
+<td>Iraq</td>
+<td>2259</td>
+<td>Iraq</td>
+<td>3.443125</td>
+</tr>
+<tr>
+<th>7</th>
+<td>Canada</td>
+<td>2202</td>
+<td>Rest</td>
+<td>3.356247</td>
+</tr>
+<tr>
+<th>8</th>
+<td>China</td>
+<td>1965</td>
+<td>Rest</td>
+<td>2.995016</td>
+</tr>
+<tr>
+<th>9</th>
+<td>Turkmenistan</td>
+<td>1915</td>
+<td>Turkmenistan</td>
+<td>2.918807</td>
+</tr>
+<tr>
+<th>10</th>
+<td>Libya</td>
+<td>1566</td>
+<td>Libya</td>
+<td>2.386868</td>
+</tr>
+<tr>
+<th>11</th>
+<td>Saudi Arabia</td>
+<td>1338</td>
+<td>Arabian peninsula</td>
+<td>2.039354</td>
+</tr>
+<tr>
+<th>12</th>
+<td>Kazakhstan</td>
+<td>1180</td>
+<td>Uzbekistan &amp; Kazakhstan</td>
+<td>1.798534</td>
+</tr>
+<tr>
+<th>13</th>
+<td>Kuwait</td>
+<td>961</td>
+<td>Arabian peninsula</td>
+<td>1.464738</td>
+</tr>
+<tr>
+<th>14</th>
+<td>Argentina</td>
+<td>945</td>
+<td>Rest</td>
+<td>1.440351</td>
+</tr>
+<tr>
+<th>15</th>
+<td>United Arab Emirates</td>
+<td>827</td>
+<td>Arabian peninsula</td>
+<td>1.260498</td>
+</tr>
+<tr>
+<th>16</th>
+<td>Nigeria</td>
+<td>684</td>
+<td>Rest</td>
+<td>1.042540</td>
+</tr>
+<tr>
+<th>17</th>
+<td>Uzbekistan</td>
+<td>638</td>
+<td>Uzbekistan &amp; Kazakhstan</td>
+<td>0.972428</td>
+</tr>
+<tr>
+<th>18</th>
+<td>Oman</td>
+<td>626</td>
+<td>Arabian peninsula</td>
+<td>0.954137</td>
+</tr>
+<tr>
+<th>19</th>
+<td>Indonesia</td>
+<td>556</td>
+<td>Rest</td>
+<td>0.847445</td>
+</tr>
+<tr>
+<th>20</th>
+<td>Mexico</td>
+<td>391</td>
+<td>Rest</td>
+<td>0.595955</td>
+</tr>
+<tr>
+<th>21</th>
+<td>Syria</td>
+<td>381</td>
+<td>Syrian Arab Republic</td>
+<td>0.580713</td>
+</tr>
+<tr>
+<th>22</th>
+<td>Pakistan</td>
+<td>367</td>
+<td>Rest</td>
+<td>0.559374</td>
+</tr>
+<tr>
+<th>23</th>
+<td>Egypt</td>
+<td>335</td>
+<td>Egypt</td>
+<td>0.510601</td>
+</tr>
+<tr>
+<th>24</th>
+<td>Colombia</td>
+<td>325</td>
+<td>Rest</td>
+<td>0.495359</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">worlddata_og_upstream_by_country</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:</span><span class="mi">25</span><span class="p">][</span><span class="s2">&quot;percentage emissions&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_text output_subarea output_execute_result">
+<pre>
+<code>95.85422731637426</code>
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="c1"># Create a copy of the dataframe to avoid modifying the original</span>
+<span class="n">df_to_print</span> <span class="o">=</span> <span class="n">worlddata_og_upstream_by_country</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:</span><span class="mi">25</span><span class="p">][[</span><span class="s2">&quot;country&quot;</span><span class="p">,</span> <span class="s2">&quot;case_study_marss2l&quot;</span><span class="p">,</span> <span class="s2">&quot;percentage emissions&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+<span class="c1"># Replace &quot;Rest&quot; with &quot;-&quot; in the case_study_marss2l column</span>
+<span class="n">df_to_print</span><span class="p">[</span><span class="s2">&quot;case_study_marss2l&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_to_print</span><span class="p">[</span><span class="s2">&quot;case_study_marss2l&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;Rest&quot;</span><span class="p">,</span> <span class="s2">&quot;-&quot;</span><span class="p">)</span>
+
+<span class="c1"># Print LaTeX table with formatted percentage (1 decimal place)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">df_to_print</span><span class="o">.</span><span class="n">to_latex</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">float_format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%.2f</span><span class="s2">&quot;</span><span class="p">))</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+<code>\begin{tabular}{llr}
+\toprule
+country &amp; case_study_marss2l &amp; percentage emissions \\
+\midrule
+Offshore &amp; Offshore &amp; 22.88 \\
+United States &amp; United States of America &amp; 15.44 \\
+Russia &amp; - &amp; 14.52 \\
+Iran &amp; Iran (Islamic Republic of) &amp; 5.56 \\
+Algeria &amp; Algeria &amp; 3.92 \\
+Venezuela &amp; Venezuela &amp; 3.87 \\
+Iraq &amp; Iraq &amp; 3.44 \\
+Canada &amp; - &amp; 3.36 \\
+China &amp; - &amp; 3.00 \\
+Turkmenistan &amp; Turkmenistan &amp; 2.92 \\
+Libya &amp; Libya &amp; 2.39 \\
+Saudi Arabia &amp; Arabian peninsula &amp; 2.04 \\
+Kazakhstan &amp; Uzbekistan &amp; Kazakhstan &amp; 1.80 \\
+Kuwait &amp; Arabian peninsula &amp; 1.46 \\
+Argentina &amp; - &amp; 1.44 \\
+United Arab Emirates &amp; Arabian peninsula &amp; 1.26 \\
+Nigeria &amp; - &amp; 1.04 \\
+Uzbekistan &amp; Uzbekistan &amp; Kazakhstan &amp; 0.97 \\
+Oman &amp; Arabian peninsula &amp; 0.95 \\
+Indonesia &amp; - &amp; 0.85 \\
+Mexico &amp; - &amp; 0.60 \\
+Syria &amp; Syrian Arab Republic &amp; 0.58 \\
+Pakistan &amp; - &amp; 0.56 \\
+Egypt &amp; Egypt &amp; 0.51 \\
+Colombia &amp; - &amp; 0.50 \\
+\bottomrule
+\end{tabular}
+
+</code>
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="countries-with-significant-percentage-of-og-upstream-emissions-not-covered-in-the-mars-s2l-dataset">Countries with significant percentage of O&amp;G upstream emissions not covered in the MARS-S2L dataset</h2>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="highlight"><pre><span></span><code><span class="n">worlddata_og_upstream_by_country</span><span class="p">[</span><span class="n">worlddata_og_upstream_by_country</span><span class="o">.</span><span class="n">case_study_marss2l</span> <span class="o">==</span> <span class="s2">&quot;Rest&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:</span><span class="mi">30</span><span class="p">]</span>
+</code></pre></div>
+
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+<div class="output_html rendered_html output_subarea output_execute_result">
+<div>
+<style scoped="">
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+<thead>
+<tr style="text-align: right;">
+<th></th>
+<th>country</th>
+<th>emissions</th>
+<th>case_study_marss2l</th>
+<th>percentage emissions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th>2</th>
+<td>Russia</td>
+<td>9525</td>
+<td>Rest</td>
+<td>14.517825</td>
+</tr>
+<tr>
+<th>7</th>
+<td>Canada</td>
+<td>2202</td>
+<td>Rest</td>
+<td>3.356247</td>
+</tr>
+<tr>
+<th>8</th>
+<td>China</td>
+<td>1965</td>
+<td>Rest</td>
+<td>2.995016</td>
+</tr>
+<tr>
+<th>14</th>
+<td>Argentina</td>
+<td>945</td>
+<td>Rest</td>
+<td>1.440351</td>
+</tr>
+<tr>
+<th>16</th>
+<td>Nigeria</td>
+<td>684</td>
+<td>Rest</td>
+<td>1.042540</td>
+</tr>
+<tr>
+<th>19</th>
+<td>Indonesia</td>
+<td>556</td>
+<td>Rest</td>
+<td>0.847445</td>
+</tr>
+<tr>
+<th>20</th>
+<td>Mexico</td>
+<td>391</td>
+<td>Rest</td>
+<td>0.595955</td>
+</tr>
+<tr>
+<th>22</th>
+<td>Pakistan</td>
+<td>367</td>
+<td>Rest</td>
+<td>0.559374</td>
+</tr>
+<tr>
+<th>24</th>
+<td>Colombia</td>
+<td>325</td>
+<td>Rest</td>
+<td>0.495359</td>
+</tr>
+<tr>
+<th>25</th>
+<td>India</td>
+<td>311</td>
+<td>Rest</td>
+<td>0.474020</td>
+</tr>
+<tr>
+<th>26</th>
+<td>Ecuador</td>
+<td>296</td>
+<td>Rest</td>
+<td>0.451158</td>
+</tr>
+<tr>
+<th>27</th>
+<td>Australia</td>
+<td>139</td>
+<td>Rest</td>
+<td>0.211861</td>
+</tr>
+<tr>
+<th>28</th>
+<td>Romania</td>
+<td>137</td>
+<td>Rest</td>
+<td>0.208813</td>
+</tr>
+<tr>
+<th>30</th>
+<td>Brazil</td>
+<td>130</td>
+<td>Rest</td>
+<td>0.198144</td>
+</tr>
+<tr>
+<th>31</th>
+<td>Ukraine</td>
+<td>125</td>
+<td>Rest</td>
+<td>0.190523</td>
+</tr>
+<tr>
+<th>33</th>
+<td>Peru</td>
+<td>119</td>
+<td>Rest</td>
+<td>0.181378</td>
+</tr>
+<tr>
+<th>34</th>
+<td>Gabon</td>
+<td>114</td>
+<td>Rest</td>
+<td>0.173757</td>
+</tr>
+<tr>
+<th>35</th>
+<td>Other</td>
+<td>112</td>
+<td>Rest</td>
+<td>0.170708</td>
+</tr>
+<tr>
+<th>37</th>
+<td>Bolivia</td>
+<td>104</td>
+<td>Rest</td>
+<td>0.158515</td>
+</tr>
+<tr>
+<th>38</th>
+<td>Bangladesh</td>
+<td>102</td>
+<td>Rest</td>
+<td>0.155466</td>
+</tr>
+<tr>
+<th>39</th>
+<td>South Sudan</td>
+<td>77</td>
+<td>Rest</td>
+<td>0.117362</td>
+</tr>
+<tr>
+<th>40</th>
+<td>Chad</td>
+<td>58</td>
+<td>Rest</td>
+<td>0.088403</td>
+</tr>
+<tr>
+<th>41</th>
+<td>Other countries in Europe</td>
+<td>57</td>
+<td>Rest</td>
+<td>0.086878</td>
+</tr>
+<tr>
+<th>42</th>
+<td>Sudan</td>
+<td>56</td>
+<td>Rest</td>
+<td>0.085354</td>
+</tr>
+<tr>
+<th>43</th>
+<td>South Africa</td>
+<td>46</td>
+<td>Rest</td>
+<td>0.070112</td>
+</tr>
+<tr>
+<th>44</th>
+<td>Angola</td>
+<td>43</td>
+<td>Rest</td>
+<td>0.065540</td>
+</tr>
+<tr>
+<th>45</th>
+<td>Congo</td>
+<td>41</td>
+<td>Rest</td>
+<td>0.062491</td>
+</tr>
+<tr>
+<th>46</th>
+<td>Thailand</td>
+<td>40</td>
+<td>Rest</td>
+<td>0.060967</td>
+</tr>
+<tr>
+<th>47</th>
+<td>Tunisia</td>
+<td>22</td>
+<td>Rest</td>
+<td>0.033532</td>
+</tr>
+<tr>
+<th>48</th>
+<td>Poland</td>
+<td>22</td>
+<td>Rest</td>
+<td>0.033532</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.e71a0d61.min.js"></script>
+      
+    
+  </body>
+</html>
