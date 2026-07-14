@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.10](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.9...v0.2.10) (2026-07-13)
+
+
+### Bug Fixes
+
+* remove internal references and add leak-prevention guardrails ([5800024](https://github.com/UNEP-IMEO-MARS/marss2l/commit/5800024014a8b59f02b1eac8f652d7bbd4d8382e))
+
 ## [0.2.9](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.8...v0.2.9) (2026-07-13)
 
 
