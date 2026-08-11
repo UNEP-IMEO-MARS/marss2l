@@ -42,3 +42,4 @@ dependencies:
     - huggingface_hub[cli,torch]
     - cyclopts
     - loguru
+    - openpyxl

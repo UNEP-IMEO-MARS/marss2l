@@ -52,6 +52,8 @@ dependencies = [
     "cloudsen12-models",
     "cyclopts",
     "loguru",
+    # pandas reads the Landsat spectral-response tables through it
+    "openpyxl",
 ]
 
 [project.optional-dependencies]
