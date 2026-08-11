@@ -20,6 +20,7 @@ def update_images_hf(
     path_prepend_data: Optional[str] = None,
     show_pbar: bool = True,
     dry_run: bool = False,
+    csv_only: bool = False,
 ):
 
     fsread = fs_from_path(csv_path)
@@ -34,6 +35,20 @@ def update_images_hf(
         csv_path, fs=fsread, path_prepend_data=path_prepend_data, add_case_study=True, split="all"
     )
     dataframe_images = dataframe_images.set_index("id_loc_image")
+
+    if csv_only:
+        # Metadata-only update: skip the per-image existence check over the whole
+        # dataset. The image paths are rebuilt from the basename and the split, so
+        # re-exporting a CSV that already carries HuggingFace paths leaves them
+        # unchanged.
+        logger.info("CSV ONLY MODE: skipping the image upload, refreshing the CSVs only")
+        export_dataframe_csvs_to_hf(
+            dataframe_images=dataframe_images,
+            fswrite=fswrite,
+            logger=logger,
+            dry_run=dry_run,
+        )
+        return
 
     # Load HF dataframe to get existing files
     dataframe_images_hf = read_csv_images(CSV_PATH_DEFAULT_HF, fs=None)
@@ -103,6 +118,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Dry run mode: log actions without uploading files",
     )
+    parser.add_argument(
+        "--csv_only",
+        action="store_true",
+        help="Only refresh the CSV files (main and train/val/test splits), skipping the "
+        "per-image upload check. Use it after a metadata-only change, such as adding columns.",
+    )
 
     args = parser.parse_args()
 
@@ -111,4 +132,5 @@ if __name__ == "__main__":
         path_prepend_data=args.path_prepend_data,
         show_pbar=not args.no_pbar,
         dry_run=args.dry_run,
+        csv_only=args.csv_only,
     )

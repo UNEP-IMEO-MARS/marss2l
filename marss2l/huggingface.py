@@ -56,6 +56,17 @@ COLUMNS_DF_EXPORT = [
     "sector",
     "observability",
     "background_image_tile",
+    # Acquisition time and geometry of the background (reference) pass. Needed to
+    # convert its reflectances to radiances, which the shot-noise error
+    # propagation requires for all four radiances, not just the target's.
+    "tile_date_bg",
+    "sza_bg",
+    "vza_bg",
+    "satellite_bg",
+    # Provenance of the two solar zenith angles: "db" if the stored value was
+    # kept, "computed" if it was substituted (see marss2l.solar_geometry).
+    "sza_source",
+    "sza_bg_source",
     "crs",
     "transform_a",
     "transform_b",

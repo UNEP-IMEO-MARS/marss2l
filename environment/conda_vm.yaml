@@ -12,15 +12,21 @@ dependencies:
     - torchvision
     - pandas>=2.0
     - geopandas>=0.13
+    - rasterio
+    - shapely
     - fsspec
     - adlfs
-    - tacotoolbox
-    - tacoreader
     - earthengine-api
     - segmentation_models_pytorch
     - georeader-spaceml>=1.5.9
+    # Optional dependency of georeader; reflectance.compute_sza raises ImportError
+    # without it, and marss2l.solar_geometry needs it.
+    - pysolar
+    - marshsi>=0.1.1
+    - cloudsen12-models
     - matplotlib
     - matplotlib-scalebar
+    - folium
     - tqdm
     - scipy
     - scikit-image
@@ -31,4 +37,8 @@ dependencies:
     - seaborn
     - basemap
     - numpy
+    - xarray
+    - netcdf4
     - huggingface_hub[cli,torch]
+    - cyclopts
+    - loguru

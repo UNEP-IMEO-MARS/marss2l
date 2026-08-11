@@ -29,6 +29,9 @@ dependencies = [
     "earthengine-api",
     "segmentation_models_pytorch",
     "georeader-spaceml>=1.5.9",
+    # Optional dependency of georeader; georeader.reflectance.compute_sza raises
+    # ImportError without it.
+    "pysolar",
     "marshsi>=0.1.1",
     "matplotlib",
     "matplotlib-scalebar",
