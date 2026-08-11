@@ -546,8 +546,14 @@ def compute_stats(
             unique, counts = torch.unique(x[bidx], return_counts=True)
             stats_item.update({f"{b}_{u.item()}": c.item() for u, c in zip(unique, counts)})
         else:
-            # Compute mean, std, min, and max
-            xband = x[bidx] / 2  # Divide by to to obtain the value in ToA units
+            # Compute mean, std, min, and max.
+            # The /2 undoes the loader's reflectance x 2, so it belongs to the
+            # spectral bands only. MBMP is a dimensionless ratio: the factor
+            # cancels in its construction, so it never carried it and must not have
+            # it removed. Halving it is what made MBMP_mean read ~0.5 where the
+            # retrieval reads ~1 -- the values published before this fix are half
+            # their true size.
+            xband = x[bidx] if b == "MBMP" else x[bidx] / 2
             stats_item[f"{b}_mean"] = xband.mean().item()
             stats_item[f"{b}_meanabs"] = xband.abs().mean().item()
             stats_item[f"{b}_std"] = xband.std().item()

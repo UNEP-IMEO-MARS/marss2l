@@ -155,6 +155,26 @@ def test_measured_noise_is_reported_over_valid_pixels_only():
     assert stats["ch4_valid_meanabs"] == pytest.approx(0.0)
 
 
+def test_mbmp_is_reported_unhalved_but_reflectance_is_not():
+    """The /2 undoes the loader's reflectance x 2, which a ratio never carried.
+
+    MBMP is scale-invariant -- the factor cancels between numerator and
+    denominator -- so applying the correction to it reports half the true value,
+    which is what the CSVs published before this fix contain.
+    """
+    stats = stats_dataset.compute_stats(
+        BANDS,
+        isplume=0,
+        ch4=torch.zeros(8, 8),
+        target=torch.zeros(8, 8),
+        x=make_stack(reflectance=0.3),
+        wind_vector=np.zeros(2),
+    )
+
+    assert stats["MBMP_mean"] == pytest.approx(1.0)
+    assert stats["B12_mean"] == pytest.approx(0.3)
+
+
 def test_log_mbmp_is_not_halved():
     """The loader's reflectance x 2 does not apply to a dimensionless ratio."""
     stats = stats_dataset.measured_noise_stats(
