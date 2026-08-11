@@ -1729,6 +1729,16 @@ class DatasetPlumes(Dataset):
                     "wind": torch.tensor(wind_vector, device=self.device),
                     "tile_date": item["tile_date"].isoformat(),
                     "satellite": item["satellite"],
+                    # Solar/view geometry of both passes, for the shot-noise
+                    # propagation: converting each pass's reflectances to radiances
+                    # needs its own angle and date. The _bg fields are empty for an
+                    # offshore scene, which has no reference pass, and absent from
+                    # CSVs exported before those columns existed.
+                    "sza": _as_float(item["sza"]),
+                    "vza": _as_float(item["vza"]),
+                    "satellite_bg": _as_str(item.get("satellite_bg")),
+                    "sza_bg": _as_float(item.get("sza_bg")),
+                    "tile_date_bg": _as_str(item.get("tile_date_bg")),
                     "ch4": ch4.unsqueeze(0),  # (1, H, W)
                     "ch4sim": ch4sim.unsqueeze(0),  # (1, H, W)
                     "ch4_retrieval_before_sim": ch4_retrieval_before_sim.unsqueeze(0),  # (1, H, W)
@@ -1902,6 +1912,28 @@ class DatasetPlumes(Dataset):
             axs.axis("off")
 
         return fig, ax
+
+
+def _as_float(value) -> float:
+    """Coerce a dataframe field to a plain float, missing values becoming NaN.
+
+    The default collate turns floats into tensors but chokes on ``None``, so a
+    missing angle has to arrive as NaN rather than as nothing.
+    """
+    if value is None or pd.isna(value):
+        return float("nan")
+    return float(value)
+
+
+def _as_str(value) -> str:
+    """Coerce a dataframe field to a plain string, missing values becoming ``""``.
+
+    Same reason as :func:`_as_float`: the collate handles strings but not ``None``,
+    and an empty string is a value the consumer can test.
+    """
+    if value is None or pd.isna(value):
+        return ""
+    return str(value)
 
 
 def _wind_value(wind_val) -> float:

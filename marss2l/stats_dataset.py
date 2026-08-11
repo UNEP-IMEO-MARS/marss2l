@@ -2,37 +2,124 @@ description = """
 This script loads the dataset with all images and compute the stats per band.    
 """
 
-import argparse
 import os
 from typing import Optional
 
+import cyclopts
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from marss2l import loaders
+from marss2l import dataframe_image_plumes, loaders
 from marss2l.mars_sentinel2 import quantification
 from marss2l.utils import fs_from_path, pathjoin, setup_file_logger
+
+#: Per-scene fields the shot-noise statistics need, supplied by the dataset in
+#: ``analysis_mode``. Absent from CSVs exported before the background geometry
+#: columns existed, in which case those statistics are simply not computed.
+GEOMETRY_KEYS = (
+    "satellite",
+    "sza",
+    "vza",
+    "tile_date",
+    "satellite_bg",
+    "sza_bg",
+    "tile_date_bg",
+)
+
+
+def _scalar(value):
+    """Unwrap a single element out of whatever the default collate produced."""
+    return value.item() if isinstance(value, torch.Tensor) else value
+
+
+def select_images(
+    csv_path: str,
+    fs,
+    split: Optional[str] = None,
+    smoke_test: bool = False,
+    path_prepend_data: Optional[str] = None,
+) -> pd.DataFrame:
+    """The images to sweep: a named split, optionally cut down to a smoke sample.
+
+    Args:
+        csv_path: CSV with the image metadata.
+        fs: Filesystem to read it through.
+        split: One of ``dataframe_image_plumes.SPLITS`` -- ``train_2023``,
+            ``val_2023``, ``test_2023``, ``no split``. None reads every image, which
+            is what the script did before the flag existed.
+        smoke_test: Keep 20 images, 10 with plumes and 10 without, sampled with a
+            fixed seed. Note this is **not** ``load_dataframe_split``'s own
+            ``smoke_test``, which keeps 100 + 100 by ``head()`` and is depended on by
+            training -- a different thing, deliberately not reused.
+        path_prepend_data: Prefix for the data paths, needed for a HuggingFace copy.
+
+    Returns:
+        The image dataframe to sweep.
+    """
+    if split is None:
+        dataframe = loaders.read_csv_images(
+            csv_path, add_columns_for_analysis=False, fs=fs, path_prepend_data=path_prepend_data
+        )
+    else:
+        dataframe, _, _ = dataframe_image_plumes.load_dataframe_split(
+            split=split,
+            dataframe_or_csv_path=csv_path,
+            fs=fs,
+            load_plumes=False,
+        )
+        if path_prepend_data is not None:
+            for field in ["s2path", "plumepath", "cloudmaskpath", "ch4path"]:
+                dataframe[field] = dataframe[field].apply(
+                    lambda p: pathjoin(path_prepend_data, p) if isinstance(p, str) else p
+                )
+
+    if smoke_test:
+        with_plume = dataframe[dataframe.isplume.astype(bool)]
+        without_plume = dataframe[~dataframe.isplume.astype(bool)]
+        dataframe = pd.concat(
+            [
+                with_plume.sample(min(len(with_plume), 10), random_state=0),
+                without_plume.sample(min(len(without_plume), 10), random_state=0),
+            ]
+        )
+
+    return dataframe
 
 
 def run(
     csv_path: str,
+    *,
     batch_size: int = 128,
     num_workers: int = 4,
     output_file: Optional[str] = None,
     max_iter: Optional[int] = None,
     path_prepend_data: Optional[str] = None,
+    split: Optional[str] = None,
+    smoke_test: bool = False,
 ):
     logger = setup_file_logger("logs", "stats_dataset")
     fs = fs_from_path(csv_path)
     if output_file is None:
-        output_file = pathjoin(os.path.dirname(csv_path), "stats_dataset.csv")
+        # Derive the suffix from what was asked for rather than making the caller
+        # name the file. The smoke sample goes local: csv_path is usually remote.
+        if smoke_test:
+            output_file = "stats_dataset_smoketest.csv"
+        else:
+            suffix = f"_{split.replace(' ', '_')}" if split else ""
+            output_file = pathjoin(os.path.dirname(csv_path), f"stats_dataset{suffix}.csv")
 
-    dataframe_data_traintest = loaders.read_csv_images(
-        csv_path, add_columns_for_analysis=False, fs=fs, path_prepend_data=path_prepend_data
+    dataframe_data_traintest = select_images(
+        csv_path,
+        fs=fs,
+        split=split,
+        smoke_test=smoke_test,
+        path_prepend_data=path_prepend_data,
     )
+    logger.info(f"Sweeping {len(dataframe_data_traintest)} images -> {output_file}")
+    fs_images = fs_from_path(str(dataframe_data_traintest["s2path"].iloc[0]))
     dataset = loaders.DatasetPlumes(
         mode="test",
         strprependlogs="no split",
@@ -49,7 +136,12 @@ def run(
         film_train_zero_id=None,
         cat_mbmp=True,
         analysis_mode=True,
-        fs=fs,
+        # Derived from an image path, not from the CSV path: the two need not live
+        # in the same place -- a local CSV pointing at HuggingFace imagery is the
+        # normal case while the backfilled CSV is unpublished. Passing None here
+        # would not do it: DatasetPlumes turns None into a *local* filesystem, so
+        # the per-path fallback in load_image_method never fires.
+        fs=fs_images,
     )
 
     test_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False)
@@ -87,6 +179,33 @@ def run(
                     wind_vector=wind_vector,
                 )
                 input_data.update(stats_out)
+
+                geometry = {key: task[key][batchidx] for key in GEOMETRY_KEYS if key in task}
+                if geometry:
+                    input_data.update(
+                        {k: _scalar(v) for k, v in geometry.items() if k != "tile_date"}
+                    )
+                    try:
+                        input_data.update(
+                            compute_shot_noise_stats(
+                                dataset.bands_out,
+                                x=x,
+                                mask=valid_mask(dataset.bands_out, x),
+                                satellite=_scalar(geometry["satellite"]),
+                                sza=_scalar(geometry["sza"]),
+                                vza=_scalar(geometry["vza"]),
+                                tile_date=_scalar(geometry["tile_date"]),
+                                satellite_bg=_scalar(geometry.get("satellite_bg", "")),
+                                sza_bg=_scalar(geometry.get("sza_bg", float("nan"))),
+                                tile_date_bg=_scalar(geometry.get("tile_date_bg", "")),
+                            )
+                        )
+                    except Exception as e:
+                        # One unconvertible scene must not lose the whole sweep.
+                        logger.opt(exception=e).warning(
+                            f"Shot-noise stats failed for {tile} ({id_loc_image})"
+                        )
+
                 stats.append(input_data)
 
             if max_iter is not None and len(stats) >= max_iter:
@@ -95,6 +214,220 @@ def run(
     stats_df = pd.DataFrame(stats)
     with fs.open(output_file, "w") as f:
         stats_df.to_csv(f, index=False)
+
+
+def valid_mask(bands_out: list, x: torch.Tensor) -> torch.Tensor:
+    """Pixels that may enter a scene's statistics: not zero anywhere, not cloudy.
+
+    Two exclusions and no more (the epic's first-pass masking rule). A pixel is out
+    if **any** contributing band is zero -- which is how the loader encodes invalid
+    data, after mapping NaN to 0 -- or if the cloud mask flags it.
+
+    Zero matters more than it looks: a zero reflectance gives a zero radiance, hence
+    an SNR of 0 and an infinite eta, so one masked pixel would take a scene mean to
+    infinity without raising anything.
+
+    **Dark surfaces stay in.** The SNR rescaling is optimistic there, which keeps the
+    floors floors; a brightness cut would mean choosing a threshold, and a threshold
+    chosen to flatter the figures is worse than a stated caveat.
+
+    Args:
+        bands_out: Band names, in the order they appear in ``x``.
+        x: Image stack (C, H, W), reflectance x 2 for the spectral bands.
+
+    Returns:
+        Boolean tensor (H, W), True where the pixel is usable.
+    """
+    spectral = [i for i, b in enumerate(bands_out) if b not in {"MBMP", "U", "V", "cloudmask"}]
+    mask = (x[spectral] != 0).all(dim=0)
+
+    if "cloudmask" in bands_out:
+        mask &= x[bands_out.index("cloudmask")] == 0
+
+    return mask
+
+
+def _summary(values: torch.Tensor, prefix: str) -> dict:
+    """mean / meanabs / std / min / max for one quantity.
+
+    ``meanabs`` is the addition: for a quantity that should be zero on plume-free
+    ground -- delta XCH4, log MBMP -- the plain mean cancels and says nothing about
+    magnitude, which is exactly what the measurement in the epic's section 4.4 needs.
+    """
+    if values.numel() == 0:
+        return dict.fromkeys(
+            [f"{prefix}_{s}" for s in ("mean", "meanabs", "std", "min", "max")], float("nan")
+        )
+
+    return {
+        f"{prefix}_mean": values.mean().item(),
+        f"{prefix}_meanabs": values.abs().mean().item(),
+        f"{prefix}_std": values.std().item() if values.numel() > 1 else float("nan"),
+        f"{prefix}_min": values.min().item(),
+        f"{prefix}_max": values.max().item(),
+    }
+
+
+def measured_noise_stats(
+    bands_out: list,
+    *,
+    x: torch.Tensor,
+    ch4: torch.Tensor,
+    target: torch.Tensor,
+    isplume: int,
+) -> dict:
+    """O-base: the noise the operational retrieval actually exhibits.
+
+    On plume-free ground the retrieval should read zero, so what it does read is its
+    noise. Reported over **valid** pixels only -- a zero-filled or cloudy pixel is
+    not a measurement -- and separately over the plume-free pixels of a scene that
+    has a plume, which is the variant the figures use.
+
+    ``meanabs`` earns its place here: for a quantity centred on zero the plain mean
+    cancels and says nothing about magnitude.
+
+    Args:
+        bands_out: Band names, in the order they appear in ``x``.
+        x: Image stack (C, H, W).
+        ch4: Retrieved enhancement (H, W), ppb.
+        target: Plume mask (H, W).
+        isplume: 1 if the scene has a plume.
+
+    Returns:
+        ``npixelsvalid`` plus ``ch4_valid_*``, ``ch4_valid_noplume_*`` and
+        ``log_mbmp_valid_*``.
+    """
+    mask = valid_mask(bands_out, x)
+    stats_item = {"npixelsvalid": int(mask.sum().item())}
+
+    stats_item.update(_summary(ch4[mask], "ch4_valid"))
+    if isplume == 1:
+        stats_item.update(_summary(ch4[mask & (target == 0)], "ch4_valid_noplume"))
+
+    # log MBMP, for completeness: the natural units in which to check the variance
+    # decomposition, though the figures report the gap in ppb.
+    if "MBMP" in bands_out:
+        mbmp = x[bands_out.index("MBMP")][mask]
+        stats_item.update(_summary(torch.log(mbmp[mbmp > 0]), "log_mbmp_valid"))
+
+    return stats_item
+
+
+def compute_shot_noise_stats(
+    bands_out: list,
+    x: torch.Tensor,
+    mask: torch.Tensor,
+    *,
+    satellite: str,
+    sza: float,
+    vza: float,
+    tile_date: str,
+    satellite_bg: str = "",
+    sza_bg: float = float("nan"),
+    tile_date_bg: str = "",
+) -> dict:
+    """Per-scene radiance and the three shot-noise floors, in ppb.
+
+    Converts both passes' reflectances to radiances, builds the L1/L2/L3 rungs per
+    pixel, maps each to a minimum significant enhancement and a propagated standard
+    deviation, and reports the average over the valid pixels of the scene.
+
+    **Radiance is reported for the current image only.** The reference pass's
+    radiances are needed *inside* L3 -- it has four terms -- but they are an
+    intermediate, not a quantity we want per scene.
+
+    L3 is skipped when there is no reference pass: an offshore scene uses the
+    single-pass SBMP retrieval, so the primed terms do not exist and L3 is undefined
+    rather than unknown.
+
+    Args:
+        bands_out: Band names, in the order they appear in ``x``.
+        x: Image stack (C, H, W), reflectance x 2.
+        mask: Valid-pixel mask (H, W) from :func:`valid_mask`.
+        satellite: Instrument of the target pass.
+        sza: Solar zenith angle of the target pass, degrees.
+        vza: View zenith angle, degrees, for the air-mass factor.
+        tile_date: Acquisition time of the target pass, ISO-8601.
+        satellite_bg: Instrument of the reference pass.
+        sza_bg: Solar zenith angle of the reference pass, degrees.
+        tile_date_bg: Acquisition time of the reference pass, ISO-8601.
+
+    Returns:
+        Dictionary of per-scene statistics: ``radiance_{band}_*``, ``eta_{rung}_*``,
+        ``epsilon_{rung}_*`` and ``sigma_ch4_{rung}_*`` in ppb.
+    """
+    from marss2l import shot_noise
+
+    def radiance(band: str, background: bool) -> torch.Tensor:
+        # The loader relabels Landsat to Sentinel-2 band names (bands_l8=True), so
+        # bands_out is B11/B12 whatever the instrument -- unlike the exported raster
+        # and the SRF tables, which keep B06/B07. Index with the S2 name here and
+        # let band_irradiance do the translation where it is actually needed.
+        reflectance = x[bands_out.index(band + ("_bg" if background else ""))] / 2.0
+        return torch.as_tensor(
+            shot_noise.radiance_from_reflectance(
+                reflectance.numpy(),
+                satellite_bg if background else satellite,
+                band,
+                sza=sza_bg if background else sza,
+                date_of_acquisition=tile_date_bg if background else tile_date,
+            ),
+            dtype=torch.float64,
+        )
+
+    radiance_23 = radiance(shot_noise.BAND_23, background=False)
+    radiance_16 = radiance(shot_noise.BAND_16, background=False)
+
+    has_reference = bool(satellite_bg) and bool(tile_date_bg) and not np.isnan(sza_bg)
+    reference = (
+        (
+            radiance(shot_noise.BAND_23, background=True),
+            radiance(shot_noise.BAND_16, background=True),
+        )
+        if has_reference
+        else (None, None)
+    )
+
+    stats_item = {}
+    for band, values in [(shot_noise.BAND_23, radiance_23), (shot_noise.BAND_16, radiance_16)]:
+        stats_item.update(_summary(values[mask].float(), f"radiance_{band}"))
+
+    ladder = shot_noise.eta_ladder(
+        radiance_23.numpy(),
+        radiance_16.numpy(),
+        *(r.numpy() if r is not None else None for r in reference),
+        satellite=satellite,
+        satellite_bg=satellite_bg or None,
+    )
+
+    for rung, eta in ladder.items():
+        eta_tensor = torch.as_tensor(eta, dtype=torch.float64)
+        stats_item.update(_summary(eta_tensor[mask].float(), f"eta_{rung}"))
+
+        eta_valid = eta_tensor[mask].numpy()
+        if eta_valid.size == 0:
+            continue
+        stats_item.update(
+            _summary(
+                torch.as_tensor(
+                    shot_noise.epsilon(eta_valid, satellite, sza, vza, p=0.95), dtype=torch.float32
+                ),
+                f"epsilon_{rung}",
+            )
+        )
+        # Evaluated at MBMP = 1, the plume-free value: ratio_IL normalises by the
+        # scene mean, so that is what the retrieval reads where there is no plume.
+        stats_item.update(
+            _summary(
+                torch.as_tensor(
+                    shot_noise.sigma_delta_xch4(1.0, eta_valid, satellite, sza, vza),
+                    dtype=torch.float32,
+                ),
+                f"sigma_ch4_{rung}",
+            )
+        )
+
+    return stats_item
 
 
 def compute_stats(
@@ -166,17 +499,22 @@ def compute_stats(
     stats_item["npixelsplume"] = target.sum().item()
     stats_item["npixels"] = target.numel()
 
+    stats_item.update(measured_noise_stats(bands_out, x=x, ch4=ch4, target=target, isplume=isplume))
+
     # mean, std, min, and max for CH4
     stats_item["ch4_mean"] = ch4.mean().item()
+    stats_item["ch4_meanabs"] = ch4.abs().mean().item()
     stats_item["ch4_std"] = ch4.std().item()
     stats_item["ch4_min"] = ch4.min().item()
     stats_item["ch4_max"] = ch4.max().item()
     if isplume == 1:
         stats_item["ch4_mean_plume"] = ch4[target == 1].mean().item()
+        stats_item["ch4_meanabs_plume"] = ch4[target == 1].abs().mean().item()
         stats_item["ch4_std_plume"] = ch4[target == 1].std().item()
         stats_item["ch4_min_plume"] = ch4[target == 1].min().item()
         stats_item["ch4_max_plume"] = ch4[target == 1].max().item()
         stats_item["ch4_mean_noplume"] = ch4[target == 0].mean().item()
+        stats_item["ch4_meanabs_noplume"] = ch4[target == 0].abs().mean().item()
         stats_item["ch4_std_noplume"] = ch4[target == 0].std().item()
         stats_item["ch4_min_noplume"] = ch4[target == 0].min().item()
         stats_item["ch4_max_noplume"] = ch4[target == 0].max().item()
@@ -211,6 +549,7 @@ def compute_stats(
             # Compute mean, std, min, and max
             xband = x[bidx] / 2  # Divide by to to obtain the value in ToA units
             stats_item[f"{b}_mean"] = xband.mean().item()
+            stats_item[f"{b}_meanabs"] = xband.abs().mean().item()
             stats_item[f"{b}_std"] = xband.std().item()
             stats_item[f"{b}_min"] = xband.min().item()
             stats_item[f"{b}_max"] = xband.max().item()
@@ -218,10 +557,12 @@ def compute_stats(
             if isplume == 1:
                 # Compute mean, std, min, and max inside and outside of the plume
                 stats_item[f"{b}_mean_plume"] = xband[target == 1].mean().item()
+                stats_item[f"{b}_meanabs_plume"] = xband[target == 1].abs().mean().item()
                 stats_item[f"{b}_std_plume"] = xband[target == 1].std().item()
                 stats_item[f"{b}_min_plume"] = xband[target == 1].min().item()
                 stats_item[f"{b}_max_plume"] = xband[target == 1].max().item()
                 stats_item[f"{b}_mean_noplume"] = xband[target == 0].mean().item()
+                stats_item[f"{b}_meanabs_noplume"] = xband[target == 0].abs().mean().item()
                 stats_item[f"{b}_std_noplume"] = xband[target == 0].std().item()
                 stats_item[f"{b}_min_noplume"] = xband[target == 0].min().item()
                 stats_item[f"{b}_max_noplume"] = xband[target == 0].max().item()
@@ -229,46 +570,50 @@ def compute_stats(
     return stats_item
 
 
-if __name__ == "__main__":
+app = cyclopts.App(help=description)
+
+
+@app.default
+def main(
+    csv_path: str = loaders.CSV_PATH_DEFAULT,
+    *,
+    batch_size: int = 128,
+    num_workers: int = 4,
+    output_file: Optional[str] = None,
+    max_iter: Optional[int] = None,
+    path_prepend_data: Optional[str] = None,
+    split: Optional[str] = None,
+    smoke_test: bool = False,
+) -> None:
+    """Sweep the dataset and write one row of statistics per image.
+
+    Args:
+        csv_path: CSV with the image metadata.
+        batch_size: Batch size for the data loader.
+        num_workers: Worker processes for the data loader.
+        output_file: Where to write. Defaults to ``stats_dataset[_<split>].csv``
+            beside the input CSV, or ``stats_dataset_smoketest.csv`` locally under
+            ``--smoke-test``.
+        max_iter: Stop after this many images. Not stratified -- it simply stops;
+            use ``--smoke-test`` for a balanced sample.
+        path_prepend_data: Prefix for the data paths. Needed for a HuggingFace copy.
+        split: Named split to sweep -- ``train_2023``, ``val_2023``, ``test_2023``,
+            ``no split``. Omit to read every image.
+        smoke_test: Sweep 20 images, 10 with plumes and 10 without, with a fixed
+            seed. What makes the edit-run-look loop bearable on a dataset this size.
+    """
     torch.multiprocessing.set_start_method("spawn")
-    parser = argparse.ArgumentParser(description=description)
-    parser.add_argument(
-        "--csv_path",
-        type=str,
-        help="Path to the csv with the data information. Default: %(default)s",
-        default=loaders.CSV_PATH_DEFAULT,
-    )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        help="Batch size to train the model. Default: %(default)s",
-        default=128,
-    )
-    parser.add_argument(
-        "--num_workers",
-        type=int,
-        help="Number of workers to use in the dataloader. Default: %(default)s",
-        default=4,
-    )
-    parser.add_argument("--output_file", type=str, help="Path to the output file", required=False)
-    parser.add_argument(
-        "--max_iter",
-        type=int,
-        help="Maximum number of iterations to run",
-        required=False,
-    )
-    parser.add_argument(
-        "--path_prepend_data",
-        type=str,
-        default=None,
-        help="Path to prepend to data paths (s2path, plumepath, cloudmaskpath, ch4path). Required for dataset downloaded from Hugging Face.",
-    )
-    args_parsed = parser.parse_args()
     run(
-        args_parsed.csv_path,
-        batch_size=args_parsed.batch_size,
-        num_workers=args_parsed.num_workers,
-        output_file=args_parsed.output_file,
-        max_iter=args_parsed.max_iter,
-        path_prepend_data=args_parsed.path_prepend_data,
+        csv_path,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        output_file=output_file,
+        max_iter=max_iter,
+        path_prepend_data=path_prepend_data,
+        split=split,
+        smoke_test=smoke_test,
     )
+
+
+if __name__ == "__main__":
+    app()
