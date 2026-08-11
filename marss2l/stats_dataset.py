@@ -609,7 +609,13 @@ def main(
         smoke_test: Sweep 20 images, 10 with plumes and 10 without, with a fixed
             seed. What makes the edit-run-look loop bearable on a dataset this size.
     """
-    torch.multiprocessing.set_start_method("spawn")
+    # spawn only where it is needed. It is required to share CUDA tensors, but it
+    # also pickles the dataset for every worker, and the file logger the dataset
+    # carries holds an open handle that cannot be pickled -- so on a CPU sweep spawn
+    # forces num_workers to 0, and a full split would take most of a day. This sweep
+    # is CPU-only, where fork is both safe and much faster.
+    if torch.cuda.is_available():
+        torch.multiprocessing.set_start_method("spawn", force=True)
     run(
         csv_path,
         batch_size=batch_size,
