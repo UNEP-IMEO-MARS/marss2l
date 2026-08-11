@@ -90,6 +90,16 @@ def select_images(
     return dataframe
 
 
+def _write(stats_df: pd.DataFrame, fs, output_file: str) -> None:
+    """Write the rows gathered so far, replacing the file.
+
+    Called periodically as well as at the end: a sweep over a full split takes
+    hours, and losing all of it to a crash in the last batch is not acceptable.
+    """
+    with fs.open(output_file, "w") as f:
+        stats_df.to_csv(f, index=False)
+
+
 def run(
     csv_path: str,
     *,
@@ -100,6 +110,7 @@ def run(
     path_prepend_data: Optional[str] = None,
     split: Optional[str] = None,
     smoke_test: bool = False,
+    flush_every: int = 2000,
 ):
     logger = setup_file_logger("logs", "stats_dataset")
     fs = fs_from_path(csv_path)
@@ -147,7 +158,8 @@ def run(
 
     test_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False)
 
-    stats = []
+    stats: list = []
+    written = 0
     with torch.no_grad():
         for task in tqdm(test_loader, desc="Eval model"):
             xbatch = task["y_context_ls0_0"]
@@ -209,12 +221,16 @@ def run(
 
                 stats.append(input_data)
 
+            if len(stats) - written >= flush_every:
+                _write(pd.DataFrame(stats), fs, output_file)
+                written = len(stats)
+                logger.info(f"{written}/{len(dataframe_data_traintest)} images written")
+
             if max_iter is not None and len(stats) >= max_iter:
                 break
 
-    stats_df = pd.DataFrame(stats)
-    with fs.open(output_file, "w") as f:
-        stats_df.to_csv(f, index=False)
+    _write(pd.DataFrame(stats), fs, output_file)
+    logger.success(f"Wrote {len(stats)} rows to {output_file}")
 
 
 def valid_mask(bands_out: list, x: torch.Tensor) -> torch.Tensor:
@@ -591,6 +607,7 @@ def main(
     path_prepend_data: Optional[str] = None,
     split: Optional[str] = None,
     smoke_test: bool = False,
+    flush_every: int = 2000,
 ) -> None:
     """Sweep the dataset and write one row of statistics per image.
 
@@ -608,6 +625,8 @@ def main(
             ``no split``. Omit to read every image.
         smoke_test: Sweep 20 images, 10 with plumes and 10 without, with a fixed
             seed. What makes the edit-run-look loop bearable on a dataset this size.
+        flush_every: Write the rows gathered so far every this many images. A full
+            split takes hours; this makes progress visible and survivable.
     """
     # spawn only where it is needed. It is required to share CUDA tensors, but it
     # also pickles the dataset for every worker, and the file logger the dataset
@@ -625,6 +644,7 @@ def main(
         path_prepend_data=path_prepend_data,
         split=split,
         smoke_test=smoke_test,
+        flush_every=flush_every,
     )
 
 
