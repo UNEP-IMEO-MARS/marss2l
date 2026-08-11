@@ -148,22 +148,43 @@ def compute_calibration(
 def figure_agreement(sweeps: dict, radiances_23: np.ndarray, path: str) -> None:
     """Closed form against Monte Carlo, with the agreement ratio beneath."""
     fig, axes = plt.subplots(
-        2, 2, figsize=(7.0, 4.6), sharex=True, gridspec_kw={"height_ratios": [2.4, 1.0]}
+        2, 3, figsize=(9.6, 4.6), sharex=True, gridspec_kw={"height_ratios": [2.4, 1.0]}
     )
     fig.patch.set_facecolor("white")
 
     panels = [
-        (0, "eta", "sigma_mbmp_mc", r"$\sigma(\mathrm{MBMP})$", "a  Transmittance ratio"),
+        (
+            0,
+            "eta",
+            "sigma_mbmp_mc",
+            r"$\sigma(\mathrm{MBMP})$",
+            "a  Transmittance ratio",
+            (0.97, 1.03),
+        ),
         (
             1,
             "sigma_ch4",
             "sigma_ch4_mc",
             r"$\sigma(\Delta \mathrm{XCH}_4)$  [ppb]",
             "b  Retrieved enhancement",
+            (0.97, 1.03),
+        ),
+        # The detection threshold itself, against the empirical 95th percentile of
+        # the retrieval on plume-free ground -- the quantity the regional figures
+        # plot, so its agreement belongs beside the two standard deviations.
+        (
+            2,
+            "eps",
+            "eps_mc",
+            r"$\epsilon$ at $p=0.95$  [ppb]",
+            "c  Detection threshold",
+            # A quantile is a harder thing to reproduce than a standard deviation,
+            # so the agreement is looser at the noisy end; give it room to show.
+            (0.96, 1.05),
         ),
     ]
 
-    for column, closed_key, mc_key, ylabel, title in panels:
+    for column, closed_key, mc_key, ylabel, title, ratio_limits in panels:
         top, bottom = axes[0, column], axes[1, column]
         for satellite, colour in SERIES.items():
             sweep = sweeps[satellite]
@@ -217,7 +238,7 @@ def figure_agreement(sweeps: dict, radiances_23: np.ndarray, path: str) -> None:
 
         bottom.axhline(1.0, color=INK_SOFT, linewidth=0.8, zorder=2)
         bottom.axhspan(0.98, 1.02, color=GRID, alpha=0.6, zorder=1, linewidth=0)
-        bottom.set_ylim(0.97, 1.03)
+        bottom.set_ylim(*ratio_limits)
         _style_axis(
             bottom,
             xlabel=r"2.3 $\mu$m radiance  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
