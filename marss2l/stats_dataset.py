@@ -20,6 +20,7 @@ from marss2l.utils import fs_from_path, pathjoin, setup_file_logger
 #: ``analysis_mode``. Absent from CSVs exported before the background geometry
 #: columns existed, in which case those statistics are simply not computed.
 GEOMETRY_KEYS = (
+    "offshore",
     "satellite",
     "sza",
     "vza",

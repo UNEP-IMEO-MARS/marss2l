@@ -1734,6 +1734,10 @@ class DatasetPlumes(Dataset):
                     # needs its own angle and date. The _bg fields are empty for an
                     # offshore scene, which has no reference pass, and absent from
                     # CSVs exported before those columns existed.
+                    # Offshore scenes use the single-pass SBMP retrieval, so their
+                    # noise is not comparable with the multi-pass floors and the
+                    # figures exclude them.
+                    "offshore": bool(item["offshore"]),
                     "sza": _as_float(item["sza"]),
                     "vza": _as_float(item["vza"]),
                     "satellite_bg": _as_str(item.get("satellite_bg")),
