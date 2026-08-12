@@ -126,6 +126,43 @@ def test_a_quieter_reference_instrument_lowers_l3():
     assert with_landsat["eta_L3_mean"] < with_s2["eta_L3_mean"]
 
 
+def test_band_ratio_spread_measures_variegation_not_brightness():
+    """The heterogeneity panel of F8: uniform ground has none, whatever its albedo.
+
+    Two uniform scenes differing only in brightness must both read a spread of
+    zero -- that is the whole reason the figure plots the ratio rather than a
+    band, since the retrieval is no harder over dark uniform ground than over
+    bright uniform ground.
+    """
+    common = dict(satellite="S2A", sza=SZA, vza=VZA, tile_date=DATE)
+
+    spreads = []
+    for reflectance in (0.05, 0.5):
+        x = make_stack(reflectance)
+        stats = stats_dataset.compute_shot_noise_stats(
+            BANDS, x=x, mask=stats_dataset.valid_mask(BANDS, x), **common
+        )
+        spreads.append(stats["log_ratio_2316_std"])
+        assert stats["ratio_2316_mean"] > 0
+
+    assert all(spread == pytest.approx(0.0, abs=1e-6) for spread in spreads)
+
+
+def test_band_ratio_spread_rises_with_a_second_surface():
+    """Half the scene at a different spectral slope is heterogeneity, and shows."""
+    x = make_stack(0.3)
+    # Darken 2.3 um over half the image only: same brightness change in one band,
+    # which is exactly what the ratio is meant to see.
+    x[BANDS.index("B12"), :, :4] *= 0.5
+    common = dict(satellite="S2A", sza=SZA, vza=VZA, tile_date=DATE)
+
+    stats = stats_dataset.compute_shot_noise_stats(
+        BANDS, x=x, mask=stats_dataset.valid_mask(BANDS, x), **common
+    )
+
+    assert stats["log_ratio_2316_std"] > 0.3
+
+
 def test_brighter_ground_gives_a_lower_floor():
     x_bright, x_dark = make_stack(0.5), make_stack(0.05)
     common = dict(satellite="S2A", sza=SZA, vza=VZA, tile_date=DATE)

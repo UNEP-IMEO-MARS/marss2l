@@ -10,6 +10,12 @@
     The crux result: how much of today's error a better background estimate could
     remove.
 
+``scenes_by_region.png`` (F8)
+    What the scenes are like: how bright, and how uniform -- the mean and the
+    standard deviation of the 2.3 um radiance within a scene. The context for
+    reading the gap, since brightness sets the floor and the spread is the
+    structure the background estimate has to predict.
+
 Everything is a groupby on the CSV that ``stats_dataset.py`` writes. Nothing here
 recomputes a raster, and a point is always **one scene** -- pixels within a scene
 are strongly correlated, so a distribution over pixels would claim a precision the
@@ -232,6 +238,100 @@ def figure_floors(scenes: pd.DataFrame, path: str) -> None:
     print(f"wrote {path}")
 
 
+def figure_scenes(scenes: pd.DataFrame, path: str) -> None:
+    """F8: what the scenes themselves are like -- how bright, and how uniform.
+
+    The context for reading F2. Brightness sets the floor, through the square
+    root of the radiance in the SNR rescaling; the spread of that radiance within
+    a scene is the simplest measure of the structure the background estimate has
+    to predict, and it is what the gap above the floor is made of. Panel a is
+    coloured like the floor in F2 and panel b like the measured noise, because
+    that is the quantity each one explains.
+
+    Both panels are the 2.3 um radiance, per scene: its mean over valid pixels,
+    and its standard deviation over the same pixels. They are the two moments the
+    sweep already writes, so this figure costs nothing beyond the CSVs behind F1
+    and F2 -- the same scenes, the same selection, the same unit.
+
+    Args:
+        scenes: Output of :func:`load_scenes`.
+        path: Where to write the figure.
+    """
+    order = case_study_order(scenes, min_scenes=5)
+
+    # Shared x as well as y: the two panels are the same quantity in the same
+    # unit, so putting them on one scale shows directly that the spread within a
+    # scene is an order of magnitude below the level -- which a reader cannot see
+    # from two independently scaled axes.
+    fig, axes = plt.subplots(
+        1, 2, figsize=(10.4, 0.42 * len(order) + 2.2), sharey=True, sharex=True
+    )
+    fig.patch.set_facecolor("white")
+
+    panels = [
+        (
+            "radiance_B12_mean",
+            RUNG_COLOURS["L3"],
+            r"mean radiance at 2.3 $\mu$m  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
+            "a  How bright the scene is",
+        ),
+        (
+            "radiance_B12_std",
+            MEASURED,
+            r"std. dev. within the scene  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
+            "b  How uniform it is",
+        ),
+    ]
+
+    for ax, (column, colour, xlabel, title) in zip(axes, panels, strict=True):
+        data = [scenes.loc[scenes.case_study == c, column].dropna().values for c in order]
+        _boxes(ax, data, list(range(len(order))), colour, width=0.42)
+
+        ax.set_yticks(range(len(order)))
+        ax.set_yticklabels(order, fontsize=8, color=INK)
+        ax.set_ylim(-0.7, len(order) - 0.3)
+        ax.invert_yaxis()  # keep ORDER_CASE_STUDIES reading top to bottom
+        ax.set_xscale("log")
+        _style(ax, xlabel=xlabel, title=title)
+
+    # The spread relative to the brightness, which is the two panels divided and
+    # the quantity that actually tracks the gap: an absolute spread is larger over
+    # bright ground for no other reason than that the ground is bright.
+    relative = (
+        (scenes.radiance_B12_std / scenes.radiance_B12_mean)
+        .groupby(scenes.case_study)
+        .median()
+        .reindex(order)
+    )
+    for i, value in enumerate(relative.values):
+        axes[1].annotate(
+            f"{value:.2f}",
+            xy=(1.0, i),
+            xycoords=("axes fraction", "data"),
+            xytext=(6, 0),
+            textcoords="offset points",
+            va="center",
+            fontsize=7.5,
+            color=INK_SOFT,
+        )
+    axes[1].annotate(
+        "std/mean",
+        xy=(1.0, -0.7),
+        xycoords=("axes fraction", "data"),
+        xytext=(6, 0),
+        textcoords="offset points",
+        va="center",
+        fontsize=7.5,
+        style="italic",
+        color=INK_SOFT,
+    )
+
+    fig.tight_layout()
+    fig.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"wrote {path}")
+
+
 def figure_gap(scenes: pd.DataFrame, path: str) -> None:
     """F2: measured noise against the L3 floor, per case study, with the share."""
     order = case_study_order(scenes, min_scenes=5)
@@ -334,19 +434,24 @@ def figures(
 
     figure_floors(scenes, os.path.join(output_dir, "floors_by_region.png"))
     figure_gap(scenes, os.path.join(output_dir, "gap_by_region.png"))
+    figure_scenes(scenes, os.path.join(output_dir, "scenes_by_region.png"))
+
+    aggregations = dict(
+        scenes=("measured", "size"),
+        epsilon_L1=("epsilon_L1_mean", "median"),
+        epsilon_L3=("epsilon_L3_mean", "median"),
+        floor_L3=("sigma_ch4_L3_mean", "median"),
+        measured=("measured", "median"),
+        ratio=("ratio_L3", "median"),
+        reducible=("reducible", "median"),
+        radiance_23=("radiance_B12_mean", "median"),
+    )
+    aggregations["radiance_23_std"] = ("radiance_B12_std", "median")
 
     summary = (
         scenes.groupby("case_study")
-        .agg(
-            scenes=("measured", "size"),
-            epsilon_L1=("epsilon_L1_mean", "median"),
-            epsilon_L3=("epsilon_L3_mean", "median"),
-            floor_L3=("sigma_ch4_L3_mean", "median"),
-            measured=("measured", "median"),
-            ratio=("ratio_L3", "median"),
-            reducible=("reducible", "median"),
-        )
-        .round(2)
+        .agg(**aggregations)
+        .round(4)
         .sort_values("scenes", ascending=False)
     )
     print(summary.to_string())

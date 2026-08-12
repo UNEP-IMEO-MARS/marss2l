@@ -417,7 +417,8 @@ def compute_shot_noise_stats(
         tile_date_bg: Acquisition time of the reference pass, ISO-8601.
 
     Returns:
-        Dictionary of per-scene statistics: ``radiance_{band}_*``, ``eta_{rung}_*``,
+        Dictionary of per-scene statistics: ``radiance_{band}_*``,
+        ``ratio_2316_*`` and ``log_ratio_2316_*``, ``eta_{rung}_*``,
         ``epsilon_{rung}_*`` and ``sigma_ch4_{rung}_*`` in ppb.
     """
     from marss2l import shot_noise
@@ -455,6 +456,16 @@ def compute_shot_noise_stats(
     stats_item = {}
     for band, values in [(shot_noise.BAND_23, radiance_23), (shot_noise.BAND_16, radiance_16)]:
         stats_item.update(_summary(values[mask].float(), f"radiance_{band}"))
+
+    # How variegated the scene is, in the currency the retrieval works in: the
+    # single-pass band ratio. Its spread across a scene is the natural companion
+    # to the mean radiance -- brightness sets the floor, heterogeneity is what
+    # the structural term has to predict -- and unlike the spread of either band
+    # alone it does not move with illumination or overall albedo, both of which
+    # cancel in the ratio.
+    ratio = radiance_23 / radiance_16
+    stats_item.update(_summary(ratio[mask].float(), "ratio_2316"))
+    stats_item.update(_summary(torch.log(ratio[mask & (ratio > 0)]).float(), "log_ratio_2316"))
 
     ladder = shot_noise.eta_ladder(
         radiance_23.numpy(),
