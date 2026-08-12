@@ -58,6 +58,19 @@ app = cyclopts.App()
 #: Label for the second corpus, and the name of its row on the case-study axis.
 DEFAULT_EXTRA_LABEL = "CloudSEN12"
 
+#: The United States row of the axis is, in practice, one oil and gas basin.
+PERMIAN_LABEL = "Permian basin"
+UNITED_STATES = "United States of America"
+
+#: The axis order, with the Permian label sitting where the United States row
+#: would be. Only one of the two is ever present -- the relabelling replaces the
+#: country rather than adding to it -- so one list serves both cases.
+ORDER_CASE_STUDIES_EXT = [
+    label
+    for case in ORDER_CASE_STUDIES
+    for label in ((case, PERMIAN_LABEL) if case == UNITED_STATES else (case,))
+]
+
 #: The rungs are nested and ordered, so they take a single hue light-to-dark
 #: rather than three unrelated colours.
 RUNG_COLOURS = {"L1": "#9dc3ee", "L2": "#5b95dd", "L3": "#1f5fae"}
@@ -78,14 +91,64 @@ def _read_meta(images_csv: str) -> pd.DataFrame:
     mapping the MARS-S2L export used.
     """
     columns = pd.read_csv(images_csv, nrows=0).columns
-    wanted = ["id_loc_image", "observability", "sza_bg_source"]
+    wanted = ["id_loc_image", "observability", "sza_bg_source", "lon", "lat"]
     wanted.append("case_study" if "case_study" in columns else "country")
+    if "country" not in wanted and "country" in columns:
+        # Carried for the per-country stratification of the supplement, which
+        # needs the country even when the export already resolved a case study.
+        wanted.append("country")
 
-    meta = pd.read_csv(images_csv, usecols=wanted)
+    meta = pd.read_csv(images_csv, usecols=[c for c in wanted if c in columns])
     if "case_study" not in meta.columns:
-        meta["case_study"] = meta.pop("country").apply(_set_case_study)
+        meta["case_study"] = meta["country"].apply(_set_case_study)
 
     return meta
+
+
+def apply_permian_labels(scenes: pd.DataFrame, shapefile: str) -> pd.DataFrame:
+    """Split the United States row into the Permian basin and everything else.
+
+    The country is not the unit anyone means here: essentially all of the corpus's
+    United States imagery is one oil and gas basin, so a row labelled with the
+    country invites the reader to generalise it to a continent. Scenes inside the
+    basin take its name; the remainder join ``Rest``, which is what that row is
+    for -- places with too few scenes to stand on their own.
+
+    Args:
+        scenes: Output of :func:`load_scenes`, with ``lon`` and ``lat``.
+        shapefile: Polygon of the basin. The EIA publishes one as
+            ``PermianBasin_Boundary_Structural_Tectonic.zip`` (layer
+            ``PermianBasin_Extent``), which is the geological province rather than
+            the producing area, so it is the generous definition of the two.
+
+    Returns:
+        The frame, with ``case_study`` reassigned for United States scenes.
+    """
+    import geopandas as gpd
+    from shapely.geometry import Point
+
+    if "lon" not in scenes.columns:
+        raise KeyError("the images CSV must carry lon/lat to place scenes in the basin")
+
+    basin = gpd.read_file(shapefile).geometry.union_all()
+    is_us = scenes.case_study == UNITED_STATES
+    inside = pd.Series(
+        [Point(x, y).within(basin) for x, y in zip(scenes.lon, scenes.lat)], index=scenes.index
+    )
+
+    scenes = scenes.copy()
+    scenes.loc[is_us & inside, "case_study"] = PERMIAN_LABEL
+    scenes.loc[is_us & ~inside, "case_study"] = "Rest"
+
+    n_us = int(is_us.sum())
+    if n_us:
+        n_in = int((is_us & inside).sum())
+        print(
+            f"Permian: {n_in:,} of {n_us:,} United States scenes ({n_in / n_us:.1%}) "
+            f"inside the basin; {n_us - n_in:,} moved to Rest"
+        )
+
+    return scenes
 
 
 def load_scenes(stats_csv: str, images_csv: str, label: Optional[str] = None) -> pd.DataFrame:
@@ -143,7 +206,7 @@ def case_study_order(scenes: pd.DataFrame, min_scenes: int = 1) -> list:
     """
     present = scenes.case_study.value_counts()
     present = set(present[present >= min_scenes].index)
-    known = [c for c in ORDER_CASE_STUDIES if c in present]
+    known = [c for c in ORDER_CASE_STUDIES_EXT if c in present]
     return known + sorted(present - set(known))
 
 
@@ -399,6 +462,199 @@ def figure_gap(scenes: pd.DataFrame, path: str) -> None:
     print(f"wrote {path}")
 
 
+def _labels_with_n(scenes: pd.DataFrame, order: list) -> list:
+    """Row labels carrying their sample size, for panels where n varies wildly."""
+    counts = scenes.case_study.value_counts()
+    return [f"{case}  (n = {counts.get(case, 0):,})" for case in order]
+
+
+#: Above this many scenes a jitter cloud is a black smear that hides the box it
+#: is meant to qualify, and the box is trustworthy anyway. Draw a sample.
+MAX_JITTER = 250
+
+
+def _jittered(ax, values, position: float, colour: str, rng, width: float = 0.16) -> None:
+    """The scenes behind a box, so a row of eighteen cannot pass for a distribution."""
+    if len(values) == 0:
+        return
+    if len(values) > MAX_JITTER:
+        values = rng.choice(values, MAX_JITTER, replace=False)
+    ax.scatter(
+        values,
+        position + rng.uniform(-width, width, size=len(values)),
+        s=4,
+        color=colour,
+        alpha=0.4,
+        linewidths=0,
+        zorder=4,
+        rasterized=True,
+    )
+
+
+def _robust_limits(arrays: list) -> tuple:
+    """x limits that keep every box legible while showing nearly all the jitter."""
+    pooled = np.concatenate([np.asarray(a) for a in arrays if len(a)])
+    pooled = pooled[pooled > 0]
+    return np.percentile(pooled, 0.5) / 1.6, np.percentile(pooled, 99.5) * 1.6
+
+
+def figure_by_country(
+    scenes: pd.DataFrame,
+    path: str,
+    panels: list,
+    order: list,
+    title_suffix: str = "",
+    sharex: bool = False,
+    log: bool = True,
+) -> None:
+    """A per-case-study figure with the individual scenes drawn behind the boxes.
+
+    For the supplement, where a row can hold eighteen scenes or nine thousand. The
+    sample size goes in the label and the scenes themselves are drawn, so a box
+    built on a handful of images cannot be read as if it were built on thousands.
+    Rows above :data:`MAX_JITTER` scenes show a random sample of that many, since
+    beyond it the cloud hides the box it is there to qualify.
+
+    Args:
+        scenes: Output of :func:`load_scenes`, with ``case_study`` set to the row
+            each scene belongs to.
+        path: Where to write the figure.
+        panels: One ``(series, xlabel, title)`` per panel, where ``series`` is a
+            list of ``(column, colour, label)`` drawn together on that panel.
+        order: Rows, top to bottom.
+        title_suffix: Appended above the figure.
+        sharex: Put the panels on one x scale. For panels in the same unit.
+        log: Logarithmic x axis.
+    """
+    rng = np.random.default_rng(0)
+    fig, axes = plt.subplots(
+        1,
+        len(panels),
+        figsize=(5.6 * len(panels), 0.52 * len(order) + 2.4),
+        sharey=True,
+        sharex=sharex,
+    )
+
+    fig.patch.set_facecolor("white")
+
+    pooled: list = []
+    for ax, panel in zip(np.atleast_1d(axes), panels, strict=True):
+        # A panel may override the figure's x scale: a share bounded by 0 and 1
+        # has no business on a logarithmic axis, where its whiskers run off the
+        # left edge and every box reads as full width.
+        series, xlabel, title, *rest = panel
+        use_log = rest[0] if rest else log
+        xlim = rest[1] if len(rest) > 1 else None
+
+        offsets = np.linspace(0.19, -0.19, len(series)) if len(series) > 1 else [0.0]
+        width = 0.3 if len(series) > 1 else 0.44
+        drawn = []
+        for (column, colour, _), offset in zip(series, offsets, strict=True):
+            data = [scenes.loc[scenes.case_study == c, column].dropna().values for c in order]
+            drawn.extend(data)
+            _boxes(ax, data, [i + offset for i in range(len(order))], colour, width=width)
+            for position, values in enumerate(data):
+                _jittered(ax, values, position + offset, INK, rng, width=width * 0.42)
+
+        # The boxes hide their outliers but the jitter does not, and a handful of
+        # extreme scenes would otherwise squeeze every box into a decade. Under
+        # sharex the limit has to come from every panel at once, or the last panel
+        # drawn silently clips the first.
+        if xlim is not None:
+            ax.set_xlim(*xlim)
+        elif use_log:
+            pooled.extend(v for v in drawn if len(v))
+            if not sharex:
+                ax.set_xlim(*_robust_limits(pooled))
+                pooled = []
+
+        ax.set_yticks(range(len(order)))
+        ax.set_yticklabels(_labels_with_n(scenes, order), fontsize=8, color=INK)
+        ax.set_ylim(-0.7, len(order) - 0.3)
+        ax.invert_yaxis()
+        if use_log:
+            ax.set_xscale("log")
+        _style(ax, xlabel=xlabel, title=title)
+        if len(series) > 1:
+            ax.legend(
+                handles=[Patch(facecolor=c, label=lab) for _, c, lab in series],
+                loc="upper left",
+                bbox_to_anchor=(0.0, -0.08),
+                ncol=len(series),
+                frameon=False,
+                fontsize=8,
+                labelcolor=INK_SOFT,
+            )
+
+    if sharex and pooled:
+        np.atleast_1d(axes)[0].set_xlim(*_robust_limits(pooled))
+
+    if title_suffix:
+        fig.suptitle(title_suffix, x=0.0, ha="left", fontsize=9, color=INK_SOFT, y=1.02)
+    fig.tight_layout()
+    fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"wrote {path}")
+
+
+def supplementary_figures(scenes: pd.DataFrame, output_dir: str, label: str) -> None:
+    """The supplement: one corpus, stratified by the case studies of the other.
+
+    CloudSEN12 sits a factor of two above every producing region in the main
+    figures, and the obvious question is whether that is a different regime or a
+    different mixture of places. Stratifying it by the case studies of the other
+    corpus answers it against rows that already have a value to compare with.
+    """
+    order = [c for c in ORDER_CASE_STUDIES_EXT if c in set(scenes.case_study)]
+    subtitle = f"{label}, stratified by the case studies of the other corpus"
+
+    figure_by_country(
+        scenes,
+        os.path.join(output_dir, "cloudsen12_gap_by_country.png"),
+        panels=[
+            (
+                [
+                    ("measured", MEASURED, "measured, plume-free pixels"),
+                    ("sigma_ch4_L3_mean", RUNG_COLOURS["L3"], "floor L3, propagated"),
+                ],
+                r"$\sigma(\Delta \mathrm{XCH}_4)$  [ppb]",
+                "a  What the retrieval reads, against its photon-noise floor",
+            ),
+            (
+                [("reducible", MEASURED, "reducible share")],
+                "share of variance that is not photon noise",
+                "b  Reducible",
+                False,
+                # Negative means a scene read below its own floor, which is a
+                # result rather than an error; one decade of it is enough to see.
+                (-1.0, 1.03),
+            ),
+        ],
+        order=order,
+        title_suffix=subtitle,
+    )
+
+    figure_by_country(
+        scenes,
+        os.path.join(output_dir, "cloudsen12_scenes_by_country.png"),
+        panels=[
+            (
+                [("radiance_B12_mean", RUNG_COLOURS["L3"], "mean")],
+                r"mean radiance at 2.3 $\mu$m  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
+                "a  How bright the scene is",
+            ),
+            (
+                [("radiance_B12_std", MEASURED, "std")],
+                r"std. dev. within the scene  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
+                "b  How uniform it is",
+            ),
+        ],
+        order=order,
+        title_suffix=subtitle,
+        sharex=True,
+    )
+
+
 @app.command
 def figures(
     stats_csv: str,
@@ -408,8 +664,10 @@ def figures(
     extra_stats_csv: Optional[str] = None,
     extra_images_csv: Optional[str] = None,
     extra_label: str = DEFAULT_EXTRA_LABEL,
+    permian_shapefile: Optional[str] = None,
+    supplement: bool = True,
 ) -> None:
-    """Draw F1 and F2 from a sweep.
+    """Draw F1, F2 and F8 from a sweep, and the supplement from the second corpus.
 
     Args:
         stats_csv: Output of ``stats_dataset.py``.
@@ -420,14 +678,28 @@ def figures(
             study. Requires ``extra_images_csv``.
         extra_images_csv: Image metadata CSV of that second corpus.
         extra_label: Name of its row on the case-study axis.
+        permian_shapefile: Polygon of the Permian basin. Given one, the United
+            States row becomes the basin and the scenes outside it join ``Rest``
+            -- see :func:`apply_permian_labels`. Applies to the main corpus only:
+            the second one is a worldwide sample, where the country is the honest
+            label and the basin would be a row of nothing.
+        supplement: Also draw the second corpus stratified by the case studies of
+            the first, which is what says whether it differs in regime or only in
+            composition.
     """
     scenes = load_scenes(stats_csv, images_csv)
+    if permian_shapefile is not None:
+        scenes = apply_permian_labels(scenes, permian_shapefile)
 
     if (extra_stats_csv is None) != (extra_images_csv is None):
         raise ValueError("--extra-stats-csv and --extra-images-csv go together")
     if extra_stats_csv is not None:
         extra = load_scenes(extra_stats_csv, extra_images_csv, label=extra_label)
         print(f"{len(extra):,} {extra_label} scenes after selection")
+        if supplement:
+            by_country = extra.copy()
+            by_country["case_study"] = by_country["country"].apply(_set_case_study)
+            supplementary_figures(by_country, output_dir, extra_label)
         scenes = pd.concat([scenes, extra], ignore_index=True)
 
     print(f"{len(scenes):,} scenes after selection")
