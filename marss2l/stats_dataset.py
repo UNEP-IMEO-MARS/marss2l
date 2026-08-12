@@ -6,6 +6,8 @@ import os
 from typing import Optional
 
 import cyclopts
+import fsspec
+import fsspec.asyn
 import numpy as np
 import pandas as pd
 import torch
@@ -36,6 +38,39 @@ def _scalar(value):
     return value.item() if isinstance(value, torch.Tensor) else value
 
 
+def reopen_filesystem_in_worker(_worker_id: int) -> None:
+    """Give each forked data-loading worker its own connection to the store.
+
+    An fsspec **async** filesystem carries an event loop and the thread running
+    it, and neither survives ``fork``: the first read in a worker raises
+    ``RuntimeError: This class is not fork-safe``. Local sweeps never saw this
+    because a local filesystem is synchronous.
+
+    The fix is to drop everything inherited from the parent -- the module-level
+    loop and its thread, the instance cache, and the dataset's own handle -- so
+    that the worker builds its own. ``load_image_method`` already falls back to
+    ``fs_from_path(path)`` when the dataset has no filesystem, and fsspec then
+    caches one instance per worker, so this costs a single reconnection each.
+
+    A no-op for a synchronous filesystem, which is why it can be passed
+    unconditionally as the loader's ``worker_init_fn``.
+    """
+    info = torch.utils.data.get_worker_info()
+    if info is None:
+        return
+
+    dataset = info.dataset
+    filesystem = getattr(dataset, "fs", None)
+    if not isinstance(filesystem, fsspec.asyn.AsyncFileSystem):
+        return
+
+    fsspec.asyn.iothread[0] = None
+    fsspec.asyn.loop[0] = None
+    fsspec.asyn.reset_lock()
+    type(filesystem).clear_instance_cache()
+    dataset.fs = None
+
+
 def select_images(
     csv_path: str,
     fs,
@@ -50,11 +85,14 @@ def select_images(
         fs: Filesystem to read it through.
         split: One of ``dataframe_image_plumes.SPLITS`` -- ``train_2023``,
             ``val_2023``, ``test_2023``, ``no split``. None reads every image, which
-            is what the script did before the flag existed.
+            is what the script did before the flag existed, and what the CloudSEN12
+            corpus wants: its splits are the CloudSEN12 ones, unrelated to the
+            MARS-S2L date and location cuts, and every scene of it is plume-free.
         smoke_test: Keep 20 images, 10 with plumes and 10 without, sampled with a
             fixed seed. Note this is **not** ``load_dataframe_split``'s own
             ``smoke_test``, which keeps 100 + 100 by ``head()`` and is depended on by
-            training -- a different thing, deliberately not reused.
+            training -- a different thing, deliberately not reused. A dataset with no
+            plumes at all, such as CloudSEN12, simply yields the 10 without.
         path_prepend_data: Prefix for the data paths, needed for a HuggingFace copy.
 
     Returns:
@@ -111,6 +149,7 @@ def run(
     split: Optional[str] = None,
     smoke_test: bool = False,
     flush_every: int = 2000,
+    dataset_name: Optional[str] = None,
 ):
     logger = setup_file_logger("logs", "stats_dataset")
     fs = fs_from_path(csv_path)
@@ -156,7 +195,13 @@ def run(
         fs=fs_images,
     )
 
-    test_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False)
+    test_loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        shuffle=False,
+        worker_init_fn=reopen_filesystem_in_worker,
+    )
 
     stats: list = []
     written = 0
@@ -182,6 +227,8 @@ def run(
                     "wind_u": float(wind_vector[0]),
                     "wind_v": float(wind_vector[1]),
                 }
+                if dataset_name is not None:
+                    input_data["dataset"] = dataset_name
                 # bands out e.g. ['MBMP', 'B02', 'B03', 'B04', 'B08', 'B11', 'B12', 'B02_bg', 'B03_bg', 'B04_bg', 'B08_bg', 'B11_bg', 'B12_bg', 'U', 'V', 'cloudmask']
                 stats_out = compute_stats(
                     dataset.bands_out,
@@ -608,6 +655,7 @@ def main(
     split: Optional[str] = None,
     smoke_test: bool = False,
     flush_every: int = 2000,
+    dataset_name: Optional[str] = None,
 ) -> None:
     """Sweep the dataset and write one row of statistics per image.
 
@@ -627,6 +675,12 @@ def main(
             seed. What makes the edit-run-look loop bearable on a dataset this size.
         flush_every: Write the rows gathered so far every this many images. A full
             split takes hours; this makes progress visible and survivable.
+        dataset_name: Written to every row as a ``dataset`` column. What lets two
+            sweeps be concatenated at plot time and still be told apart -- the
+            CloudSEN12 scenes are worldwide and their countries would otherwise
+            scatter across the MARS-S2L case studies (and mostly into "Rest"),
+            when what the figures want is one box for the whole corpus. Omit for a
+            single-dataset sweep, where the column adds nothing.
     """
     # spawn only where it is needed. It is required to share CUDA tensors, but it
     # also pickles the dataset for every worker, and the file logger the dataset
@@ -645,6 +699,7 @@ def main(
         split=split,
         smoke_test=smoke_test,
         flush_every=flush_every,
+        dataset_name=dataset_name,
     )
 
 

@@ -5,6 +5,8 @@ compute_stats and its helpers are pure functions of tensors -- no IO, no model -
 which is what makes them cheap to pin down here rather than in an integration run.
 """
 
+import fsspec
+import fsspec.asyn
 import numpy as np
 import pandas as pd
 import pytest
@@ -216,3 +218,62 @@ def test_smoke_test_sample_is_reproducible(stub_csv):
 
 def test_without_smoke_test_every_image_is_swept(stub_csv):
     assert len(stats_dataset.select_images("unused.csv", fs=None)) == 100
+
+
+def test_smoke_test_of_a_corpus_without_plumes(monkeypatch):
+    """CloudSEN12 has no plumes at all; the sample is then simply the 10 without."""
+    dataframe = pd.DataFrame(
+        {"isplume": [False] * 30, "s2path": [f"img_{i}.tif" for i in range(30)]}
+    )
+    monkeypatch.setattr(
+        stats_dataset.loaders, "read_csv_images", lambda *args, **kwargs: dataframe.copy()
+    )
+
+    sample = stats_dataset.select_images("unused.csv", fs=None, smoke_test=True)
+
+    assert len(sample) == 10
+    assert not sample.isplume.any()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Forked workers over an object store
+# ─────────────────────────────────────────────────────────────────────────────
+class _StubDataset:
+    def __init__(self, fs):
+        self.fs = fs
+
+
+def _stub_worker(monkeypatch, dataset):
+    monkeypatch.setattr(
+        stats_dataset.torch.utils.data,
+        "get_worker_info",
+        lambda: type("Info", (), {"dataset": dataset})(),
+    )
+
+
+def test_worker_init_is_a_noop_in_the_main_process(monkeypatch):
+    monkeypatch.setattr(stats_dataset.torch.utils.data, "get_worker_info", lambda: None)
+    stats_dataset.reopen_filesystem_in_worker(0)  # must not raise
+
+
+def test_worker_init_leaves_a_local_filesystem_alone(monkeypatch):
+    dataset = _StubDataset(fsspec.filesystem("file"))
+    _stub_worker(monkeypatch, dataset)
+
+    stats_dataset.reopen_filesystem_in_worker(0)
+
+    assert dataset.fs is not None
+
+
+def test_worker_init_drops_an_async_filesystem(monkeypatch):
+    """An async filesystem does not survive fork, so the worker must rebuild it.
+
+    Dropping the handle is what makes ``load_image_method`` fall back to
+    ``fs_from_path``, which builds one inside the worker.
+    """
+    dataset = _StubDataset(fsspec.asyn.AsyncFileSystem())
+    _stub_worker(monkeypatch, dataset)
+
+    stats_dataset.reopen_filesystem_in_worker(0)
+
+    assert dataset.fs is None

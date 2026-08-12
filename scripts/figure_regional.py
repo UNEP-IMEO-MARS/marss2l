@@ -19,9 +19,18 @@ Scene selection, per the epic: the named split, ``observability == "clear"``,
 onshore only (offshore uses the single-pass SBMP retrieval, so its noise is not
 comparable and L3 does not exist for it) and no night reference pass.
 
+A second corpus can be added as one further case study -- CloudSEN12, whose
+scenes are worldwide and are not oil-and-gas infrastructure, so it says what the
+floors and the gap look like away from the producing regions the rest of the
+axis is made of. It enters as its own row rather than by country: its countries
+would otherwise scatter across the MARS-S2L case studies and mostly into "Rest",
+mixing two corpora that were selected on entirely different criteria.
+
 Run::
 
-    python -m scripts.figure_regional figures --stats-csv <csv> --output-dir <dir>
+    python -m scripts.figure_regional figures --stats-csv <csv> --images-csv <csv> \\
+        --extra-stats-csv <cloudsen12 csv> --extra-images-csv <cloudsen12 csv> \\
+        --output-dir <dir>
 """
 
 import os
@@ -36,9 +45,12 @@ mpl.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
 
-from marss2l.dataframe_image_plumes import ORDER_CASE_STUDIES  # noqa: E402
+from marss2l.dataframe_image_plumes import ORDER_CASE_STUDIES, _set_case_study  # noqa: E402
 
 app = cyclopts.App()
+
+#: Label for the second corpus, and the name of its row on the case-study axis.
+DEFAULT_EXTRA_LABEL = "CloudSEN12"
 
 #: The rungs are nested and ordered, so they take a single hue light-to-dark
 #: rather than three unrelated colours.
@@ -52,21 +64,39 @@ MEASURED = "#eb6834"
 INK, INK_SOFT, GRID = "#14181f", "#58606c", "#dfe3e8"
 
 
-def load_scenes(stats_csv: str, images_csv: str) -> pd.DataFrame:
+def _read_meta(images_csv: str) -> pd.DataFrame:
+    """Scene metadata for the selection and the axis.
+
+    ``case_study`` is derived from the country when the CSV does not carry it --
+    the CloudSEN12 export does not, and re-deriving it is one call to the same
+    mapping the MARS-S2L export used.
+    """
+    columns = pd.read_csv(images_csv, nrows=0).columns
+    wanted = ["id_loc_image", "observability", "sza_bg_source"]
+    wanted.append("case_study" if "case_study" in columns else "country")
+
+    meta = pd.read_csv(images_csv, usecols=wanted)
+    if "case_study" not in meta.columns:
+        meta["case_study"] = meta.pop("country").apply(_set_case_study)
+
+    return meta
+
+
+def load_scenes(stats_csv: str, images_csv: str, label: Optional[str] = None) -> pd.DataFrame:
     """Read the sweep and apply the scene selection the figures use.
 
     Args:
         stats_csv: Output of ``stats_dataset.py``.
         images_csv: The image metadata CSV, for ``observability`` and ``case_study``.
+        label: Name to give every scene of this corpus on the case-study axis,
+            overriding the per-country grouping. What makes a second dataset one
+            row of the figures rather than a re-partition of the first.
 
     Returns:
         One row per usable scene, with the measured noise and the ratio to each rung.
     """
     stats = pd.read_csv(stats_csv, low_memory=False)
-    meta = pd.read_csv(
-        images_csv, usecols=["id_loc_image", "observability", "case_study", "sza_bg_source"]
-    )
-    scenes = stats.merge(meta, on="id_loc_image", how="left")
+    scenes = stats.merge(_read_meta(images_csv), on="id_loc_image", how="left")
 
     scenes = scenes[
         (scenes.observability == "clear")
@@ -75,10 +105,18 @@ def load_scenes(stats_csv: str, images_csv: str) -> pd.DataFrame:
         & scenes.sigma_ch4_L3_mean.notna()
     ].copy()
 
-    # O-base: the retrieval's own noise, on pixels where it should read zero.
-    scenes["measured"] = np.where(
-        scenes.isplume == 1, scenes.ch4_valid_noplume_std, scenes.ch4_valid_std
-    )
+    if label is not None:
+        scenes["case_study"] = label
+    if "dataset" not in scenes.columns:
+        # Sweeps run before --dataset-name existed carry no such column.
+        scenes["dataset"] = label or "MARS-S2L"
+
+    # O-base: the retrieval's own noise, on pixels where it should read zero. A
+    # corpus with no plumes at all -- CloudSEN12 -- has no _noplume column, since
+    # the sweep only writes one for a scene that has a plume to exclude.
+    without_plume = scenes.ch4_valid_std
+    with_plume = scenes.get("ch4_valid_noplume_std", np.nan)
+    scenes["measured"] = np.where(scenes.isplume == 1, with_plume, without_plume)
     scenes = scenes[scenes.measured.notna() & (scenes.measured > 0)]
 
     scenes["family"] = np.where(scenes.satellite.str.startswith("S2"), "Sentinel-2", "Landsat")
@@ -88,6 +126,19 @@ def load_scenes(stats_csv: str, images_csv: str) -> pd.DataFrame:
     scenes["reducible"] = 1 - (scenes.sigma_ch4_L3_mean / scenes.measured) ** 2
 
     return scenes
+
+
+def case_study_order(scenes: pd.DataFrame, min_scenes: int = 1) -> list:
+    """The y axis: the MARS-S2L case studies in their usual order, extras last.
+
+    A corpus added under its own label is not part of ``ORDER_CASE_STUDIES``, so
+    it goes after it -- below "Rest", where a reader has finished with the
+    producing regions.
+    """
+    present = scenes.case_study.value_counts()
+    present = set(present[present >= min_scenes].index)
+    known = [c for c in ORDER_CASE_STUDIES if c in present]
+    return known + sorted(present - set(known))
 
 
 def _style(ax, *, xlabel: str = "", title: str = "") -> None:
@@ -120,7 +171,7 @@ def _boxes(ax, data, positions, colour, width=0.24):
 
 def figure_floors(scenes: pd.DataFrame, path: str) -> None:
     """F1: the three floors per case study, faceted by satellite family."""
-    order = [c for c in ORDER_CASE_STUDIES if c in set(scenes.case_study)]
+    order = case_study_order(scenes)
     families = ["Sentinel-2", "Landsat"]
 
     fig, axes = plt.subplots(
@@ -139,6 +190,21 @@ def figure_floors(scenes: pd.DataFrame, path: str) -> None:
                     positions.append(i + offset)
             if data:
                 _boxes(ax, data, positions, RUNG_COLOURS[rung])
+
+        # A row can be empty in one facet and not the other -- CloudSEN12 is
+        # Sentinel-2 only. Say so, rather than leaving a blank the reader has to
+        # decide between "no data" and "too small to see".
+        for i, case in enumerate(order):
+            if (subset.case_study == case).sum() < 5:
+                ax.annotate(
+                    "no scenes",
+                    xy=(0.015, i),
+                    xycoords=("axes fraction", "data"),
+                    va="center",
+                    fontsize=7,
+                    style="italic",
+                    color=INK_SOFT,
+                )
 
         ax.set_yticks(range(len(order)))
         ax.set_yticklabels(order, fontsize=8, color=INK)
@@ -168,8 +234,7 @@ def figure_floors(scenes: pd.DataFrame, path: str) -> None:
 
 def figure_gap(scenes: pd.DataFrame, path: str) -> None:
     """F2: measured noise against the L3 floor, per case study, with the share."""
-    order = [c for c in ORDER_CASE_STUDIES if c in set(scenes.case_study)]
-    order = [c for c in order if (scenes.case_study == c).sum() >= 5]
+    order = case_study_order(scenes, min_scenes=5)
 
     fig, (ax, ax_share) = plt.subplots(
         1,
@@ -240,6 +305,9 @@ def figures(
     images_csv: str,
     output_dir: str = ".",
     summary_csv: Optional[str] = None,
+    extra_stats_csv: Optional[str] = None,
+    extra_images_csv: Optional[str] = None,
+    extra_label: str = DEFAULT_EXTRA_LABEL,
 ) -> None:
     """Draw F1 and F2 from a sweep.
 
@@ -248,8 +316,20 @@ def figures(
         images_csv: Image metadata CSV, for observability and case study.
         output_dir: Where to write the figures.
         summary_csv: Optional path to write the per-region table behind them.
+        extra_stats_csv: Sweep of a second corpus, appended as one further case
+            study. Requires ``extra_images_csv``.
+        extra_images_csv: Image metadata CSV of that second corpus.
+        extra_label: Name of its row on the case-study axis.
     """
     scenes = load_scenes(stats_csv, images_csv)
+
+    if (extra_stats_csv is None) != (extra_images_csv is None):
+        raise ValueError("--extra-stats-csv and --extra-images-csv go together")
+    if extra_stats_csv is not None:
+        extra = load_scenes(extra_stats_csv, extra_images_csv, label=extra_label)
+        print(f"{len(extra):,} {extra_label} scenes after selection")
+        scenes = pd.concat([scenes, extra], ignore_index=True)
+
     print(f"{len(scenes):,} scenes after selection")
 
     figure_floors(scenes, os.path.join(output_dir, "floors_by_region.png"))
