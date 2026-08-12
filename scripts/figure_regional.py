@@ -810,6 +810,14 @@ def figures(
                 by_country = apply_permian_labels(by_country, permian_shapefile)
             supplementary_figures(by_country, output_dir, extra_label)
             figure_corpora(scenes, by_country, os.path.join(output_dir, "corpora_by_region.png"))
+
+            # The drivers are a statement about scenes, so both corpora enter
+            # them keeping their own regions rather than one collapsed row.
+            by_region = pd.concat([scenes, by_country], ignore_index=True)
+            figure_drivers(by_region, os.path.join(output_dir, "noise_drivers.png"))
+            figure_drivers_by_region(
+                by_region, os.path.join(output_dir, "noise_drivers_by_region.png")
+            )
         scenes = pd.concat([scenes, extra], ignore_index=True)
 
     print(f"{len(scenes):,} scenes after selection")
@@ -817,6 +825,7 @@ def figures(
     figure_floors(scenes, os.path.join(output_dir, "floors_by_region.png"))
     figure_gap(scenes, os.path.join(output_dir, "gap_by_region.png"))
     figure_scenes(scenes, os.path.join(output_dir, "scenes_by_region.png"))
+    figure_breaches(scenes, os.path.join(output_dir, "breaches_by_region.png"))
 
     aggregations = dict(
         scenes=("measured", "size"),
@@ -840,6 +849,322 @@ def figures(
     if summary_csv:
         summary.to_csv(summary_csv)
         print(f"wrote {summary_csv}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# What drives the measured noise
+# ─────────────────────────────────────────────────────────────────────────────
+#: Reducible share is monotone in the ratio to the floor, so the ratio axis can
+#: carry both: 1 - 1/r^2 for r = sqrt(2), 2, sqrt(10).
+REDUCIBLE_GUIDES = [(1.0, "at the floor"), (1.414, "0.50"), (2.0, "0.75"), (3.162, "0.90")]
+
+
+def relative_spread(scenes: pd.DataFrame) -> pd.Series:
+    """Within-scene radiance spread over its level, at 2.3 um.
+
+    The scale-free version of the spread. Divided by the level because an
+    absolute spread is larger over bright ground for no other reason than that
+    the ground is bright, which is not what "variegated" is meant to mean.
+    """
+    return scenes.radiance_B12_std / scenes.radiance_B12_mean
+
+
+def noise_model(scenes: pd.DataFrame) -> tuple:
+    """Fit log(measured) on log(floor) and log(relative spread).
+
+    The two quantities the budget says should matter -- one from the photons and
+    one from the surface -- as a plain least-squares fit in logs, which is the
+    cheapest honest way to ask how much of the observed noise they account for.
+
+    Returns:
+        ``(coefficients, r2, r2_floor_only, r2_spread_only)``.
+    """
+    frame = scenes.assign(cv=relative_spread(scenes)).dropna(
+        subset=["measured", "sigma_ch4_L3_mean", "cv"]
+    )
+    frame = frame[(frame.cv > 0) & (frame.measured > 0)]
+
+    y = np.log(frame.measured.to_numpy())
+    floor = np.log(frame.sigma_ch4_L3_mean.to_numpy())
+    spread = np.log(frame.cv.to_numpy())
+
+    def fit(*columns):
+        design = np.column_stack([np.ones_like(y), *columns])
+        beta, *_ = np.linalg.lstsq(design, y, rcond=None)
+        residual = y - design @ beta
+        return beta, 1 - residual.var() / y.var()
+
+    beta, r2 = fit(floor, spread)
+    _, r2_floor = fit(floor)
+    _, r2_spread = fit(spread)
+    return beta, r2, r2_floor, r2_spread
+
+
+def figure_drivers(scenes: pd.DataFrame, path: str, sample: int = 6000) -> None:
+    """F3: the two scene properties that account for the observed noise.
+
+    Panel a is the mechanism -- a scene's spread relative to its level against
+    how far its noise sits above its own photon floor -- and panel b is what the
+    two properties buy together, as a prediction against the measurement.
+
+    Args:
+        scenes: Both corpora, with per-region ``case_study``.
+        path: Where to write the figure.
+        sample: Scenes drawn per corpus. 47,000 points is a silhouette, not a
+            scatter; the fit and the correlations use every scene regardless.
+    """
+    from scipy.stats import spearmanr
+
+    frame = scenes.assign(cv=relative_spread(scenes))
+    frame = frame[(frame.cv > 0) & (frame.measured > 0) & frame.ratio_L3.notna()]
+    beta, r2, r2_floor, r2_spread = noise_model(frame)
+    rho = spearmanr(frame.cv, frame.ratio_L3).statistic
+
+    rng = np.random.default_rng(0)
+    fig, (ax, ax_fit) = plt.subplots(1, 2, figsize=(11.4, 5.0))
+    fig.patch.set_facecolor("white")
+
+    for corpus in [c for c in CORPUS_COLOURS if c in set(frame.dataset)]:
+        subset = frame[frame.dataset == corpus]
+        if len(subset) > sample:
+            subset = subset.iloc[rng.choice(len(subset), sample, replace=False)]
+        ax.scatter(
+            subset.cv,
+            subset.ratio_L3,
+            s=3,
+            alpha=0.18,
+            color=CORPUS_COLOURS[corpus],
+            linewidths=0,
+            rasterized=True,
+            label=corpus,
+        )
+
+    # The regional medians, which is what the per-region correlation is about.
+    medians = frame.groupby("case_study").agg(cv=("cv", "median"), ratio=("ratio_L3", "median"))
+    ax.scatter(medians.cv, medians.ratio, s=34, color=INK, zorder=5, label="regional median")
+
+    for value, text in REDUCIBLE_GUIDES:
+        ax.axhline(value, color=GRID, linewidth=0.8, zorder=0)
+        ax.annotate(
+            text,
+            xy=(1.0, value),
+            xycoords=("axes fraction", "data"),
+            xytext=(4, 0),
+            textcoords="offset points",
+            va="center",
+            fontsize=7,
+            color=INK_SOFT,
+        )
+
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlim(*_robust_limits([frame.cv.to_numpy()]))
+    ax.set_ylim(*_robust_limits([frame.ratio_L3.to_numpy()]))
+    _style(
+        ax,
+        xlabel=r"relative spread of the scene,  $\sigma(L_{23})\,/\,\overline{L_{23}}$",
+        title="a  Variegation against the gap above the floor",
+    )
+    ax.annotate(
+        f"Spearman  {rho:.2f}   (per scene, n = {len(frame):,})",
+        xy=(0.03, 0.95),
+        xycoords="axes fraction",
+        fontsize=8.5,
+        color=INK,
+        va="top",
+    )
+    ax.set_ylabel("measured / floor $L_3$", color=INK_SOFT, fontsize=9)
+    ax.legend(loc="lower right", frameon=False, fontsize=8, labelcolor=INK_SOFT, markerscale=2.5)
+
+    # Panel b: what the two together predict.
+    predicted = np.exp(
+        beta[0] + beta[1] * np.log(frame.sigma_ch4_L3_mean) + beta[2] * np.log(frame.cv)
+    )
+    for corpus in [c for c in CORPUS_COLOURS if c in set(frame.dataset)]:
+        mask = frame.dataset == corpus
+        idx = np.flatnonzero(mask.to_numpy())
+        if len(idx) > sample:
+            idx = rng.choice(idx, sample, replace=False)
+        ax_fit.scatter(
+            predicted.to_numpy()[idx],
+            frame.measured.to_numpy()[idx],
+            s=3,
+            alpha=0.18,
+            color=CORPUS_COLOURS[corpus],
+            linewidths=0,
+            rasterized=True,
+        )
+
+    limits = _robust_limits([frame.measured.to_numpy(), predicted.to_numpy()])
+    ax_fit.plot(limits, limits, color=INK, linewidth=0.9, zorder=5)
+    ax_fit.set_xscale("log")
+    ax_fit.set_yscale("log")
+    ax_fit.set_xlim(*limits)
+    ax_fit.set_ylim(*limits)
+    _style(
+        ax_fit,
+        xlabel=r"predicted from floor and spread  [ppb]",
+        title="b  Two scene properties against the measurement",
+    )
+    ax_fit.set_ylabel(
+        r"measured $\sigma(\Delta \mathrm{XCH}_4)$  [ppb]", color=INK_SOFT, fontsize=9
+    )
+    ax_fit.annotate(
+        f"$R^2$ = {r2:.2f}\nfloor alone {r2_floor:.2f},  spread alone {r2_spread:.2f}\n"
+        rf"$\sigma \propto \sigma_{{L_3}}^{{{beta[1]:.2f}}} \, "
+        rf"(\sigma_{{L_{{23}}}}/\overline{{L_{{23}}}})^{{{beta[2]:.2f}}}$",
+        xy=(0.03, 0.95),
+        xycoords="axes fraction",
+        fontsize=8.5,
+        color=INK,
+        va="top",
+    )
+
+    fig.tight_layout()
+    fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"wrote {path}")
+
+
+def figure_drivers_by_region(scenes: pd.DataFrame, path: str, min_scenes: int = 30) -> None:
+    """S4: the same scatter, one panel per region.
+
+    The pooled version of this relation could be an artefact of aggregation --
+    regions differing in both quantities would produce it without any scene-level
+    relation at all. One panel per region is the check, and it holds.
+    """
+    from scipy.stats import spearmanr
+
+    frame = scenes.assign(cv=relative_spread(scenes))
+    frame = frame[(frame.cv > 0) & frame.ratio_L3.notna()]
+    order = [
+        c
+        for c in ORDER_CASE_STUDIES_EXT
+        + sorted(set(frame.case_study) - set(ORDER_CASE_STUDIES_EXT))
+        if (frame.case_study == c).sum() >= min_scenes
+    ]
+
+    columns = 4
+    rows = -(-len(order) // columns)
+    fig, axes = plt.subplots(
+        rows, columns, figsize=(3.3 * columns, 3.0 * rows), sharex=True, sharey=True
+    )
+    fig.patch.set_facecolor("white")
+    axes = np.atleast_1d(axes).ravel()
+
+    xlim = _robust_limits([frame.cv.to_numpy()])
+    ylim = _robust_limits([frame.ratio_L3.to_numpy()])
+
+    for ax, case in zip(axes, order, strict=False):
+        subset = frame[frame.case_study == case]
+        colour = CORPUS_COLOURS.get(
+            subset.dataset.iloc[0] if subset.dataset.nunique() == 1 else "", INK
+        )
+        ax.scatter(
+            subset.cv, subset.ratio_L3, s=4, alpha=0.3, color=colour, linewidths=0, rasterized=True
+        )
+        ax.axhline(1.0, color=GRID, linewidth=0.8, zorder=0)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlim(*xlim)
+        ax.set_ylim(*ylim)
+        _style(ax, title=f"{case}  (n = {len(subset):,})")
+        ax.annotate(
+            rf"$\rho$ = {spearmanr(subset.cv, subset.ratio_L3).statistic:.2f}",
+            xy=(0.04, 0.94),
+            xycoords="axes fraction",
+            fontsize=8,
+            color=INK,
+            va="top",
+        )
+
+    for ax in axes[len(order) :]:
+        ax.set_visible(False)
+
+    fig.supxlabel(
+        r"relative spread of the scene,  $\sigma(L_{23})/\overline{L_{23}}$",
+        color=INK_SOFT,
+        fontsize=10,
+    )
+    fig.supylabel("measured / floor $L_3$", color=INK_SOFT, fontsize=10)
+    fig.tight_layout()
+    fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"wrote {path}")
+
+
+def figure_breaches(scenes: pd.DataFrame, path: str) -> None:
+    """F4: how often the measurement falls below each rung.
+
+    The ordering L1 <= L2 <= L3 <= measured is a result, not an assertion, and
+    this is how often it fails. Reading it by rung is the point: each term the
+    floor drops makes it harder to breach, which is what correlated noise between
+    the four terms would produce, while the one term no method can drop is
+    breached by well under one scene in a hundred.
+    """
+    order = case_study_order(scenes, min_scenes=30)
+    floor_share = 0.02  # where a zero sits on a log axis, drawn hollow
+
+    fig, ax = plt.subplots(figsize=(8.6, 0.42 * len(order) + 2.2))
+    fig.patch.set_facecolor("white")
+
+    for rung, offset in zip(["L1", "L2", "L3"], [0.24, 0.0, -0.24], strict=True):
+        shares, positions, empty = [], [], []
+        for i, case in enumerate(order):
+            subset = scenes.loc[scenes.case_study == case, f"ratio_{rung}"].dropna()
+            share = (subset < 1).mean() * 100 if len(subset) else np.nan
+            shares.append(max(share, floor_share))
+            positions.append(i + offset)
+            empty.append(share == 0)
+        ax.scatter(
+            [s for s, e in zip(shares, empty) if not e],
+            [p for p, e in zip(positions, empty) if not e],
+            s=46,
+            color=RUNG_COLOURS[rung],
+            zorder=4,
+            label=f"below {rung}",
+        )
+        ax.scatter(
+            [s for s, e in zip(shares, empty) if e],
+            [p for p, e in zip(positions, empty) if e],
+            s=46,
+            facecolor="white",
+            edgecolor=RUNG_COLOURS[rung],
+            linewidth=1.0,
+            zorder=4,
+        )
+
+    ax.set_yticks(range(len(order)))
+    ax.set_yticklabels(order, fontsize=8, color=INK)
+    ax.set_ylim(-0.7, len(order) - 0.3)
+    ax.invert_yaxis()
+    ax.set_xscale("log")
+    ax.set_xlim(floor_share / 1.6, 100)
+    ax.set_xticks([0.1, 1, 10, 100])
+    ax.set_xticklabels(["0.1%", "1%", "10%", "100%"])
+    _style(ax, xlabel="scenes reading below the rung", title="")
+    ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(0.0, -0.09),
+        ncol=3,
+        frameon=False,
+        fontsize=8,
+        labelcolor=INK_SOFT,
+    )
+    ax.annotate(
+        "hollow: none",
+        xy=(0.99, 1.02),
+        xycoords="axes fraction",
+        ha="right",
+        fontsize=7.5,
+        style="italic",
+        color=INK_SOFT,
+    )
+
+    fig.tight_layout()
+    fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"wrote {path}")
 
 
 if __name__ == "__main__":
