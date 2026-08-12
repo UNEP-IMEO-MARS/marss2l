@@ -680,9 +680,11 @@ def figures(
         extra_label: Name of its row on the case-study axis.
         permian_shapefile: Polygon of the Permian basin. Given one, the United
             States row becomes the basin and the scenes outside it join ``Rest``
-            -- see :func:`apply_permian_labels`. Applies to the main corpus only:
-            the second one is a worldwide sample, where the country is the honest
-            label and the basin would be a row of nothing.
+            -- see :func:`apply_permian_labels`. Applied to **both** corpora, so
+            that one axis label means one thing across every figure; in a
+            worldwide corpus that leaves a small basin row and moves the rest of
+            its United States scenes to ``Rest``, which is the honest reading of
+            what those scenes are.
         supplement: Also draw the second corpus stratified by the case studies of
             the first, which is what says whether it differs in regime or only in
             composition.
@@ -699,6 +701,8 @@ def figures(
         if supplement:
             by_country = extra.copy()
             by_country["case_study"] = by_country["country"].apply(_set_case_study)
+            if permian_shapefile is not None:
+                by_country = apply_permian_labels(by_country, permian_shapefile)
             supplementary_figures(by_country, output_dir, extra_label)
         scenes = pd.concat([scenes, extra], ignore_index=True)
 
