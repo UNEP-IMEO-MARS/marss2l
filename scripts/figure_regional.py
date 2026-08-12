@@ -597,6 +597,111 @@ def figure_by_country(
     print(f"wrote {path}")
 
 
+#: Corpus identity, for the figure that compares the two. Deliberately not the
+#: rung blue or the measured orange, which carry a different meaning everywhere
+#: else in the paper.
+CORPUS_COLOURS = {"MARS-S2L": "#1f7a6f", "CloudSEN12": "#b5537f"}
+
+
+def figure_corpora(main: pd.DataFrame, extra: pd.DataFrame, path: str) -> None:
+    """S3: the same regions in both corpora, with no floor in sight.
+
+    The supplement's other two figures each show one corpus. This one puts them
+    side by side on the three quantities that do not depend on the noise model at
+    all -- what the retrieval reads, how bright the scene is, how variegated it
+    is -- so that the reader can see which differences between the corpora are
+    about the surface and which are about what the images were taken of.
+
+    The comparison is only meaningful within a row: a region samples the same
+    ground in both corpora, up to where in it the images fall.
+
+    Args:
+        main: Scenes of the first corpus, with per-region ``case_study``.
+        extra: Scenes of the second, stratified the same way.
+        path: Where to write the figure.
+    """
+    scenes = pd.concat([main, extra], ignore_index=True)
+    corpora = [c for c in CORPUS_COLOURS if c in set(scenes.dataset)]
+    order = [c for c in ORDER_CASE_STUDIES_EXT if c in set(scenes.case_study)]
+
+    counts = scenes.groupby(["case_study", "dataset"]).size().unstack(fill_value=0)
+    labels = [
+        f"{case}  ({' | '.join(f'{counts.get(c, {}).get(case, 0):,}' for c in corpora)})"
+        for case in order
+    ]
+
+    panels = [
+        (
+            "measured",
+            r"$\sigma(\Delta \mathrm{XCH}_4)$ measured  [ppb]",
+            "a  What the retrieval reads",
+        ),
+        (
+            "radiance_B12_mean",
+            r"mean radiance at 2.3 $\mu$m  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
+            "b  How bright the scene is",
+        ),
+        (
+            "radiance_B12_std",
+            r"std. dev. within the scene  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
+            "c  How uniform it is",
+        ),
+    ]
+
+    rng = np.random.default_rng(0)
+    fig, axes = plt.subplots(1, 3, figsize=(15.6, 0.52 * len(order) + 2.6), sharey=True)
+    fig.patch.set_facecolor("white")
+
+    radiance_pool: list = []
+    for ax, (column, xlabel, title) in zip(axes, panels, strict=True):
+        pooled = []
+        for corpus, offset in zip(corpora, np.linspace(0.18, -0.18, len(corpora)), strict=True):
+            subset = scenes[scenes.dataset == corpus]
+            data = [subset.loc[subset.case_study == c, column].dropna().values for c in order]
+            pooled.extend(data)
+            _boxes(ax, data, [i + offset for i in range(len(order))], CORPUS_COLOURS[corpus], 0.3)
+            for position, values in enumerate(data):
+                _jittered(ax, values, position + offset, INK, rng, width=0.12)
+
+        ax.set_yticks(range(len(order)))
+        ax.set_yticklabels(labels, fontsize=8, color=INK)
+        ax.set_ylim(-0.7, len(order) - 0.3)
+        ax.invert_yaxis()
+        ax.set_xscale("log")
+        ax.set_xlim(*_robust_limits(pooled))
+        _style(ax, xlabel=xlabel, title=title)
+        if column.startswith("radiance"):
+            radiance_pool.extend(pooled)
+
+    # The two radiance panels are the same quantity in the same unit; one scale
+    # across both is what shows that the spread sits an order of magnitude below
+    # the level. The ppb panel keeps its own.
+    for ax in axes[1:]:
+        ax.set_xlim(*_robust_limits(radiance_pool))
+
+    fig.legend(
+        handles=[Patch(facecolor=CORPUS_COLOURS[c], label=c) for c in corpora],
+        loc="lower center",
+        ncol=len(corpora),
+        frameon=False,
+        fontsize=9,
+        labelcolor=INK_SOFT,
+        bbox_to_anchor=(0.5, -0.04),
+    )
+    fig.suptitle(
+        "n per region as (" + " | ".join(corpora) + ")",
+        x=0.0,
+        ha="left",
+        fontsize=8.5,
+        color=INK_SOFT,
+        y=1.02,
+    )
+    fig.tight_layout()
+    fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"wrote {path}")
+
+
 def supplementary_figures(scenes: pd.DataFrame, output_dir: str, label: str) -> None:
     """The supplement: one corpus, stratified by the case studies of the other.
 
@@ -704,6 +809,7 @@ def figures(
             if permian_shapefile is not None:
                 by_country = apply_permian_labels(by_country, permian_shapefile)
             supplementary_figures(by_country, output_dir, extra_label)
+            figure_corpora(scenes, by_country, os.path.join(output_dir, "corpora_by_region.png"))
         scenes = pd.concat([scenes, extra], ignore_index=True)
 
     print(f"{len(scenes):,} scenes after selection")
