@@ -338,16 +338,25 @@ def figure(
     fig.patch.set_facecolor("white")
     axes = np.atleast_2d(axes)
 
+    # Read every scene first: the radiance column needs one scale across the whole
+    # figure, and that scale cannot be known until all of them are in hand. A
+    # per-row scale is the subtler kind of wrong -- each panel reads correctly on
+    # its own, and any comparison between rows is silently invalid.
+    all_rasters = [
+        scene_rasters(row, fs=fs_from_path(str(row.s2path))) for _, row in chosen.iterrows()
+    ]
+    pooled = np.concatenate([np.ravel(r["radiance"].values) for r in all_rasters])
+    pooled = pooled[np.isfinite(pooled)]
+    radiance_range = dict(vmin=0.0, vmax=float(np.percentile(pooled, 99.5)))
+
     for row_index, (_, row) in enumerate(chosen.iterrows()):
-        # Per row: the two corpora live on different filesystems, and fs_from_path
-        # caches, so this costs one lookup rather than one connection.
-        rasters = scene_rasters(row, fs=fs_from_path(str(row.s2path)))
+        rasters = all_rasters[row_index]
         # The radiance keeps a colour bar per row, since its range is the scene's
         # own and is worth reading; the three ppb columns share one scale across
         # the whole figure, so one colour bar on the top row serves all of them.
         panels = [
             (rasters["rgb"], {}),
-            (rasters["radiance"], dict(cmap=RADIANCE_CMAP, add_colorbar_next_to=True)),
+            (rasters["radiance"], dict(cmap=RADIANCE_CMAP, **radiance_range)),
             (rasters["ch4"], dict(vmin=0, vmax=vmax["ch4"], cmap=PPB_CMAP)),
             (rasters["sigma"], dict(vmin=0, vmax=vmax["sigma"], cmap=PPB_CMAP)),
         ]
@@ -411,10 +420,13 @@ def figure(
     # would repeat the scale ten times and steal width from the panels carrying
     # them, leaving the rows visibly unequal.
     fig.tight_layout()
-    for column, key in enumerate(["ch4", "sigma"] + (["ch4"] if plumes else []), start=2):
-        mappable = mpl.cm.ScalarMappable(
-            norm=mpl.colors.Normalize(vmin=0, vmax=vmax[key]), cmap=PPB_CMAP
-        )
+    bars = [
+        (1, RADIANCE_CMAP, radiance_range["vmax"], r"W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$"),
+        (2, PPB_CMAP, vmax["ch4"], "ppb"),
+        (3, PPB_CMAP, vmax["sigma"], "ppb"),
+    ] + ([(4, PPB_CMAP, vmax["ch4"], "ppb")] if plumes else [])
+    for column, cmap, top, label in bars:
+        mappable = mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=0, vmax=top), cmap=cmap)
         bar = fig.colorbar(
             mappable,
             ax=axes[:, column].tolist(),
@@ -423,7 +435,7 @@ def figure(
             pad=0.012,
             aspect=22,
         )
-        bar.set_label("ppb", fontsize=10)
+        bar.set_label(label, fontsize=10)
         bar.ax.tick_params(labelsize=9)
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
