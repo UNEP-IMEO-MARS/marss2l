@@ -33,10 +33,12 @@ import cyclopts
 import matplotlib as mpl
 import numpy as np
 import pandas as pd
+from shapely import wkt
 
 mpl.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from georeader import plot  # noqa: E402
+from georeader.plot import add_shape_to_plot  # noqa: E402
 from georeader.geotensor import GeoTensor  # noqa: E402
 
 from marss2l import shot_noise  # noqa: E402
@@ -235,6 +237,7 @@ PATH_COLUMNS = [
     "location_name",
     "wind_u",
     "wind_v",
+    "plume",
 ]
 
 
@@ -364,6 +367,29 @@ def figure(
         wind_plot.add_wind_to_plot(
             [float(row.wind_u), float(row.wind_v)], ax=axes[row_index, 2], fontsize=9
         )
+
+        # The validated plume, outlined and unfilled, on the two retrieval panels:
+        # on the third it says which part of the image is methane, and on the
+        # fifth whether what survived the significance test is that same part.
+        if plumes and isinstance(row.plume, str):
+            geometry = wkt.loads(row.plume)
+            if not geometry.is_empty:
+                for column in (2, 4):
+                    ax = axes[row_index, column]
+                    # A plume that runs past the frame would otherwise stretch the
+                    # axes to fit it, leaving the panel padded and out of step
+                    # with its row.
+                    limits = (ax.get_xlim(), ax.get_ylim())
+                    add_shape_to_plot(
+                        shape=geometry,
+                        ax=ax,
+                        crs_plot=rasters["ch4"].crs,
+                        crs_shape="EPSG:4326",
+                        polygon_no_fill=True,
+                        kwargs_geopandas_plot={"color": "red", "linewidth": 1.0},
+                    )
+                    ax.set_xlim(*limits[0])
+                    ax.set_ylim(*limits[1])
 
         # Horizontal, in the left margin: a rotated label at this size is a
         # smear, and the row identity is the first thing a reader looks for.
