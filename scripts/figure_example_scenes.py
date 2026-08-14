@@ -62,15 +62,22 @@ RADIANCE_CMAP = "viridis"
 #: labels carry the numbers that make them comparable.
 DEFAULT_VMAX = {"ch4": 1_500.0, "sigma": 500.0}
 
+#: Pixels below this many propagated standard deviations are not distinguishable
+#: from photon noise, and the detection column hides them.
+SIGNIFICANCE = 1.96
+
 COLUMN_TITLES = [
     "RGB",
     r"$L_{23}$  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
     r"$\Delta$XCH$_4$  [ppb]",
     r"$\sigma(\Delta$XCH$_4)$ at $L_3$  [ppb]",
 ]
+DETECTION_TITLE = rf"$\Delta$XCH$_4$ above ${SIGNIFICANCE}\,\sigma(L_3)$  [ppb]"
 
 
-def select_scenes(scenes: pd.DataFrame, rows: int, seed: int = 0) -> pd.DataFrame:
+def select_scenes(
+    scenes: pd.DataFrame, rows: int, seed: int = 0, plumes: bool = False
+) -> pd.DataFrame:
     """A diverse sample: one scene per noise level, spread over regions.
 
     Bins the scenes by their own ``epsilon(L3)`` into as many quantile bins as
@@ -86,6 +93,7 @@ def select_scenes(scenes: pd.DataFrame, rows: int, seed: int = 0) -> pd.DataFram
     Args:
         scenes: Output of ``figure_regional.load_scenes``, with ``case_study``.
         rows: How many scenes to return.
+        plumes: Draw scenes that contain a plume instead of plume-free ones.
         seed: Unused now that each bin contributes its representative scene
             rather than a random member; kept so the caller's flag still works.
 
@@ -93,7 +101,11 @@ def select_scenes(scenes: pd.DataFrame, rows: int, seed: int = 0) -> pd.DataFram
         The chosen rows, ordered by ``epsilon(L3)``.
     """
     frame = scenes.dropna(subset=["epsilon_L3_mean", "sigma_ch4_L3_mean", "measured"]).copy()
-    frame = frame[frame.isplume != 1]
+    if plumes:
+        # A plume of a dozen pixels illustrates nothing about a detection limit.
+        frame = frame[(frame.isplume == 1) & (frame.npixelsplume >= 30)]
+    else:
+        frame = frame[frame.isplume != 1]
 
     # A scene half covered by no-data or cloud makes a poor illustration: the
     # panels are then mostly blank and the eye reads the mask, not the retrieval.
@@ -133,7 +145,7 @@ def scene_rasters(row: pd.Series, fs=None) -> dict:
         fs: Filesystem for the image paths.
 
     Returns:
-        ``rgb``, ``radiance``, ``ch4``, ``sigma``.
+        ``rgb``, ``radiance``, ``ch4``, ``sigma``, ``detected``.
     """
     nbands = len(BANDS_S2_IN_L8)
     b11, b12 = BANDS_S2_IN_L8.index("B11"), BANDS_S2_IN_L8.index("B12")
@@ -194,12 +206,17 @@ def scene_rasters(row: pd.Series, fs=None) -> dict:
             fill_value_default=np.nan,
         )
 
+    # What survives a per-pixel significance test against that scene's own floor:
+    # the retrieval, with everything photon noise could plausibly explain removed.
+    detected = np.where(ch4 >= SIGNIFICANCE * sigma, ch4, np.nan)
+
     rgb = np.clip(target[[2, 1, 0]] / RGB_SCALE, 0, 1)
     return {
         "rgb": GeoTensor(rgb, transform=image.transform, crs=image.crs, fill_value_default=np.nan),
         "radiance": masked(radiance_23),
         "ch4": masked(ch4),
         "sigma": masked(sigma),
+        "detected": masked(detected),
     }
 
 
@@ -257,6 +274,7 @@ def figure(
     extra_stats_csv: Optional[str] = None,
     extra_images_csv: Optional[str] = None,
     only: Optional[list[str]] = None,
+    plumes: bool = False,
     ch4_vmax: float = DEFAULT_VMAX["ch4"],
     sigma_vmax: float = DEFAULT_VMAX["sigma"],
     seed: int = 0,
@@ -280,6 +298,10 @@ def figure(
         only: ``id_loc_image`` values to draw, in order, instead of sampling.
             How a selection made by eye from a longer draft is pinned for the
             paper, so the figure is reproducible from the command line alone.
+        plumes: Draw scenes containing a plume, and add a fifth column showing
+            the retrieval with everything below the per-pixel detection limit
+            masked out. The measured noise in the label is then taken over the
+            scene's plume-free pixels, which the label says.
         ch4_vmax: Upper end of the retrieval colour scale, in ppb.
         sigma_vmax: Upper end of the floor's scale. Lower than the retrieval's,
             since the floor is a few hundred ppb where the retrieval's excursions
@@ -301,14 +323,15 @@ def figure(
             raise KeyError(f"not in the selection: {missing}")
         chosen = indexed.loc[list(only)].reset_index(drop=True)
     else:
-        chosen = select_scenes(scenes, rows, seed=seed)
+        chosen = select_scenes(scenes, rows, seed=seed, plumes=plumes)
     print(
         chosen[
             ["dataset", "case_study", "location_name", "satellite", "epsilon_L3_mean", "measured"]
         ].to_string()
     )
 
-    fig, axes = plt.subplots(len(chosen), 4, figsize=(13.4, 3.3 * len(chosen)))
+    columns = 5 if plumes else 4
+    fig, axes = plt.subplots(len(chosen), columns, figsize=(3.35 * columns, 3.3 * len(chosen)))
     fig.patch.set_facecolor("white")
     axes = np.atleast_2d(axes)
 
@@ -325,13 +348,16 @@ def figure(
             (rasters["ch4"], dict(vmin=0, vmax=vmax["ch4"], cmap=PPB_CMAP)),
             (rasters["sigma"], dict(vmin=0, vmax=vmax["sigma"], cmap=PPB_CMAP)),
         ]
+        if plumes:
+            panels.append((rasters["detected"], dict(vmin=0, vmax=vmax["ch4"], cmap=PPB_CMAP)))
         for column, (raster, kwargs) in enumerate(panels):
             ax = axes[row_index, column]
             plot.show(raster, ax=ax, add_scalebar=(column == 0), **kwargs)
             ax.set_xticks([])
             ax.set_yticks([])
             if row_index == 0:
-                ax.set_title(COLUMN_TITLES[column], fontsize=11, loc="left", pad=10)
+                titles = COLUMN_TITLES + ([DETECTION_TITLE] if plumes else [])
+                ax.set_title(titles[column], fontsize=11, loc="left", pad=10)
 
         # The wind is what a reader needs to tell a plume from a surface feature,
         # and the retrieval panel is where that judgement is made.
@@ -345,7 +371,7 @@ def figure(
             f"{row.case_study}{'  ·  plume' if row.isplume == 1 else ''}\n"
             f"{row.satellite}   {str(row.tile_date)[:10]}\n"
             f"floor $L_3$ {row.sigma_ch4_L3_mean:.0f} ppb\n"
-            f"measured {row.measured:.0f} ppb\n"
+            f"measured {row.measured:.0f} ppb{' (plume-free px)' if row.isplume == 1 else ''}\n"
             f"({row.measured / row.sigma_ch4_L3_mean:.1f}$\\times$ floor)",
             fontsize=10,
             rotation=0,
@@ -359,7 +385,7 @@ def figure(
     # would repeat the scale ten times and steal width from the panels carrying
     # them, leaving the rows visibly unequal.
     fig.tight_layout()
-    for column, key in enumerate(["ch4", "sigma"], start=2):
+    for column, key in enumerate(["ch4", "sigma"] + (["ch4"] if plumes else []), start=2):
         mappable = mpl.cm.ScalarMappable(
             norm=mpl.colors.Normalize(vmin=0, vmax=vmax[key]), cmap=PPB_CMAP
         )
