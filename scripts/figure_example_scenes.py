@@ -425,6 +425,19 @@ def figure(
         (2, PPB_CMAP, vmax["ch4"], "ppb"),
         (3, PPB_CMAP, vmax["sigma"], "ppb"),
     ] + ([(4, PPB_CMAP, vmax["ch4"], "ppb")] if plumes else [])
+    # The RGB column has nothing to put a bar under, but a column without one is
+    # not shrunk by it either, so its panels would sit taller than the rest. An
+    # invisible bar of the same size reserves the space and keeps the row aligned.
+    stub = fig.colorbar(
+        mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(0, 1), cmap="gray"),
+        ax=axes[:, 0].tolist(),
+        orientation="horizontal",
+        fraction=0.013,
+        pad=0.012,
+        aspect=22,
+    )
+    stub.ax.set_visible(False)
+
     for column, cmap, top, label in bars:
         mappable = mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=0, vmax=top), cmap=cmap)
         bar = fig.colorbar(
