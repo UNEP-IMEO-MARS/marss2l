@@ -78,7 +78,11 @@ DETECTION_TITLE = rf"$\Delta$XCH$_4$ above ${SIGNIFICANCE}\,\sigma(L_3)$  [ppb]"
 
 
 def select_scenes(
-    scenes: pd.DataFrame, rows: int, seed: int = 0, plumes: bool = False
+    scenes: pd.DataFrame,
+    rows: int,
+    seed: int = 0,
+    plumes: bool = False,
+    satellite: Optional[str] = None,
 ) -> pd.DataFrame:
     """A diverse sample: one scene per noise level, spread over regions.
 
@@ -96,6 +100,9 @@ def select_scenes(
         scenes: Output of ``figure_regional.load_scenes``, with ``case_study``.
         rows: How many scenes to return.
         plumes: Draw scenes that contain a plume instead of plume-free ones.
+        satellite: Keep one instrument only. The conversion from a transmittance
+            ratio to ppb differs between platforms, so a figure meant to build
+            intuition rather than to compare instruments is clearer on one.
         seed: Unused now that each bin contributes its representative scene
             rather than a random member; kept so the caller's flag still works.
 
@@ -117,6 +124,9 @@ def select_scenes(
     # Binned on epsilon, which is a monotone function of the same eta as the
     # floor the figure plots -- same partition, and the rows do not move when the
     # columns do.
+    if satellite is not None:
+        frame = frame[frame.satellite == satellite]
+
     frame["bin"] = pd.qcut(frame.epsilon_L3_mean, rows, labels=False, duplicates="drop")
 
     chosen, used = [], set()
@@ -278,8 +288,10 @@ def figure(
     extra_images_csv: Optional[str] = None,
     only: Optional[list[str]] = None,
     plumes: bool = False,
+    satellite: Optional[str] = None,
     ch4_vmax: float = DEFAULT_VMAX["ch4"],
-    sigma_vmax: float = DEFAULT_VMAX["sigma"],
+    sigma_vmin: Optional[float] = None,
+    sigma_vmax: Optional[float] = None,
     seed: int = 0,
 ) -> None:
     """Draw the example-scene figure.
@@ -305,13 +317,18 @@ def figure(
             the retrieval with everything below the per-pixel detection limit
             masked out. The measured noise in the label is then taken over the
             scene's plume-free pixels, which the label says.
+        satellite: Keep one instrument only.
         ch4_vmax: Upper end of the retrieval colour scale, in ppb.
-        sigma_vmax: Upper end of the floor's scale. Lower than the retrieval's,
-            since the floor is a few hundred ppb where the retrieval's excursions
-            are a few thousand.
+        sigma_vmin: Lower end of the floor's scale. Defaults to the 1st
+            percentile of the floors actually drawn: the floor varies by tens of
+            ppb within a scene where the retrieval varies by thousands, so a
+            scale starting at zero hides the very structure the column is there
+            to show.
+        sigma_vmax: Upper end of the floor's scale. Defaults to the 99th
+            percentile of the same pixels.
         seed: Sampling seed for the selection.
     """
-    vmax = {"ch4": ch4_vmax, "sigma": sigma_vmax}
+    vmax = {"ch4": ch4_vmax}
     scenes = corpus_with_paths(stats_csv, images_csv, permian_shapefile, path_prepend_data)
     if extra_stats_csv is not None:
         scenes = pd.concat(
@@ -326,7 +343,7 @@ def figure(
             raise KeyError(f"not in the selection: {missing}")
         chosen = indexed.loc[list(only)].reset_index(drop=True)
     else:
-        chosen = select_scenes(scenes, rows, seed=seed, plumes=plumes)
+        chosen = select_scenes(scenes, rows, seed=seed, plumes=plumes, satellite=satellite)
     print(
         chosen[
             ["dataset", "case_study", "location_name", "satellite", "epsilon_L3_mean", "measured"]
@@ -345,9 +362,24 @@ def figure(
     all_rasters = [
         scene_rasters(row, fs=fs_from_path(str(row.s2path))) for _, row in chosen.iterrows()
     ]
-    pooled = np.concatenate([np.ravel(r["radiance"].values) for r in all_rasters])
-    pooled = pooled[np.isfinite(pooled)]
-    radiance_range = dict(vmin=0.0, vmax=float(np.percentile(pooled, 99.5)))
+
+    def pooled_range(key: str, low: float, high: float, floor_at_zero: bool) -> dict:
+        pooled = np.concatenate([np.ravel(r[key].values) for r in all_rasters])
+        pooled = pooled[np.isfinite(pooled)]
+        return dict(
+            vmin=0.0 if floor_at_zero else float(np.percentile(pooled, low)),
+            vmax=float(np.percentile(pooled, high)),
+        )
+
+    radiance_range = pooled_range("radiance", 0.5, 99.5, floor_at_zero=True)
+    sigma_range = {
+        "vmin": (
+            sigma_vmin if sigma_vmin is not None else pooled_range("sigma", 1, 99, False)["vmin"]
+        ),
+        "vmax": (
+            sigma_vmax if sigma_vmax is not None else pooled_range("sigma", 1, 99, False)["vmax"]
+        ),
+    }
 
     for row_index, (_, row) in enumerate(chosen.iterrows()):
         rasters = all_rasters[row_index]
@@ -358,7 +390,7 @@ def figure(
             (rasters["rgb"], {}),
             (rasters["radiance"], dict(cmap=RADIANCE_CMAP, **radiance_range)),
             (rasters["ch4"], dict(vmin=0, vmax=vmax["ch4"], cmap=PPB_CMAP)),
-            (rasters["sigma"], dict(vmin=0, vmax=vmax["sigma"], cmap=PPB_CMAP)),
+            (rasters["sigma"], dict(cmap=PPB_CMAP, **sigma_range)),
         ]
         if plumes:
             panels.append((rasters["detected"], dict(vmin=0, vmax=vmax["ch4"], cmap=PPB_CMAP)))
@@ -421,9 +453,9 @@ def figure(
     # them, leaving the rows visibly unequal.
     fig.tight_layout()
     bars = [
-        (1, RADIANCE_CMAP, radiance_range["vmax"], r"W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$"),
-        (2, PPB_CMAP, vmax["ch4"], "ppb"),
-        (3, PPB_CMAP, vmax["sigma"], "ppb"),
+        (1, RADIANCE_CMAP, radiance_range, r"W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$"),
+        (2, PPB_CMAP, dict(vmin=0, vmax=vmax["ch4"]), "ppb"),
+        (3, PPB_CMAP, sigma_range, "ppb"),
     ] + ([(4, PPB_CMAP, vmax["ch4"], "ppb")] if plumes else [])
     # The RGB column has nothing to put a bar under, but a column without one is
     # not shrunk by it either, so its panels would sit taller than the rest. An
@@ -438,8 +470,8 @@ def figure(
     )
     stub.ax.set_visible(False)
 
-    for column, cmap, top, label in bars:
-        mappable = mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=0, vmax=top), cmap=cmap)
+    for column, cmap, limits, label in bars:
+        mappable = mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(**limits), cmap=cmap)
         bar = fig.colorbar(
             mappable,
             ax=axes[:, column].tolist(),
