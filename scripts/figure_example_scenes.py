@@ -38,6 +38,7 @@ from georeader.geotensor import GeoTensor  # noqa: E402
 
 from marss2l import shot_noise  # noqa: E402
 from marss2l.loaders import BANDS_S2_IN_L8  # noqa: E402
+from marss2l.mars_sentinel2 import wind as wind_plot  # noqa: E402
 from marss2l.mars_sentinel2.transmittance_to_ch4 import (  # noqa: E402
     TransmittanceCH4InterpolationFromDict,
     compute_xch4_retrieval,
@@ -50,7 +51,7 @@ app = cyclopts.App()
 #: RGB, and the retrieval is shown on plasma over 0-1500 ppb.
 RGB_SCALE = 4_500.0
 PPB_RANGE = dict(vmin=0, vmax=1_500, cmap="plasma")
-RADIANCE_CMAP = "cividis"
+RADIANCE_CMAP = "viridis"
 
 COLUMN_TITLES = [
     "RGB",
@@ -203,6 +204,8 @@ PATH_COLUMNS = [
     "tile_date_bg",
     "offshore",
     "location_name",
+    "wind_u",
+    "wind_v",
 ]
 
 
@@ -297,13 +300,12 @@ def figure(
         # The radiance keeps a colour bar per row, since its range is the scene's
         # own and is worth reading; the three ppb columns share one scale across
         # the whole figure, so one colour bar on the top row serves all of them.
-        first_row = row_index == 0
         panels = [
             (rasters["rgb"], {}),
             (rasters["radiance"], dict(cmap=RADIANCE_CMAP, add_colorbar_next_to=True)),
-            (rasters["ch4"], dict(add_colorbar_next_to=first_row, **PPB_RANGE)),
-            (rasters["epsilon"], dict(add_colorbar_next_to=first_row, **PPB_RANGE)),
-            (rasters["sigma"], dict(add_colorbar_next_to=first_row, **PPB_RANGE)),
+            (rasters["ch4"], dict(**PPB_RANGE)),
+            (rasters["epsilon"], dict(**PPB_RANGE)),
+            (rasters["sigma"], dict(**PPB_RANGE)),
         ]
         for column, (raster, kwargs) in enumerate(panels):
             ax = axes[row_index, column]
@@ -311,17 +313,48 @@ def figure(
             ax.set_xticks([])
             ax.set_yticks([])
             if row_index == 0:
-                ax.set_title(COLUMN_TITLES[column], fontsize=10, loc="left")
+                ax.set_title(COLUMN_TITLES[column], fontsize=11, loc="left", pad=10)
 
-        axes[row_index, 0].set_ylabel(
-            f"{row.case_study}{'  ·  plume' if row.isplume == 1 else ''}\n"
-            f"{row.satellite}  ·  {str(row.tile_date)[:10]}\n"
-            f"$\\epsilon(L_3)$ {row.epsilon_L3_mean:.0f} · measured {row.measured:.0f} ppb"
-            f"  ({row.measured / row.sigma_ch4_L3_mean:.1f}$\\times$ floor)",
-            fontsize=8.5,
+        # The wind is what a reader needs to tell a plume from a surface feature,
+        # and the retrieval panel is where that judgement is made.
+        wind_plot.add_wind_to_plot(
+            [float(row.wind_u), float(row.wind_v)], ax=axes[row_index, 2], fontsize=9
         )
 
+        # Horizontal, in the left margin: a rotated label at this size is a
+        # smear, and the row identity is the first thing a reader looks for.
+        axes[row_index, 0].set_ylabel(
+            f"{row.case_study}{'  ·  plume' if row.isplume == 1 else ''}\n"
+            f"{row.satellite}   {str(row.tile_date)[:10]}\n"
+            f"$\\epsilon(L_3)$ {row.epsilon_L3_mean:.0f} ppb\n"
+            f"measured {row.measured:.0f} ppb\n"
+            f"({row.measured / row.sigma_ch4_L3_mean:.1f}$\\times$ floor)",
+            fontsize=10,
+            rotation=0,
+            ha="right",
+            va="center",
+            labelpad=12,
+        )
+
+    # One colour bar for the three ppb columns, along the bottom. Per-panel bars
+    # would repeat the same scale ten times over and, worse, steal width from the
+    # panels that carry them, leaving the rows visibly unequal.
     fig.tight_layout()
+    mappable = mpl.cm.ScalarMappable(
+        norm=mpl.colors.Normalize(vmin=PPB_RANGE["vmin"], vmax=PPB_RANGE["vmax"]),
+        cmap=PPB_RANGE["cmap"],
+    )
+    bar = fig.colorbar(
+        mappable,
+        ax=axes[:, 2:].ravel().tolist(),
+        orientation="horizontal",
+        fraction=0.014,
+        pad=0.015,
+        aspect=60,
+    )
+    bar.set_label("ppb", fontsize=11)
+    bar.ax.tick_params(labelsize=10)
+
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     fig.savefig(output_path, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
