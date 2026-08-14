@@ -238,8 +238,19 @@ def _boxes(ax, data, positions, colour, width=0.24):
     return bp
 
 
-def figure_floors(scenes: pd.DataFrame, path: str) -> None:
-    """F1: the three floors per case study, faceted by satellite family."""
+def figure_floors(
+    scenes: pd.DataFrame, path: str, quantity: str = "sigma_ch4", unit: str = "ppb"
+) -> None:
+    """F1: the three floors per case study, faceted by satellite family.
+
+    Args:
+        scenes: Output of :func:`load_scenes`.
+        path: Where to write the figure.
+        quantity: Column stem, ``sigma_ch4`` for the propagated standard deviation
+            or ``epsilon`` for the detection threshold. The paper plots the first,
+            so that every ppb axis in it carries the same statistic.
+        unit: Axis unit.
+    """
     order = case_study_order(scenes)
     families = ["Sentinel-2", "Landsat"]
 
@@ -253,7 +264,7 @@ def figure_floors(scenes: pd.DataFrame, path: str) -> None:
         for offset, rung in zip([0.27, 0.0, -0.27], ["L1", "L2", "L3"], strict=True):
             data, positions = [], []
             for i, case in enumerate(order):
-                values = subset.loc[subset.case_study == case, f"epsilon_{rung}_mean"].dropna()
+                values = subset.loc[subset.case_study == case, f"{quantity}_{rung}_mean"].dropna()
                 if len(values) >= 5:
                     data.append(values.values)
                     positions.append(i + offset)
@@ -280,9 +291,14 @@ def figure_floors(scenes: pd.DataFrame, path: str) -> None:
         ax.set_ylim(-0.7, len(order) - 0.3)
         ax.invert_yaxis()  # keep ORDER_CASE_STUDIES reading top to bottom
         ax.set_xscale("log")
+        label = (
+            r"$\sigma(\Delta \mathrm{XCH}_4)$"
+            if quantity == "sigma_ch4"
+            else r"$\epsilon$ at $p=0.95$"
+        )
         _style(
             ax,
-            xlabel=r"$\epsilon$ at $p=0.95$  [ppb]",
+            xlabel=f"{label}  [{unit}]",
             title=f"{'a' if family == 'Sentinel-2' else 'b'}  {family}  (n = {len(subset):,})",
         )
 
@@ -823,8 +839,12 @@ def figures(
     print(f"{len(scenes):,} scenes after selection")
 
     figure_floors(scenes, os.path.join(output_dir, "floors_by_region.png"))
+    figure_floors(
+        scenes, os.path.join(output_dir, "floors_by_region_epsilon.png"), quantity="epsilon"
+    )
     figure_gap(scenes, os.path.join(output_dir, "gap_by_region.png"))
     figure_scenes(scenes, os.path.join(output_dir, "scenes_by_region.png"))
+    figure_scenes_and_gap(scenes, os.path.join(output_dir, "scenes_and_gap.png"))
     figure_breaches(scenes, os.path.join(output_dir, "breaches_by_region.png"))
 
     aggregations = dict(
@@ -1160,6 +1180,103 @@ def figure_breaches(scenes: pd.DataFrame, path: str) -> None:
         style="italic",
         color=INK_SOFT,
     )
+
+    fig.tight_layout()
+    fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"wrote {path}")
+
+
+def figure_scenes_and_gap(scenes: pd.DataFrame, path: str) -> None:
+    """The main result: what the scenes are, and what the retrieval reads on them.
+
+    Four panels on one case-study axis. The first two describe the imagery -- how
+    bright each scene is at 2.3 um and how much that radiance varies within it --
+    and the last two describe the retrieval: its measured noise against the floor
+    photon statistics permit, and the share of variance that leaves. They belong
+    in one figure because the second pair is only interpretable through the
+    first: brightness sets a region's floor and variegation sets its distance
+    above it.
+
+    Args:
+        scenes: Output of :func:`load_scenes` for both corpora.
+        path: Where to write the figure.
+    """
+    order = case_study_order(scenes, min_scenes=5)
+    fig, axes = plt.subplots(
+        1, 4, figsize=(16.4, 0.44 * len(order) + 2.4), sharey=True, gridspec_kw={"wspace": 0.12}
+    )
+    fig.patch.set_facecolor("white")
+
+    # A handful of near-zero radiances -- deep shadow and water in the worldwide
+    # corpus -- would otherwise stretch these axes over four decades and squeeze
+    # every box into the last one.
+    for ax, column, xlabel, title in [
+        (
+            axes[0],
+            "radiance_B12_mean",
+            r"mean radiance at 2.3 $\mu$m  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
+            "a  How bright the scene is",
+        ),
+        (
+            axes[1],
+            "radiance_B12_std",
+            r"std. dev. within the scene  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
+            "b  How uniform it is",
+        ),
+    ]:
+        data = [scenes.loc[scenes.case_study == c, column].dropna().values for c in order]
+        _boxes(ax, data, list(range(len(order))), RUNG_COLOURS["L3"], width=0.44)
+        ax.set_xscale("log")
+        ax.set_xlim(0.1, None)
+        _style(ax, xlabel=xlabel, title=title)
+
+    for offset, column, colour in [
+        (0.19, "sigma_ch4_L3_mean", RUNG_COLOURS["L3"]),
+        (-0.19, "measured", MEASURED),
+    ]:
+        data = [scenes.loc[scenes.case_study == c, column].dropna().values for c in order]
+        _boxes(axes[2], data, [i + offset for i in range(len(order))], colour, width=0.3)
+    axes[2].set_xscale("log")
+    _style(
+        axes[2],
+        xlabel=r"$\sigma(\Delta \mathrm{XCH}_4)$  [ppb]",
+        title="c  What the retrieval reads, against its floor",
+    )
+    axes[2].legend(
+        handles=[
+            Patch(facecolor=MEASURED, label="measured, plume-free pixels"),
+            Patch(facecolor=RUNG_COLOURS["L3"], label="floor $L_3$, propagated"),
+        ],
+        loc="upper left",
+        bbox_to_anchor=(0.0, -0.08),
+        ncol=2,
+        frameon=False,
+        fontsize=8,
+        labelcolor=INK_SOFT,
+    )
+
+    share = scenes.groupby("case_study").reducible.median().reindex(order)
+    axes[3].barh(range(len(order)), share.values, height=0.5, color=MEASURED, zorder=3)
+    for i, value in enumerate(share.values):
+        axes[3].annotate(
+            f"{value:.0%}",
+            xy=(value, i),
+            xytext=(4, 0),
+            textcoords="offset points",
+            va="center",
+            fontsize=8,
+            color=INK,
+        )
+    axes[3].set_xlim(0, 1.18)
+    axes[3].set_xticks([0, 0.5, 1.0])
+    axes[3].set_xticklabels(["0", "50%", "100%"])
+    _style(axes[3], xlabel="share of variance that is\nnot photon noise", title="d  Reducible")
+
+    axes[0].set_yticks(range(len(order)))
+    axes[0].set_yticklabels(order, fontsize=8, color=INK)
+    axes[0].set_ylim(-0.7, len(order) - 0.3)
+    axes[0].invert_yaxis()
 
     fig.tight_layout()
     fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
