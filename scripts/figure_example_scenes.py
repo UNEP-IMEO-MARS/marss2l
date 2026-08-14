@@ -50,8 +50,14 @@ app = cyclopts.App()
 #: Following the example notebooks: reflectance x 10,000 over this is a display
 #: RGB, and the retrieval is shown on plasma over 0-1500 ppb.
 RGB_SCALE = 4_500.0
-PPB_RANGE = dict(vmin=0, vmax=1_500, cmap="plasma")
+PPB_CMAP = "plasma"
 RADIANCE_CMAP = "viridis"
+
+#: The floors are a few hundred ppb where the retrieval's excursions are a few
+#: thousand, so a single scale for all three ppb columns leaves the two floor
+#: panels flat. Each column gets its own range, and its own colour bar, and the
+#: labels carry the numbers that make them comparable.
+DEFAULT_VMAX = {"ch4": 1_500.0, "epsilon": 800.0, "sigma": 500.0}
 
 COLUMN_TITLES = [
     "RGB",
@@ -245,6 +251,9 @@ def figure(
     extra_stats_csv: Optional[str] = None,
     extra_images_csv: Optional[str] = None,
     only: Optional[list[str]] = None,
+    ch4_vmax: float = DEFAULT_VMAX["ch4"],
+    epsilon_vmax: float = DEFAULT_VMAX["epsilon"],
+    sigma_vmax: float = DEFAULT_VMAX["sigma"],
     seed: int = 0,
 ) -> None:
     """Draw the example-scene figure.
@@ -266,8 +275,14 @@ def figure(
         only: ``id_loc_image`` values to draw, in order, instead of sampling.
             How a selection made by eye from a longer draft is pinned for the
             paper, so the figure is reproducible from the command line alone.
+        ch4_vmax: Upper end of the retrieval colour scale, in ppb.
+        epsilon_vmax: Upper end of the epsilon scale. Lower than the retrieval's,
+            since the floor is a few hundred ppb where the retrieval's excursions
+            are a few thousand.
+        sigma_vmax: Upper end of the propagated standard deviation's scale.
         seed: Sampling seed for the selection.
     """
+    vmax = {"ch4": ch4_vmax, "epsilon": epsilon_vmax, "sigma": sigma_vmax}
     scenes = corpus_with_paths(stats_csv, images_csv, permian_shapefile, path_prepend_data)
     if extra_stats_csv is not None:
         scenes = pd.concat(
@@ -303,9 +318,9 @@ def figure(
         panels = [
             (rasters["rgb"], {}),
             (rasters["radiance"], dict(cmap=RADIANCE_CMAP, add_colorbar_next_to=True)),
-            (rasters["ch4"], dict(**PPB_RANGE)),
-            (rasters["epsilon"], dict(**PPB_RANGE)),
-            (rasters["sigma"], dict(**PPB_RANGE)),
+            (rasters["ch4"], dict(vmin=0, vmax=vmax["ch4"], cmap=PPB_CMAP)),
+            (rasters["epsilon"], dict(vmin=0, vmax=vmax["epsilon"], cmap=PPB_CMAP)),
+            (rasters["sigma"], dict(vmin=0, vmax=vmax["sigma"], cmap=PPB_CMAP)),
         ]
         for column, (raster, kwargs) in enumerate(panels):
             ax = axes[row_index, column]
@@ -336,24 +351,25 @@ def figure(
             labelpad=12,
         )
 
-    # One colour bar for the three ppb columns, along the bottom. Per-panel bars
-    # would repeat the same scale ten times over and, worse, steal width from the
-    # panels that carry them, leaving the rows visibly unequal.
+    # One colour bar per ppb column, along the bottom: the ranges differ, and a
+    # bar under its own column is where a reader looks for it. Per-panel bars
+    # would repeat the scale ten times and steal width from the panels carrying
+    # them, leaving the rows visibly unequal.
     fig.tight_layout()
-    mappable = mpl.cm.ScalarMappable(
-        norm=mpl.colors.Normalize(vmin=PPB_RANGE["vmin"], vmax=PPB_RANGE["vmax"]),
-        cmap=PPB_RANGE["cmap"],
-    )
-    bar = fig.colorbar(
-        mappable,
-        ax=axes[:, 2:].ravel().tolist(),
-        orientation="horizontal",
-        fraction=0.014,
-        pad=0.015,
-        aspect=60,
-    )
-    bar.set_label("ppb", fontsize=11)
-    bar.ax.tick_params(labelsize=10)
+    for column, key in enumerate(["ch4", "epsilon", "sigma"], start=2):
+        mappable = mpl.cm.ScalarMappable(
+            norm=mpl.colors.Normalize(vmin=0, vmax=vmax[key]), cmap=PPB_CMAP
+        )
+        bar = fig.colorbar(
+            mappable,
+            ax=axes[:, column].tolist(),
+            orientation="horizontal",
+            fraction=0.013,
+            pad=0.012,
+            aspect=22,
+        )
+        bar.set_label("ppb", fontsize=10)
+        bar.ax.tick_params(labelsize=9)
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     fig.savefig(output_path, dpi=150, bbox_inches="tight", facecolor="white")
