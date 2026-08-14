@@ -11,7 +11,9 @@ and the retrieval vary with the surface.
 
 Rows are chosen to span regions and noise levels: the scenes are binned by their
 own ``epsilon(L3)`` and one is drawn from each bin, preferring regions not yet
-used, so that the sample is diverse by construction rather than by eye.
+used, so that the sample is diverse by construction rather than by eye. Only
+plume-free scenes are drawn, so that the measured noise quoted beside each row is
+taken over the same pixels the panels show.
 
 Rasters are read as ``GeoTensor`` and drawn with ``georeader.plot``; colour maps
 and the ppb range follow ``notebooks/examples/download_and_inference.ipynb``.
@@ -73,18 +75,25 @@ def select_scenes(scenes: pd.DataFrame, rows: int, seed: int = 0) -> pd.DataFram
 
     Bins the scenes by their own ``epsilon(L3)`` into as many quantile bins as
     there are rows and takes one from each, preferring a region that has not
-    appeared yet and, within that, a scene with a plume -- a retrieval panel with
-    something in it makes the comparison against the floors easier to read.
+    appeared yet.
+
+    **Plume-free scenes only.** The measured noise quoted beside each row is
+    taken over the plume-free pixels of the scene, which for a scene with a plume
+    is a different set of pixels from the one the panels show -- so a figure
+    mixing the two would put two different statistics under one heading. Every
+    row here is a scene where the two coincide.
 
     Args:
         scenes: Output of ``figure_regional.load_scenes``, with ``case_study``.
         rows: How many scenes to return.
-        seed: Sampling seed.
+        seed: Unused now that each bin contributes its representative scene
+            rather than a random member; kept so the caller's flag still works.
 
     Returns:
         The chosen rows, ordered by ``epsilon(L3)``.
     """
     frame = scenes.dropna(subset=["epsilon_L3_mean", "sigma_ch4_L3_mean", "measured"]).copy()
+    frame = frame[frame.isplume != 1]
 
     # A scene half covered by no-data or cloud makes a poor illustration: the
     # panels are then mostly blank and the eye reads the mask, not the retrieval.
@@ -93,15 +102,11 @@ def select_scenes(scenes: pd.DataFrame, rows: int, seed: int = 0) -> pd.DataFram
 
     frame["bin"] = pd.qcut(frame.epsilon_L3_mean, rows, labels=False, duplicates="drop")
 
-    rng = np.random.default_rng(seed)
     chosen, used = [], set()
     for value in sorted(frame.bin.unique()):
         candidates = frame[frame.bin == value]
         fresh = candidates[~candidates.case_study.isin(used)]
         candidates = fresh if len(fresh) else candidates
-        with_plume = candidates[candidates.isplume == 1]
-        if len(with_plume) and rng.random() < 0.5:
-            candidates = with_plume
 
         # The scene nearest the bin's median floor, so each row is representative
         # of its noise level rather than a random member of it.
