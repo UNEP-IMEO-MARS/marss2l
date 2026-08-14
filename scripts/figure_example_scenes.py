@@ -1,13 +1,14 @@
 """Example scenes: the retrieval beside the floors that bound it.
 
-One row per scene, five columns:
+One row per scene, four columns:
 
-    RGB | radiance at 2.3 um | delta XCH4 | epsilon(L3) | sigma(L3)
+    RGB | radiance at 2.3 um | delta XCH4 | sigma(L3)
 
-The point of the figure is that the last three columns are in the same unit and
-on the same scale, so a reader can see directly how much of what the retrieval
-reads a scene's own photon floor already accounts for -- and how both the floor
-and the retrieval vary with the surface.
+The point of the figure is that the last two columns are the same quantity --
+a standard deviation of the retrieval in ppb, measured on the left and
+propagated from photon statistics on the right -- so a reader can see directly
+how much of what the retrieval reads its own photon floor accounts for, and how
+both vary with the surface.
 
 Rows are chosen to span regions and noise levels: the scenes are binned by their
 own ``epsilon(L3)`` and one is drawn from each bin, preferring regions not yet
@@ -59,13 +60,12 @@ RADIANCE_CMAP = "viridis"
 #: thousand, so a single scale for all three ppb columns leaves the two floor
 #: panels flat. Each column gets its own range, and its own colour bar, and the
 #: labels carry the numbers that make them comparable.
-DEFAULT_VMAX = {"ch4": 1_500.0, "epsilon": 800.0, "sigma": 500.0}
+DEFAULT_VMAX = {"ch4": 1_500.0, "sigma": 500.0}
 
 COLUMN_TITLES = [
     "RGB",
     r"$L_{23}$  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
     r"$\Delta$XCH$_4$  [ppb]",
-    r"$\epsilon(L_3)$ at $p=0.95$  [ppb]",
     r"$\sigma(\Delta$XCH$_4)$ at $L_3$  [ppb]",
 ]
 
@@ -100,6 +100,9 @@ def select_scenes(scenes: pd.DataFrame, rows: int, seed: int = 0) -> pd.DataFram
     if {"npixelsvalid", "npixels"}.issubset(frame.columns):
         frame = frame[frame.npixelsvalid / frame.npixels > 0.98]
 
+    # Binned on epsilon, which is a monotone function of the same eta as the
+    # floor the figure plots -- same partition, and the rows do not move when the
+    # columns do.
     frame["bin"] = pd.qcut(frame.epsilon_L3_mean, rows, labels=False, duplicates="drop")
 
     chosen, used = [], set()
@@ -130,7 +133,7 @@ def scene_rasters(row: pd.Series, fs=None) -> dict:
         fs: Filesystem for the image paths.
 
     Returns:
-        ``rgb``, ``radiance``, ``ch4``, ``epsilon``, ``sigma``.
+        ``rgb``, ``radiance``, ``ch4``, ``sigma``.
     """
     nbands = len(BANDS_S2_IN_L8)
     b11, b12 = BANDS_S2_IN_L8.index("B11"), BANDS_S2_IN_L8.index("B12")
@@ -180,7 +183,6 @@ def scene_rasters(row: pd.Series, fs=None) -> dict:
         satellite_bg=row.satellite_bg or None,
     )
     eta = ladder["L3"]
-    epsilon = shot_noise.epsilon(eta, row.satellite, float(row.sza), float(row.vza), p=0.95)
     sigma = shot_noise.sigma_delta_xch4(1.0, eta, row.satellite, float(row.sza), float(row.vza))
 
     def masked(array: np.ndarray) -> GeoTensor:
@@ -197,7 +199,6 @@ def scene_rasters(row: pd.Series, fs=None) -> dict:
         "rgb": GeoTensor(rgb, transform=image.transform, crs=image.crs, fill_value_default=np.nan),
         "radiance": masked(radiance_23),
         "ch4": masked(ch4),
-        "epsilon": masked(epsilon),
         "sigma": masked(sigma),
     }
 
@@ -257,7 +258,6 @@ def figure(
     extra_images_csv: Optional[str] = None,
     only: Optional[list[str]] = None,
     ch4_vmax: float = DEFAULT_VMAX["ch4"],
-    epsilon_vmax: float = DEFAULT_VMAX["epsilon"],
     sigma_vmax: float = DEFAULT_VMAX["sigma"],
     seed: int = 0,
 ) -> None:
@@ -281,13 +281,12 @@ def figure(
             How a selection made by eye from a longer draft is pinned for the
             paper, so the figure is reproducible from the command line alone.
         ch4_vmax: Upper end of the retrieval colour scale, in ppb.
-        epsilon_vmax: Upper end of the epsilon scale. Lower than the retrieval's,
+        sigma_vmax: Upper end of the floor's scale. Lower than the retrieval's,
             since the floor is a few hundred ppb where the retrieval's excursions
             are a few thousand.
-        sigma_vmax: Upper end of the propagated standard deviation's scale.
         seed: Sampling seed for the selection.
     """
-    vmax = {"ch4": ch4_vmax, "epsilon": epsilon_vmax, "sigma": sigma_vmax}
+    vmax = {"ch4": ch4_vmax, "sigma": sigma_vmax}
     scenes = corpus_with_paths(stats_csv, images_csv, permian_shapefile, path_prepend_data)
     if extra_stats_csv is not None:
         scenes = pd.concat(
@@ -309,7 +308,7 @@ def figure(
         ].to_string()
     )
 
-    fig, axes = plt.subplots(len(chosen), 5, figsize=(16.5, 3.3 * len(chosen)))
+    fig, axes = plt.subplots(len(chosen), 4, figsize=(13.4, 3.3 * len(chosen)))
     fig.patch.set_facecolor("white")
     axes = np.atleast_2d(axes)
 
@@ -324,7 +323,6 @@ def figure(
             (rasters["rgb"], {}),
             (rasters["radiance"], dict(cmap=RADIANCE_CMAP, add_colorbar_next_to=True)),
             (rasters["ch4"], dict(vmin=0, vmax=vmax["ch4"], cmap=PPB_CMAP)),
-            (rasters["epsilon"], dict(vmin=0, vmax=vmax["epsilon"], cmap=PPB_CMAP)),
             (rasters["sigma"], dict(vmin=0, vmax=vmax["sigma"], cmap=PPB_CMAP)),
         ]
         for column, (raster, kwargs) in enumerate(panels):
@@ -346,7 +344,7 @@ def figure(
         axes[row_index, 0].set_ylabel(
             f"{row.case_study}{'  ·  plume' if row.isplume == 1 else ''}\n"
             f"{row.satellite}   {str(row.tile_date)[:10]}\n"
-            f"$\\epsilon(L_3)$ {row.epsilon_L3_mean:.0f} ppb\n"
+            f"floor $L_3$ {row.sigma_ch4_L3_mean:.0f} ppb\n"
             f"measured {row.measured:.0f} ppb\n"
             f"({row.measured / row.sigma_ch4_L3_mean:.1f}$\\times$ floor)",
             fontsize=10,
@@ -361,7 +359,7 @@ def figure(
     # would repeat the scale ten times and steal width from the panels carrying
     # them, leaving the rows visibly unequal.
     fig.tight_layout()
-    for column, key in enumerate(["ch4", "epsilon", "sigma"], start=2):
+    for column, key in enumerate(["ch4", "sigma"], start=2):
         mappable = mpl.cm.ScalarMappable(
             norm=mpl.colors.Normalize(vmin=0, vmax=vmax[key]), cmap=PPB_CMAP
         )
