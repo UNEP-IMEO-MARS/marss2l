@@ -82,6 +82,12 @@ RUNG_LABELS = {
 MEASURED = "#eb6834"
 INK, INK_SOFT, GRID = "#14181f", "#58606c", "#dfe3e8"
 
+#: The breach figure puts the three rungs side by side as separate marks rather
+#: than nested boxes, so a light-to-dark ramp of one hue makes them hard to tell
+#: apart at marker size. There they take three distinct hues instead, still
+#: ordered by lightness so the ordering survives in grayscale.
+RUNG_HUES = {"L1": "#d9a521", "L2": "#c0559b", "L3": "#1f5fae"}
+
 
 def _read_meta(images_csv: str) -> pd.DataFrame:
     """Scene metadata for the selection and the axis.
@@ -1129,6 +1135,7 @@ def figure_breaches(scenes: pd.DataFrame, path: str) -> None:
     fig.patch.set_facecolor("white")
 
     for rung, offset in zip(["L1", "L2", "L3"], [0.24, 0.0, -0.24], strict=True):
+        colour = RUNG_HUES[rung]
         shares, positions, empty = [], [], []
         for i, case in enumerate(order):
             subset = scenes.loc[scenes.case_study == case, f"ratio_{rung}"].dropna()
@@ -1139,18 +1146,18 @@ def figure_breaches(scenes: pd.DataFrame, path: str) -> None:
         ax.scatter(
             [s for s, e in zip(shares, empty) if not e],
             [p for p, e in zip(positions, empty) if not e],
-            s=46,
-            color=RUNG_COLOURS[rung],
+            s=52,
+            color=colour,
             zorder=4,
             label=f"below {rung}",
         )
         ax.scatter(
             [s for s, e in zip(shares, empty) if e],
             [p for p, e in zip(positions, empty) if e],
-            s=46,
+            s=52,
             facecolor="white",
-            edgecolor=RUNG_COLOURS[rung],
-            linewidth=1.0,
+            edgecolor=colour,
+            linewidth=1.2,
             zorder=4,
         )
 
