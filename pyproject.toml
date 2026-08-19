@@ -81,7 +81,15 @@ test = [
 packages = {find = {where = ["."], include = ["marss2l*"]}}
 
 [tool.setuptools.package-data]
-marss2l = ["py.typed", "mars_sentinel2/integrated_transmittances.json"]
+marss2l = [
+    "py.typed",
+    "mars_sentinel2/integrated_transmittances.json",
+    "mars_sentinel2/data/L4_TM_RSR.xlsx",
+    "mars_sentinel2/data/L5_TM_RSR.xlsx",
+    "mars_sentinel2/data/L7_ETM_RSR.xlsx",
+    "mars_sentinel2/data/L8_OLI_RSR.xlsx",
+    "mars_sentinel2/data/L9_OLI2_RSR.xlsx",
+]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["tests"]
