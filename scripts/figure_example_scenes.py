@@ -326,6 +326,7 @@ def figure(
     rung: str = "L3",
     max_ratio: Optional[float] = None,
     show_flux: bool = False,
+    label_by: str = "case_study",
     ch4_vmax: float = DEFAULT_VMAX["ch4"],
     sigma_vmin: Optional[float] = None,
     sigma_vmax: Optional[float] = None,
@@ -362,6 +363,8 @@ def figure(
         max_ratio: Sample only scenes whose measured noise is at most this many
             times their floor at ``rung``.
         show_flux: Add the operational flux rate to the label of a plume row.
+        label_by: Column naming each row -- ``case_study``, or ``country`` where a
+            case study groups several countries (the Arabian peninsula, say).
         ch4_vmax: Upper end of the retrieval colour scale, in ppb.
         sigma_vmin: Lower end of the floor's scale. Defaults to the 1st
             percentile of the floors actually drawn: the floor varies by tens of
@@ -497,7 +500,7 @@ def figure(
             else ""
         )
         axes[row_index, 0].set_ylabel(
-            f"{row.case_study}{'  ·  plume' if row.isplume == 1 else ''}\n"
+            f"{row.get(label_by, row.case_study)}{'  ·  plume' if row.isplume == 1 else ''}\n"
             f"{row.satellite}   {str(row.tile_date)[:10]}\n"
             f"{flux}"
             f"floor ${_rung_tex(rung)}$ {row[floor]:.0f} ppb\n"

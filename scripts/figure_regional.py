@@ -1168,7 +1168,7 @@ def figure_drivers_fit_by_region(scenes: pd.DataFrame, path: str, min_scenes: in
         log_measured = np.log(subset.measured.to_numpy())
         residual = log_measured - np.log(subset.predicted.to_numpy())
         r2_pooled = 1 - np.mean(residual**2) / log_measured.var()
-        _, r2_refit, *_ = noise_model(subset)
+        beta_refit, r2_refit, *_ = noise_model(subset)
 
         ax.scatter(
             subset.predicted,
@@ -1186,7 +1186,9 @@ def figure_drivers_fit_by_region(scenes: pd.DataFrame, path: str, min_scenes: in
         ax.set_ylim(*limits)
         _style(ax, title=f"{case}  (n = {len(subset):,})")
         ax.annotate(
-            f"$R^2$ pooled fit  {r2_pooled:.2f}\n$R^2$ refitted  {r2_refit:.2f}",
+            f"$R^2$ pooled fit  {r2_pooled:.2f}\n$R^2$ refitted  {r2_refit:.2f}\n"
+            rf"refit: $\sigma \propto \sigma_{{L_3}}^{{{beta_refit[1]:.2f}}}\,"
+            rf"(\sigma_{{L_{{23}}}}/\overline{{L_{{23}}}})^{{{beta_refit[2]:.2f}}}$",
             xy=(0.04, 0.94),
             xycoords="axes fraction",
             fontsize=8,
@@ -1197,6 +1199,14 @@ def figure_drivers_fit_by_region(scenes: pd.DataFrame, path: str, min_scenes: in
     for ax in axes[len(order) :]:
         ax.set_visible(False)
 
+    fig.suptitle(
+        rf"pooled fit, all regions: $\sigma \propto \sigma_{{L_3}}^{{{beta[1]:.2f}}}\,"
+        rf"(\sigma_{{L_{{23}}}}/\overline{{L_{{23}}}})^{{{beta[2]:.2f}}}$",
+        color=INK,
+        fontsize=10,
+        x=0.01,
+        ha="left",
+    )
     fig.supxlabel("predicted from floor and spread, pooled fit  [ppb]", color=INK_SOFT, fontsize=10)
     fig.supylabel(r"measured $\sigma(\Delta \mathrm{XCH}_4)$  [ppb]", color=INK_SOFT, fontsize=10)
     fig.tight_layout()
