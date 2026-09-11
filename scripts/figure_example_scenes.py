@@ -68,13 +68,31 @@ DEFAULT_VMAX = {"ch4": 1_500.0, "sigma": 500.0}
 #: from photon noise, and the detection column hides them.
 SIGNIFICANCE = 1.96
 
-COLUMN_TITLES = [
-    "RGB",
-    r"$L_{23}$  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
-    r"$\Delta$XCH$_4$  [ppb]",
-    r"$\sigma(\Delta$XCH$_4)$ at $L_3$  [ppb]",
-]
-DETECTION_TITLE = rf"$\Delta$XCH$_4$ above ${SIGNIFICANCE}\,\sigma(L_3)$  [ppb]"
+#: The floors the figure can draw, as the ``eta_ladder`` rungs name them.
+RUNGS = ("L1", "L2", "L3")
+
+
+def _check_rung(rung: str) -> None:
+    if rung not in RUNGS:
+        raise ValueError(f"rung must be one of {RUNGS}, got {rung!r}")
+
+
+def _rung_tex(rung: str) -> str:
+    """``L1`` as ``L_1``, for mathtext."""
+    return f"{rung[0]}_{rung[1]}"
+
+
+def column_titles(rung: str = "L3", plumes: bool = False) -> list:
+    """Column headings, naming the rung the two floor columns are evaluated at."""
+    titles = [
+        "RGB",
+        r"$L_{23}$  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
+        r"$\Delta$XCH$_4$  [ppb]",
+        rf"$\sigma(\Delta$XCH$_4)$ at ${_rung_tex(rung)}$  [ppb]",
+    ]
+    if plumes:
+        titles.append(rf"$\Delta$XCH$_4$ above ${SIGNIFICANCE}\,\sigma({_rung_tex(rung)})$  [ppb]")
+    return titles
 
 
 def select_scenes(
@@ -83,12 +101,15 @@ def select_scenes(
     seed: int = 0,
     plumes: bool = False,
     satellite: Optional[str] = None,
+    *,
+    rung: str = "L3",
+    max_ratio: Optional[float] = None,
 ) -> pd.DataFrame:
     """A diverse sample: one scene per noise level, spread over regions.
 
-    Bins the scenes by their own ``epsilon(L3)`` into as many quantile bins as
-    there are rows and takes one from each, preferring a region that has not
-    appeared yet.
+    Bins the scenes by their own ``epsilon`` at ``rung`` into as many quantile
+    bins as there are rows and takes one from each, preferring a region that has
+    not appeared yet.
 
     **Plume-free scenes only.** The measured noise quoted beside each row is
     taken over the plume-free pixels of the scene, which for a scene with a plume
@@ -103,13 +124,20 @@ def select_scenes(
         satellite: Keep one instrument only. The conversion from a transmittance
             ratio to ppb differs between platforms, so a figure meant to build
             intuition rather than to compare instruments is clearer on one.
+        rung: The floor the scenes are binned and filtered by.
+        max_ratio: Keep only scenes whose measured noise is at most this many
+            times their floor at ``rung`` -- ``1`` with ``rung="L1"`` draws the
+            scenes that read below the physical limit.
         seed: Unused now that each bin contributes its representative scene
             rather than a random member; kept so the caller's flag still works.
 
     Returns:
-        The chosen rows, ordered by ``epsilon(L3)``.
+        The chosen rows, ordered by ``epsilon`` at ``rung``.
     """
-    frame = scenes.dropna(subset=["epsilon_L3_mean", "sigma_ch4_L3_mean", "measured"]).copy()
+    epsilon = f"epsilon_{rung}_mean"
+    frame = scenes.dropna(subset=[epsilon, f"sigma_ch4_{rung}_mean", "measured"]).copy()
+    if max_ratio is not None:
+        frame = frame[frame[f"ratio_{rung}"] <= max_ratio]
     if plumes:
         # A plume of a dozen pixels illustrates nothing about a detection limit.
         frame = frame[(frame.isplume == 1) & (frame.npixelsplume >= 30)]
@@ -126,8 +154,10 @@ def select_scenes(
     # columns do.
     if satellite is not None:
         frame = frame[frame.satellite == satellite]
+    if frame.empty:
+        raise ValueError("no scene matches the selection -- no plume scene reads below L1, say")
 
-    frame["bin"] = pd.qcut(frame.epsilon_L3_mean, rows, labels=False, duplicates="drop")
+    frame["bin"] = pd.qcut(frame[epsilon], rows, labels=False, duplicates="drop")
 
     chosen, used = [], set()
     for value in sorted(frame.bin.unique()):
@@ -137,15 +167,15 @@ def select_scenes(
 
         # The scene nearest the bin's median floor, so each row is representative
         # of its noise level rather than a random member of it.
-        target = candidates.epsilon_L3_mean.median()
-        pick = candidates.loc[(candidates.epsilon_L3_mean - target).abs().idxmin()]
+        target = candidates[epsilon].median()
+        pick = candidates.loc[(candidates[epsilon] - target).abs().idxmin()]
         used.add(pick.case_study)
         chosen.append(pick)
 
-    return pd.DataFrame(chosen).sort_values("epsilon_L3_mean")
+    return pd.DataFrame(chosen).sort_values(epsilon)
 
 
-def scene_rasters(row: pd.Series, fs=None) -> dict:
+def scene_rasters(row: pd.Series, fs=None, rung: str = "L3") -> dict:
     """Read one scene and build the five rasters, as GeoTensors.
 
     The file holds both passes stacked, six bands each, in
@@ -155,6 +185,7 @@ def scene_rasters(row: pd.Series, fs=None) -> dict:
     Args:
         row: Scene metadata -- paths, satellite, angles, dates.
         fs: Filesystem for the image paths.
+        rung: The floor ``sigma`` and ``detected`` are evaluated at.
 
     Returns:
         ``rgb``, ``radiance``, ``ch4``, ``sigma``, ``detected``.
@@ -206,7 +237,7 @@ def scene_rasters(row: pd.Series, fs=None) -> dict:
         satellite=row.satellite,
         satellite_bg=row.satellite_bg or None,
     )
-    eta = ladder["L3"]
+    eta = ladder[rung]
     sigma = shot_noise.sigma_delta_xch4(1.0, eta, row.satellite, float(row.sza), float(row.vza))
 
     def masked(array: np.ndarray) -> GeoTensor:
@@ -248,6 +279,8 @@ PATH_COLUMNS = [
     "wind_u",
     "wind_v",
     "plume",
+    "ch4_fluxrate",
+    "ch4_fluxrate_std",
 ]
 
 
@@ -288,7 +321,11 @@ def figure(
     extra_images_csv: Optional[str] = None,
     only: Optional[list[str]] = None,
     plumes: bool = False,
+    detection: bool = False,
     satellite: Optional[str] = None,
+    rung: str = "L3",
+    max_ratio: Optional[float] = None,
+    show_flux: bool = False,
     ch4_vmax: float = DEFAULT_VMAX["ch4"],
     sigma_vmin: Optional[float] = None,
     sigma_vmax: Optional[float] = None,
@@ -317,7 +354,14 @@ def figure(
             the retrieval with everything below the per-pixel detection limit
             masked out. The measured noise in the label is then taken over the
             scene's plume-free pixels, which the label says.
+        detection: Add that fifth column to plume-free scenes as well -- what
+            survives the test where there is nothing to detect.
         satellite: Keep one instrument only.
+        rung: The floor the last two columns and the labels are evaluated at.
+            ``L1`` shows the physical limit, which no retrieval can beat.
+        max_ratio: Sample only scenes whose measured noise is at most this many
+            times their floor at ``rung``.
+        show_flux: Add the operational flux rate to the label of a plume row.
         ch4_vmax: Upper end of the retrieval colour scale, in ppb.
         sigma_vmin: Lower end of the floor's scale. Defaults to the 1st
             percentile of the floors actually drawn: the floor varies by tens of
@@ -328,6 +372,7 @@ def figure(
             percentile of the same pixels.
         seed: Sampling seed for the selection.
     """
+    _check_rung(rung)
     vmax = {"ch4": ch4_vmax}
     scenes = corpus_with_paths(stats_csv, images_csv, permian_shapefile, path_prepend_data)
     if extra_stats_csv is not None:
@@ -343,14 +388,24 @@ def figure(
             raise KeyError(f"not in the selection: {missing}")
         chosen = indexed.loc[list(only)].reset_index(drop=True)
     else:
-        chosen = select_scenes(scenes, rows, seed=seed, plumes=plumes, satellite=satellite)
+        chosen = select_scenes(
+            scenes,
+            rows,
+            seed=seed,
+            plumes=plumes,
+            satellite=satellite,
+            rung=rung,
+            max_ratio=max_ratio,
+        )
+    floor = f"sigma_ch4_{rung}_mean"
     print(
         chosen[
-            ["dataset", "case_study", "location_name", "satellite", "epsilon_L3_mean", "measured"]
+            ["id_loc_image", "case_study", "location_name", "satellite", floor, "measured"]
         ].to_string()
     )
 
-    columns = 5 if plumes else 4
+    with_detection = plumes or detection
+    columns = 5 if with_detection else 4
     fig, axes = plt.subplots(len(chosen), columns, figsize=(3.35 * columns, 3.3 * len(chosen)))
     fig.patch.set_facecolor("white")
     axes = np.atleast_2d(axes)
@@ -360,7 +415,8 @@ def figure(
     # per-row scale is the subtler kind of wrong -- each panel reads correctly on
     # its own, and any comparison between rows is silently invalid.
     all_rasters = [
-        scene_rasters(row, fs=fs_from_path(str(row.s2path))) for _, row in chosen.iterrows()
+        scene_rasters(row, fs=fs_from_path(str(row.s2path)), rung=rung)
+        for _, row in chosen.iterrows()
     ]
 
     def pooled_range(key: str, low: float, high: float, floor_at_zero: bool) -> dict:
@@ -392,7 +448,7 @@ def figure(
             (rasters["ch4"], dict(vmin=0, vmax=vmax["ch4"], cmap=PPB_CMAP)),
             (rasters["sigma"], dict(cmap=PPB_CMAP, **sigma_range)),
         ]
-        if plumes:
+        if with_detection:
             panels.append((rasters["detected"], dict(vmin=0, vmax=vmax["ch4"], cmap=PPB_CMAP)))
         for column, (raster, kwargs) in enumerate(panels):
             ax = axes[row_index, column]
@@ -400,8 +456,9 @@ def figure(
             ax.set_xticks([])
             ax.set_yticks([])
             if row_index == 0:
-                titles = COLUMN_TITLES + ([DETECTION_TITLE] if plumes else [])
-                ax.set_title(titles[column], fontsize=11, loc="left", pad=10)
+                ax.set_title(
+                    column_titles(rung, with_detection)[column], fontsize=11, loc="left", pad=10
+                )
 
         # The wind is what a reader needs to tell a plume from a surface feature,
         # and the retrieval panel is where that judgement is made.
@@ -434,12 +491,18 @@ def figure(
 
         # Horizontal, in the left margin: a rotated label at this size is a
         # smear, and the row identity is the first thing a reader looks for.
+        flux = (
+            f"{row.ch4_fluxrate:,.0f} kg/h,  plume mean {row.ch4_mean_plume:.0f} ppb\n"
+            if show_flux and row.isplume == 1 and pd.notna(row.get("ch4_fluxrate"))
+            else ""
+        )
         axes[row_index, 0].set_ylabel(
             f"{row.case_study}{'  ·  plume' if row.isplume == 1 else ''}\n"
             f"{row.satellite}   {str(row.tile_date)[:10]}\n"
-            f"floor $L_3$ {row.sigma_ch4_L3_mean:.0f} ppb\n"
+            f"{flux}"
+            f"floor ${_rung_tex(rung)}$ {row[floor]:.0f} ppb\n"
             f"measured {row.measured:.0f} ppb{' (plume-free px)' if row.isplume == 1 else ''}\n"
-            f"({row.measured / row.sigma_ch4_L3_mean:.1f}$\\times$ floor)",
+            f"({row.measured / row[floor]:.1f}$\\times$ floor)",
             fontsize=10,
             rotation=0,
             ha="right",
@@ -456,7 +519,7 @@ def figure(
         (1, RADIANCE_CMAP, radiance_range, r"W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$"),
         (2, PPB_CMAP, dict(vmin=0, vmax=vmax["ch4"]), "ppb"),
         (3, PPB_CMAP, sigma_range, "ppb"),
-    ] + ([(4, PPB_CMAP, vmax["ch4"], "ppb")] if plumes else [])
+    ] + ([(4, PPB_CMAP, dict(vmin=0, vmax=vmax["ch4"]), "ppb")] if with_detection else [])
     # The RGB column has nothing to put a bar under, but a column without one is
     # not shrunk by it either, so its panels would sit taller than the rest. An
     # invisible bar of the same size reserves the space and keeps the row aligned.
@@ -487,6 +550,84 @@ def figure(
     fig.savefig(output_path, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"wrote {output_path}")
+
+
+#: The columns of the weak-plume table, in the order a reader wants them.
+WEAK_PLUME_COLUMNS = {
+    "case_study": "case study",
+    "location_name": "location",
+    "satellite": "satellite",
+    "date": "date",
+    "ch4_fluxrate": "flux rate [kg/h]",
+    "ch4_fluxrate_std": "flux rate std [kg/h]",
+    "ch4_mean_plume": "mean in plume [ppb]",
+    "npixelsplume": "plume pixels",
+    "sigma_ch4_L1_mean": "floor L1 [ppb]",
+    "sigma_ch4_L3_mean": "floor L3 [ppb]",
+    "measured": "measured [ppb]",
+    "ratio_L1": "measured / L1",
+    "ratio_L3": "measured / L3",
+    "radiance_B12_mean": "L23 [W m-2 sr-1 um-1]",
+    "id_loc_image": "id_loc_image",
+}
+
+
+@app.command
+def weak_plumes(
+    stats_csv: str,
+    images_csv: str,
+    *,
+    output_csv: str = "weak_plumes_near_L1.csv",
+    rung: str = "L1",
+    max_ratio: float = 1.25,
+    top: int = 20,
+    permian_shapefile: Optional[str] = None,
+) -> None:
+    """The weakest validated plumes in scenes whose noise is at, or near, a floor.
+
+    Where the retrieval's noise reaches the photon floor the instrument, not the
+    background estimate, is what limits a detection, so the plumes seen there are
+    the faintest these sensors resolve. This lists them, weakest flux rate first,
+    for choosing which to draw with :func:`figure` ``--only``.
+
+    The flux rate is the operational value from the image metadata. The in-plume
+    concentration is the sweep's mean over the annotated plume pixels; note that
+    it is in ppb from each satellite's own inversion, which converts a given ratio
+    some 37 % higher for Sentinel-2B than for Sentinel-2A, so S2A and S2B rows are
+    not like-for-like in that column.
+
+    Args:
+        stats_csv: Output of ``stats_dataset.py``.
+        images_csv: Image metadata CSV, for the flux rate, date and location.
+        output_csv: Where to write the table.
+        rung: The floor the noise is compared against.
+        max_ratio: Keep scenes whose measured noise is at most this many times the
+            floor at ``rung``.
+        top: How many rows to write.
+        permian_shapefile: Optional basin polygon, so the labels agree with the
+            rest of the paper.
+    """
+    _check_rung(rung)
+    scenes = corpus_with_paths(stats_csv, images_csv, permian_shapefile)
+    plumes = scenes[scenes.isplume == 1]
+    ratio = plumes[f"ratio_{rung}"]
+    for threshold in (1.0, 1.1, max_ratio):
+        print(
+            f"plume scenes with measured <= {threshold} x {rung}: {int((ratio <= threshold).sum())}"
+        )
+
+    table = (
+        plumes[ratio <= max_ratio]
+        .assign(date=lambda frame: frame.tile_date.astype(str).str[:10])
+        .sort_values("ch4_fluxrate")
+        .head(top)[list(WEAK_PLUME_COLUMNS)]
+        .rename(columns=WEAK_PLUME_COLUMNS)
+        .round(2)
+    )
+    os.makedirs(os.path.dirname(os.path.abspath(output_csv)), exist_ok=True)
+    table.to_csv(output_csv, index=False)
+    print(table.to_string(index=False))
+    print(f"wrote {output_csv}")
 
 
 if __name__ == "__main__":

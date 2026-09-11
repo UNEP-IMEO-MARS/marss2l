@@ -840,6 +840,9 @@ def figures(
             figure_drivers_by_region(
                 by_region, os.path.join(output_dir, "noise_drivers_by_region.png")
             )
+            figure_drivers_fit_by_region(
+                by_region, os.path.join(output_dir, "noise_drivers_fit_by_region.png")
+            )
         scenes = pd.concat([scenes, extra], ignore_index=True)
 
     print(f"{len(scenes):,} scenes after selection")
@@ -1113,6 +1116,89 @@ def figure_drivers_by_region(scenes: pd.DataFrame, path: str, min_scenes: int = 
         fontsize=10,
     )
     fig.supylabel("measured / floor $L_3$", color=INK_SOFT, fontsize=10)
+    fig.tight_layout()
+    fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"wrote {path}")
+
+
+def figure_drivers_fit_by_region(scenes: pd.DataFrame, path: str, min_scenes: int = 30) -> None:
+    """S7: the two-factor prediction against the measurement, one panel per region.
+
+    Panel b of F3 is **one** fit over every scene pooled, and the regional medians
+    of panel a line up almost perfectly -- which says nothing about whether that
+    fit holds *inside* a region. Here the pooled coefficients are applied
+    unchanged to each region's scenes, and every panel carries two R^2: that of
+    the pooled model, and that of the same model refitted on the region alone.
+    Close values mean one model serves every region; a refit well above the
+    pooled value would mean the regions need their own.
+    """
+    frame = scenes.assign(cv=relative_spread(scenes))
+    frame = frame[(frame.cv > 0) & (frame.measured > 0) & frame.sigma_ch4_L3_mean.notna()]
+    beta, *_ = noise_model(frame)
+    frame["predicted"] = np.exp(
+        beta[0] + beta[1] * np.log(frame.sigma_ch4_L3_mean) + beta[2] * np.log(frame.cv)
+    )
+    order = [
+        c
+        for c in ORDER_CASE_STUDIES_EXT
+        + sorted(set(frame.case_study) - set(ORDER_CASE_STUDIES_EXT))
+        if (frame.case_study == c).sum() >= min_scenes
+    ]
+
+    columns = 4
+    rows = -(-len(order) // columns)
+    fig, axes = plt.subplots(
+        rows, columns, figsize=(3.3 * columns, 3.0 * rows), sharex=True, sharey=True
+    )
+    fig.patch.set_facecolor("white")
+    axes = np.atleast_1d(axes).ravel()
+
+    limits = _robust_limits([frame.measured.to_numpy(), frame.predicted.to_numpy()])
+
+    for ax, case in zip(axes, order, strict=False):
+        subset = frame[frame.case_study == case]
+        colour = CORPUS_COLOURS.get(
+            subset.dataset.iloc[0] if subset.dataset.nunique() == 1 else "", INK
+        )
+        # Against the pooled prediction the residual need not average zero -- a
+        # region can sit wholly above or below the pooled line -- and that offset
+        # is prediction error too, so this is 1 - mean(residual^2) / var, not the
+        # residual variance noise_model can use for a fit with its own intercept.
+        log_measured = np.log(subset.measured.to_numpy())
+        residual = log_measured - np.log(subset.predicted.to_numpy())
+        r2_pooled = 1 - np.mean(residual**2) / log_measured.var()
+        _, r2_refit, *_ = noise_model(subset)
+
+        ax.scatter(
+            subset.predicted,
+            subset.measured,
+            s=4,
+            alpha=0.3,
+            color=colour,
+            linewidths=0,
+            rasterized=True,
+        )
+        ax.plot(limits, limits, color=INK_SOFT, linewidth=0.8, zorder=5)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlim(*limits)
+        ax.set_ylim(*limits)
+        _style(ax, title=f"{case}  (n = {len(subset):,})")
+        ax.annotate(
+            f"$R^2$ pooled fit  {r2_pooled:.2f}\n$R^2$ refitted  {r2_refit:.2f}",
+            xy=(0.04, 0.94),
+            xycoords="axes fraction",
+            fontsize=8,
+            color=INK,
+            va="top",
+        )
+
+    for ax in axes[len(order) :]:
+        ax.set_visible(False)
+
+    fig.supxlabel("predicted from floor and spread, pooled fit  [ppb]", color=INK_SOFT, fontsize=10)
+    fig.supylabel(r"measured $\sigma(\Delta \mathrm{XCH}_4)$  [ppb]", color=INK_SOFT, fontsize=10)
     fig.tight_layout()
     fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
     plt.close(fig)
