@@ -150,6 +150,7 @@ def run(
     smoke_test: bool = False,
     flush_every: int = 2000,
     dataset_name: Optional[str] = None,
+    window_size: int = loaders.DEFAULT_WINDOW_SIZE_TRAINING,
 ):
     logger = setup_file_logger("logs", "stats_dataset")
     fs = fs_from_path(csv_path)
@@ -187,6 +188,8 @@ def run(
         film_train_zero_id=None,
         cat_mbmp=True,
         analysis_mode=True,
+        window_size_training=window_size,
+        window_size_data=window_size,
         # Derived from an image path, not from the CSV path: the two need not live
         # in the same place -- a local CSV pointing at HuggingFace imagery is the
         # normal case while the backfilled CSV is unpublished. Passing None here
@@ -667,6 +670,7 @@ def main(
     smoke_test: bool = False,
     flush_every: int = 2000,
     dataset_name: Optional[str] = None,
+    window_size: int = loaders.DEFAULT_WINDOW_SIZE_TRAINING,
 ) -> None:
     """Sweep the dataset and write one row of statistics per image.
 
@@ -692,6 +696,8 @@ def main(
             scatter across the MARS-S2L case studies (and mostly into "Rest"),
             when what the figures want is one box for the whole corpus. Omit for a
             single-dataset sweep, where the column adds nothing.
+        window_size: Chip size in pixels. 200 for the published 10 m chips; 67 for
+            Landsat chips exported at their native 30 m, which cover the same 2 km.
     """
     # spawn only where it is needed. It is required to share CUDA tensors, but it
     # also pickles the dataset for every worker, and the file logger the dataset
@@ -711,6 +717,7 @@ def main(
         smoke_test=smoke_test,
         flush_every=flush_every,
         dataset_name=dataset_name,
+        window_size=window_size,
     )
 
 
