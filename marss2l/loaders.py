@@ -61,7 +61,7 @@ from marss2l.sampling import (
     sample_window,
 )
 
-from . import mbmp_torch
+from . import mbmp_torch, resampling
 
 RELATION_CHANNELS_S2_L89 = {
     "B01": "B01",
@@ -156,6 +156,7 @@ class DatasetPlumes(Dataset):
         min_fluxrate_sim: float = MIN_FLUXRATE_SIM,
         max_fluxrate_sim: float = MAX_FLUXRATE_SIM,
         div_factor_simulate_sources: float = DIV_FACTOR_SIMULATE_SOURCES,
+        native_grid: bool = False,
     ):
         """
         Initialize the DatasetPlumes class.
@@ -239,6 +240,11 @@ class DatasetPlumes(Dataset):
             min_fluxrate_sim (float, optional): Minimum flux rate for plume simulation in kg/h. Defaults to MIN_FLUXRATE_SIM (3500).
             max_fluxrate_sim (float, optional): Maximum flux rate for plume simulation in kg/h. Defaults to MAX_FLUXRATE_SIM (70000).
             div_factor_simulate_sources (float, optional): Division factor to scale CH4 values when simulating plumes on sources. Defaults to DIV_FACTOR_SIMULATE_SOURCES.
+            native_grid (bool, optional): Return Sentinel-2 chips on their native 20 m grid rather than the
+                stored 10 m one, recovered on load by ``marss2l.resampling.chip_to_20m``; the plume mask is
+                rasterized at 10 m and aggregated onto the same cells. A chip of 200 px becomes 100, so pair it
+                with ``window_size_data=100``. Landsat chips are returned as stored. For statistics that
+                compare noise with a per-pixel floor, which interpolation to 10 m would bias. Defaults to False.
 
         Raises:
             ValueError: If mode is not one of "train", "test" or "val".
@@ -316,6 +322,13 @@ class DatasetPlumes(Dataset):
         self.analysis_mode = analysis_mode
 
         self.window_size_data = window_size_data
+
+        self.native_grid = native_grid
+        if self.native_grid and cache:
+            raise ValueError("native_grid does not support cache: the cache holds stored-size chips")
+        # The last few chips recovered at 20 m, so that image, cloud mask and plume mask of one
+        # item share a single recovery.
+        self._native_chips: Dict[str, resampling.NativeChip] = {}
 
         assert (
             self.window_size_training <= self.window_size_data
@@ -914,6 +927,9 @@ class DatasetPlumes(Dataset):
         Returns:
             NDArray: image data as a NumPy array.
         """
+        if self.native_grid and str(item["satellite"]).startswith("S2"):
+            return self._load_native_s2(item, key)
+
         if key == "plumepath":
             return self.load_plume_method(item)
 
@@ -935,6 +951,35 @@ class DatasetPlumes(Dataset):
                 return getattr(self, key_array)[int_index]
         else:
             return self.load_image_method(item, key)
+
+    def _load_native_s2(self, item, key: str) -> NDArray:
+        """``load_image`` for a Sentinel-2 item under ``native_grid``: the 20 m image,
+        cloud mask or plume mask, from one recovery of the stored chip."""
+        id_loc_image = str(item["id_loc_image"])
+        chip = self._native_chips.get(id_loc_image)
+        if chip is None:
+            chip = resampling.chip_to_20m(
+                self.load_image_method(item, "s2path"),
+                self.band_names_original_input_image(item["satellite"]),
+                cloudmask=self.load_image_method(item, "cloudmaskpath"),
+            )
+            if len(self._native_chips) >= 4:
+                self._native_chips.clear()
+            self._native_chips[id_loc_image] = chip
+        if key == "s2path":
+            return chip.values
+        if key == "cloudmaskpath":
+            return chip.cloudmask
+        if key == "plumepath":
+            return chip.mask_to_20m(np.asarray(self.load_plume_method(item)))
+        raise ValueError(f"native_grid cannot load {key!r}")
+
+    def pixel_size(self, item) -> float:
+        """Side of a pixel of the image as this dataset returns it, in metres."""
+        size = abs(_as_float(item.get("transform_a", 10.0)))
+        if self.native_grid and str(item["satellite"]).startswith("S2"):
+            size *= 2
+        return size
 
     def cache_image(self, item: Dict[str, Any], keys: List[str]):
         for key in keys:
@@ -1751,6 +1796,8 @@ class DatasetPlumes(Dataset):
                         ch4_fluxrate if ch4_fluxrate is not None else 0.0, device=self.device
                     ),
                     "angle_rotation": angle,
+                    # Metres; what the flux quantification integrates over.
+                    "pixel_size": self.pixel_size(item),
                 }
             )
 

@@ -91,3 +91,77 @@ def test_to_20m_masks_invalid_and_georeferences():
     assert (out.values[:, 50, 50] == 0).all()  # the invalid pixel, and its margin
     assert (out.values[:, 10, 10] > 0).all()
     np.testing.assert_allclose(out.values[0, 10, 10], b10[20:22, 20:22].mean(), atol=0.5)
+
+
+def _stored_chip(seed: int, start_r: int, start_c: int, n: int = 200):
+    """A chip cropped from the interior of a stored image, starting at either parity."""
+    rng = np.random.default_rng(seed)
+    native = 3000 + SIGMA * rng.standard_normal((n // 2 + 6, n // 2 + 6))
+    stored = _pipeline(native, n + 8, 0)
+    r, c = 2 + start_r, 2 + start_c  # clear of the image's own clipped border
+    return native, stored[r : r + n, c : c + n], (r, c)
+
+
+def _truth(native, chip, first):
+    """The native pixels the chip's cells should hold: cell (0, 0) starts on stored pixel
+    ``first + offset``, which must open a pair."""
+    (r, c), (h, w) = (first[0] + chip.row_off, first[1] + chip.col_off), chip.shape
+    assert r % 2 == 0 and c % 2 == 0
+    return native[r // 2 : r // 2 + h, c // 2 : c // 2 + w]
+
+
+@pytest.mark.parametrize("start_r,start_c", [(0, 0), (1, 0), (0, 1), (1, 1)])
+def test_chip_to_20m_finds_the_pairing_and_recovers_both_passes(start_r, start_c):
+    native_t, target, first = _stored_chip(0, start_r, start_c)
+    # The reference pass need not start on the same parity as the target.
+    _, background, _ = _stored_chip(1, 1 - start_r, start_c)
+    names = ["B11", "B12"]
+
+    chip = resampling.chip_to_20m(np.stack([target, target, background, background]), names)
+
+    assert chip.values.shape == (4, 100, 100)
+    assert max(chip.refit_rms) < 0.5  # uint16 rounding
+    truth = _truth(native_t, chip, first)
+    recovered = chip.values[1, : chip.shape[0], : chip.shape[1]].astype(float)
+    # A cell the reference pass does not cover is dropped from both passes.
+    kept = recovered > 0
+    assert kept.sum() >= 99 * 99
+    assert np.sqrt(np.mean((recovered - truth)[kept] ** 2)) < 1.0
+    assert recovered[kept].std() / SIGMA == pytest.approx(1.0, abs=0.05)
+
+
+def test_chip_to_20m_discards_cells_near_invalid_input():
+    native, target, first = _stored_chip(2, 1, 0)
+    half = np.stack([target, target]).astype(np.uint16)
+    half[:, :, :40] = 0  # a swath edge
+    cloudmask = np.zeros((200, 200), dtype=np.uint8)
+    cloudmask[100:104, 100:104] = 1
+
+    chip = resampling.chip_to_20m(np.concatenate([half, half]), ["B11", "B12"], cloudmask=cloudmask)
+
+    assert chip.refit_rms[0] < 0.5  # the pairing is judged away from the edge
+    valid = chip.values[1] > 0
+    assert not valid[:, :20].any()
+    assert valid[: chip.shape[0], 23 : chip.shape[1]].all()
+    # The fill that keeps zeros out of the least squares leaves the kept cells exact.
+    truth = _truth(native, chip, first)
+    recovered = chip.values[1, : chip.shape[0], : chip.shape[1]].astype(float)
+    keep = valid[: chip.shape[0], : chip.shape[1]]
+    assert np.abs(recovered - truth)[keep].max() < 3.0
+    assert chip.cloudmask.shape == (100, 100) and 2 <= chip.cloudmask.sum() <= 9
+
+
+def test_native_chip_mask_and_transform():
+    _, target, _ = _stored_chip(3, 1, 1)
+    chip = resampling.chip_to_20m(np.stack([target, target]), ["B11", "B12"])
+    mask = np.zeros((200, 200), dtype=bool)
+    mask[50, 60] = True
+
+    native_mask = chip.mask_to_20m(mask)
+
+    assert native_mask.shape == (100, 100) and native_mask.sum() == 1
+    assert native_mask[(50 - chip.row_off) // 2, (60 - chip.col_off) // 2]
+    transform = chip.transform(rasterio.Affine(10, 0, 500000, 0, -10, 4000000))
+    assert transform.a == 20 and transform.e == -20
+    assert transform.c == 500000 + 10 * chip.col_off
+    assert transform.f == 4000000 - 10 * chip.row_off

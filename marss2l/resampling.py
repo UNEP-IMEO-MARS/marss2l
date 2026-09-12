@@ -24,14 +24,16 @@ The recovered grid is half a native pixel (10 m) away from the true 20 m lattice
 10 m image does not start on it; the values are the native ones either way.
 """
 
+from dataclasses import dataclass
 from functools import lru_cache
-from typing import Sequence
+from typing import Optional, Sequence
 
 import numpy as np
 import rasterio
 from georeader.geotensor import GeoTensor
 from georeader.readers.ee_image import _find_padding, interpolate_20mbands_s2ee
-from scipy import ndimage
+from scipy import ndimage, sparse
+from scipy.sparse import linalg as sparse_linalg
 
 #: Impulse height for measuring the operator; the weights come back to about 1e-5.
 _AMPLITUDE = 60_000
@@ -162,4 +164,220 @@ def to_20m(image: GeoTensor, band_names: Sequence[str], invalid_margin: int = 2)
         transform=transform_20m(image.transform, values.shape),
         crs=image.crs,
         fill_value_default=0,
+    )
+
+
+# ---------------------------------------------------------------------------------------
+# Chips: crops of a stored image, target and reference pass stacked.
+# ---------------------------------------------------------------------------------------
+#
+# A chip starts wherever the crop fell, so which pairs of 10 m rows (and columns) make up
+# a 20 m pixel is not known in advance: either the first row of the chip opens a pair or it
+# closes one. Both pairings are fitted and the one that reproduces the chip is kept -- the
+# right one reproduces it to the uint16 rounding, the wrong one cannot. Only the 20 m pixels
+# whose two own rows lie inside the chip are kept; the half-seen ones at the edges are not.
+#
+# The reference pass was aligned to the target after interpolation, by a sub-pixel warp, so
+# its half is not an exact bilinear upsample and its recovery is approximate. Each half is
+# fitted on its own, and both are returned on the target's cells.
+
+
+@dataclass(frozen=True)
+class NativeChip:
+    """A chip on its native 20 m grid.
+
+    Attributes:
+        values: ``(bands, size, size)`` uint16, the halves stacked as in the input. Cells
+            outside the recovered area, and cells near invalid input, are zero.
+        cloudmask: ``(size, size)``, a cell flagged if any of its 10 m pixels is.
+        row_off, col_off: The 10 m chip pixel where 20 m cell ``(0, 0)`` starts.
+        shape: Recovered cells, rows by columns, before padding to ``size``.
+        refit_rms: Per half, the RMS in DN by which the fitted 20 m values fail to
+            reproduce the chip's B12: about 0.3 for an exact recovery.
+    """
+
+    values: np.ndarray
+    cloudmask: Optional[np.ndarray]
+    row_off: int
+    col_off: int
+    shape: tuple
+    refit_rms: tuple
+
+    def transform(self, transform_10m: rasterio.Affine) -> rasterio.Affine:
+        """Georeferencing of the 20 m cells, from the chip's own."""
+        return (
+            transform_10m
+            * rasterio.Affine.translation(self.col_off, self.row_off)
+            * rasterio.Affine.scale(2)
+        )
+
+    def mask_to_20m(self, mask_10m: np.ndarray) -> np.ndarray:
+        """A 10 m mask on the 20 m cells: a cell is set if any of its 10 m pixels is."""
+        return _pad(_cells(mask_10m, self.row_off, self.col_off, self.shape, "max"),
+                    self.values.shape[-1]).astype(mask_10m.dtype)
+
+
+def _crop_operator(n: int, start: int) -> tuple:
+    """The step for a crop of ``n`` 10 m pixels whose first one is pixel ``start`` of a
+    stored image whose pairs begin at 0; ``start`` 1 or 2 keeps the crop clear of the
+    clipped border rows.
+
+    Returns:
+        ``(operator, cells, full)``: the operator on the 20 m cells the crop touches, those
+        cells' indices, and the indices of the cells both of whose own rows are in the crop.
+    """
+    operator = axis_operator(n + 4 + n % 2)[start : start + n]
+    cells = np.flatnonzero(operator.any(axis=0))
+    own_rows = np.isclose(operator, 0.75).sum(axis=0)
+    return operator[:, cells], cells, np.flatnonzero(own_rows == 2)
+
+
+def _cells(values: np.ndarray, row_off: int, col_off: int, shape: tuple, how: str):
+    """Aggregate 10 m pixels over the 2x2 blocks of the cells starting at the offsets."""
+    n_r, n_c = shape
+    block = values[..., row_off : row_off + 2 * n_r, col_off : col_off + 2 * n_c]
+    block = block.reshape(values.shape[:-2] + (n_r, 2, n_c, 2))
+    return block.mean(axis=(-3, -1)) if how == "mean" else block.max(axis=(-3, -1))
+
+
+def _pad(values: np.ndarray, size: int) -> np.ndarray:
+    out = np.zeros(values.shape[:-2] + (size, size), dtype=values.dtype)
+    h, w = min(size, values.shape[-2]), min(size, values.shape[-1])
+    out[..., :h, :w] = values[..., :h, :w]
+    return out
+
+
+#: Stored pixels this close to a zero are left out of the fit as well: the step, and the
+#: reference pass's alignment, mixed the zero into them.
+_CONTAMINATED = 2
+
+
+def _usable(invalid: np.ndarray) -> np.ndarray:
+    """Pixels the least squares may use: away from zeros, which are not measurements."""
+    if not invalid.any():
+        return np.ones_like(invalid)
+    return ~ndimage.binary_dilation(invalid, iterations=_CONTAMINATED)
+
+
+def _solve(op_r: np.ndarray, op_c: np.ndarray, band: np.ndarray, usable: np.ndarray):
+    """Least-squares 20 m values of one band from its usable 10 m pixels.
+
+    Separable when every pixel is usable. Otherwise the two-dimensional problem restricted
+    to the usable pixels, by sparse least squares; a cell no usable pixel sees comes back
+    as zero, and the caller discards it.
+    """
+    if usable.all():
+        return np.linalg.pinv(op_r) @ band @ np.linalg.pinv(op_c).T
+    op_r, op_c = (np.where(np.abs(op) < 1e-3, 0.0, op) for op in (op_r, op_c))
+    operator = sparse.kron(sparse.csr_matrix(op_r), sparse.csr_matrix(op_c), format="csr")
+    solution = sparse_linalg.lsqr(
+        operator[usable.ravel()], band[usable], atol=1e-10, btol=1e-10, iter_lim=1000
+    )[0]
+    return solution.reshape(op_r.shape[1], op_c.shape[1])
+
+
+def _fit_half(b12: np.ndarray, usable: np.ndarray) -> tuple:
+    """Choose the pairing of one half from its B12 band.
+
+    Returns:
+        ``((start_r, start_c), rms)``: the pairing that refits the band best, and that
+        refit's RMS in DN over the pixels used.
+    """
+    best = None
+    for start_r in (1, 2):
+        op_r = _crop_operator(b12.shape[0], start_r)[0]
+        for start_c in (1, 2):
+            op_c = _crop_operator(b12.shape[1], start_c)[0]
+            residual = (op_r @ _solve(op_r, op_c, b12, usable) @ op_c.T - b12)[usable]
+            rms = float(np.sqrt(np.mean(residual**2))) if residual.size else float("inf")
+            if best is None or rms < best[1]:
+                best = ((start_r, start_c), rms)
+    return best
+
+
+def _invert_half(values: np.ndarray, band_names: Sequence[str], starts: tuple,
+                 usable: np.ndarray) -> tuple:
+    """One half on its fully observed 20 m cells, and where those cells start on the chip."""
+    (op_r, cells_r, full_r), (op_c, cells_c, full_c) = (
+        _crop_operator(n, start) for n, start in zip(values.shape[-2:], starts, strict=True)
+    )
+    keep = np.ix_(np.searchsorted(cells_r, full_r), np.searchsorted(cells_c, full_c))
+    # Chip pixel of the first own row of the first fully observed cell.
+    row_off, col_off = int(2 * full_r[0] - starts[0]), int(2 * full_c[0] - starts[1])
+    shape = (len(full_r), len(full_c))
+    out = []
+    for band, name in zip(values.astype(np.float64), band_names, strict=True):
+        if name in BANDS_20M:
+            out.append(_solve(op_r, op_c, band, usable)[keep])
+        else:
+            out.append(_cells(band, row_off, col_off, shape, "mean"))
+    return np.stack(out), (row_off, col_off), shape
+
+
+def chip_to_20m(
+    values: np.ndarray,
+    band_names: Sequence[str],
+    cloudmask: Optional[np.ndarray] = None,
+    size: Optional[int] = None,
+    invalid_margin: int = 1,
+) -> NativeChip:
+    """A 10 m Sentinel-2 chip -- one or more passes stacked -- on its native 20 m grid.
+
+    Args:
+        values: ``(passes * len(band_names), H, W)``, reflectance x 10,000; zero where
+            invalid.
+        band_names: Sentinel-2 L1C names of one pass's bands, in order. Must include B12,
+            from which the pairing is read.
+        cloudmask: ``(H, W)``, optional, aggregated by maximum onto the target's cells.
+        size: Side of the output, zero-padded. Defaults to ``ceil(max(H, W) / 2)``.
+        invalid_margin: Zeros, and the pixels within two of them, are left out of the fit;
+            a cell that has one of them among its own pixels, in any pass, is set to zero in
+            every band, and so is every cell within this many cells of it.
+
+    Returns:
+        The chip on the target pass's 20 m cells; see :class:`NativeChip`.
+    """
+    values = np.asarray(values)
+    nbands = len(band_names)
+    if values.shape[0] % nbands:
+        raise ValueError(f"{values.shape[0]} bands is not a whole number of {nbands}-band passes")
+    size = size or -(-max(values.shape[-2:]) // 2)
+    b12 = list(band_names).index("B12")
+
+    halves, invalid_cells, refits, grid = [], [], [], None
+    for first in range(0, values.shape[0], nbands):
+        half = values[first : first + nbands]
+        usable = _usable((half == 0).any(axis=0))
+        starts, rms = _fit_half(half[b12].astype(np.float64), usable)
+        cells, offsets, shape = _invert_half(half, band_names, starts, usable)
+        grid = grid or (offsets, shape)
+        halves.append(_pad(cells, size))
+        invalid_cells.append(_pad(_cells(~usable, *offsets, shape, "max"), size))
+        filled = np.zeros((size, size), dtype=bool)
+        filled[: shape[0], : shape[1]] = True
+        invalid_cells.append(~filled)
+        refits.append(rms)
+
+    invalid = np.logical_or.reduce(invalid_cells)
+    if invalid.any() and invalid_margin > 0:
+        # Only input invalidity spreads: the padding beyond the recovered cells is not a
+        # neighbour of anything the inversion used.
+        spread = ndimage.binary_dilation(np.logical_or.reduce(invalid_cells[::2]),
+                                         iterations=invalid_margin)
+        invalid |= spread
+    out = np.concatenate(halves)
+    out[:, invalid] = 0
+    (row_off, col_off), shape = grid
+
+    native_cloudmask = None
+    if cloudmask is not None:
+        native_cloudmask = _pad(_cells(np.asarray(cloudmask), row_off, col_off, shape, "max"),
+                                size).astype(np.asarray(cloudmask).dtype)
+    return NativeChip(
+        values=np.clip(np.round(out), 0, 65_535).astype(np.uint16),
+        cloudmask=native_cloudmask,
+        row_off=row_off,
+        col_off=col_off,
+        shape=shape,
+        refit_rms=tuple(refits),
     )

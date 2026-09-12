@@ -151,6 +151,7 @@ def run(
     flush_every: int = 2000,
     dataset_name: Optional[str] = None,
     window_size: int = loaders.DEFAULT_WINDOW_SIZE_TRAINING,
+    native_grid: bool = False,
 ):
     logger = setup_file_logger("logs", "stats_dataset")
     fs = fs_from_path(csv_path)
@@ -190,6 +191,7 @@ def run(
         analysis_mode=True,
         window_size_training=window_size,
         window_size_data=window_size,
+        native_grid=native_grid,
         # Derived from an image path, not from the CSV path: the two need not live
         # in the same place -- a local CSV pointing at HuggingFace imagery is the
         # normal case while the backfilled CSV is unpublished. Passing None here
@@ -240,6 +242,7 @@ def run(
                     target=target,
                     x=x,
                     wind_vector=wind_vector,
+                    pixel_size=float(_scalar(task["pixel_size"][batchidx])),
                 )
                 input_data.update(stats_out)
 
@@ -515,6 +518,7 @@ def compute_stats(
     target: torch.Tensor,
     x: torch.Tensor,
     wind_vector: np.ndarray,
+    pixel_size: float = 10.0,
 ) -> dict:
     """
     Compute various statistics for given input data.
@@ -532,6 +536,9 @@ def compute_stats(
             Tensor containing the data. Bands in this tensor are assumed to be in the same order as in `bands_out`.
         wind_vector : np.ndarray
             Numpy array representing the wind vector.
+        pixel_size : float
+            Side of a pixel in metres, for the flux quantification: 10 for the
+            published chips, 20 for Sentinel-2 on its native grid, 30 for Landsat.
 
 
     Returns:
@@ -605,7 +612,7 @@ def compute_stats(
                 a_u_eff=quantification.A_UEFF_S2,
                 b_u_eff=quantification.B_UEFF_S2,
                 sig_xch4=quantification.SIGMA_CH4_S2_PPB,
-                resolution=(10, 10),
+                resolution=(pixel_size, pixel_size),
                 return_std=True,
             )
         )
@@ -671,6 +678,7 @@ def main(
     flush_every: int = 2000,
     dataset_name: Optional[str] = None,
     window_size: int = loaders.DEFAULT_WINDOW_SIZE_TRAINING,
+    native_grid: bool = False,
 ) -> None:
     """Sweep the dataset and write one row of statistics per image.
 
@@ -697,7 +705,12 @@ def main(
             when what the figures want is one box for the whole corpus. Omit for a
             single-dataset sweep, where the column adds nothing.
         window_size: Chip size in pixels. 200 for the published 10 m chips; 67 for
-            Landsat chips exported at their native 30 m, which cover the same 2 km.
+            Landsat chips exported at their native 30 m, which cover the same 2 km;
+            100 for Sentinel-2 under ``--native-grid``.
+        native_grid: Sweep Sentinel-2 chips on their native 20 m grid, recovered on
+            load from the 10 m chips (``marss2l.resampling.chip_to_20m``). The noise
+            of a 10 m chip is smoothed by the interpolation and cannot be compared
+            with a per-pixel floor; the native grid can. Landsat rows are unaffected.
     """
     # spawn only where it is needed. It is required to share CUDA tensors, but it
     # also pickles the dataset for every worker, and the file logger the dataset
@@ -718,6 +731,7 @@ def main(
         flush_every=flush_every,
         dataset_name=dataset_name,
         window_size=window_size,
+        native_grid=native_grid,
     )
 
 

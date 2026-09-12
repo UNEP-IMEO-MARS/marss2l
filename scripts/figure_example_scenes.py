@@ -41,7 +41,7 @@ from georeader import plot  # noqa: E402
 from georeader.plot import add_shape_to_plot  # noqa: E402
 from georeader.geotensor import GeoTensor  # noqa: E402
 
-from marss2l import shot_noise  # noqa: E402
+from marss2l import resampling, shot_noise  # noqa: E402
 from marss2l.loaders import BANDS_S2_IN_L8  # noqa: E402
 from marss2l.mars_sentinel2 import wind as wind_plot  # noqa: E402
 from marss2l.mars_sentinel2.transmittance_to_ch4 import (  # noqa: E402
@@ -175,7 +175,7 @@ def select_scenes(
     return pd.DataFrame(chosen).sort_values(epsilon)
 
 
-def scene_rasters(row: pd.Series, fs=None, rung: str = "L3") -> dict:
+def scene_rasters(row: pd.Series, fs=None, rung: str = "L3", native_grid: bool = False) -> dict:
     """Read one scene and build the five rasters, as GeoTensors.
 
     The file holds both passes stacked, six bands each, in
@@ -186,6 +186,8 @@ def scene_rasters(row: pd.Series, fs=None, rung: str = "L3") -> dict:
         row: Scene metadata -- paths, satellite, angles, dates.
         fs: Filesystem for the image paths.
         rung: The floor ``sigma`` and ``detected`` are evaluated at.
+        native_grid: Draw a Sentinel-2 scene on its native 20 m grid, recovered
+            from the 10 m chip as the ``--native-grid`` sweep does.
 
     Returns:
         ``rgb``, ``radiance``, ``ch4``, ``sigma``, ``detected``.
@@ -198,7 +200,11 @@ def scene_rasters(row: pd.Series, fs=None, rung: str = "L3") -> dict:
     if cloudmask.ndim == 3:
         cloudmask = cloudmask[0]
 
-    values = image.values.astype(np.float64)
+    values, transform = image.values, image.transform
+    if native_grid and str(row.satellite).startswith("S2"):
+        chip = resampling.chip_to_20m(values, BANDS_S2_IN_L8, cloudmask=cloudmask)
+        values, cloudmask, transform = chip.values, chip.cloudmask, chip.transform(transform)
+    values = values.astype(np.float64)
     target, background = values[:nbands], values[nbands:]
     valid = (cloudmask == 0) & (target != 0).all(axis=0) & (background != 0).all(axis=0)
 
@@ -244,7 +250,7 @@ def scene_rasters(row: pd.Series, fs=None, rung: str = "L3") -> dict:
         """Invalid pixels are not measurements; leave them blank rather than 0."""
         return GeoTensor(
             np.where(valid, array, np.nan),
-            transform=image.transform,
+            transform=transform,
             crs=image.crs,
             fill_value_default=np.nan,
         )
@@ -255,7 +261,7 @@ def scene_rasters(row: pd.Series, fs=None, rung: str = "L3") -> dict:
 
     rgb = np.clip(target[[2, 1, 0]] / RGB_SCALE, 0, 1)
     return {
-        "rgb": GeoTensor(rgb, transform=image.transform, crs=image.crs, fill_value_default=np.nan),
+        "rgb": GeoTensor(rgb, transform=transform, crs=image.crs, fill_value_default=np.nan),
         "radiance": masked(radiance_23),
         "ch4": masked(ch4),
         "sigma": masked(sigma),
@@ -331,6 +337,7 @@ def figure(
     sigma_vmin: Optional[float] = None,
     sigma_vmax: Optional[float] = None,
     seed: int = 0,
+    native_grid: bool = False,
 ) -> None:
     """Draw the example-scene figure.
 
@@ -374,6 +381,8 @@ def figure(
         sigma_vmax: Upper end of the floor's scale. Defaults to the 99th
             percentile of the same pixels.
         seed: Sampling seed for the selection.
+        native_grid: Draw Sentinel-2 scenes on their native 20 m grid, matching a
+            stats CSV swept with ``--native-grid``. Landsat is drawn as stored.
     """
     _check_rung(rung)
     vmax = {"ch4": ch4_vmax}
@@ -418,7 +427,7 @@ def figure(
     # per-row scale is the subtler kind of wrong -- each panel reads correctly on
     # its own, and any comparison between rows is silently invalid.
     all_rasters = [
-        scene_rasters(row, fs=fs_from_path(str(row.s2path)), rung=rung)
+        scene_rasters(row, fs=fs_from_path(str(row.s2path)), rung=rung, native_grid=native_grid)
         for _, row in chosen.iterrows()
     ]
 
