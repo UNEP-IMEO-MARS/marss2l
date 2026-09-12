@@ -1332,6 +1332,14 @@ def figure_scenes_and_gap(scenes: pd.DataFrame, path: str) -> None:
         _boxes(ax, data, list(range(len(order))), RUNG_COLOURS["L3"], width=0.44)
         ax.set_xscale("log")
         ax.set_xlim(0.1, None)
+        # Across less than two decades the log formatter labels the minor ticks too
+        # (2x10^-1, 3x10^-1, ...), and they run into each other: label a 1-2-5
+        # sequence in plain numbers instead.
+        high = ax.get_xlim()[1]
+        ticks = [t for t in (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50) if t <= high]
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([f"{t:g}" for t in ticks])
+        ax.tick_params(axis="x", which="minor", labelbottom=False)
         _style(ax, xlabel=xlabel, title=title)
 
     for offset, column, colour in [
