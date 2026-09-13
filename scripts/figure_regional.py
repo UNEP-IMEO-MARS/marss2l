@@ -955,13 +955,13 @@ WIND_EDGES = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, np.inf)
 def figure_detectable_flux_by_wind(scenes: pd.DataFrame, path: str) -> None:
     """Q50 against the wind at which each scene was observed.
 
-    A grid of six panels: rows are the two platforms, columns the noise the flux comes
-    from -- measured, the L2 floor, the L1 floor. In each, boxes over the plume-free
-    scenes in 1 m/s bins of their own 10 m wind, and beneath it the share of scenes
-    per bin, counted over every scene with and without plumes so that the detections
-    do not shape it. Q50 grows linearly with wind by construction; what the figure
-    adds is where the observations actually fall, and so which fluxes are detectable
-    on the days the satellites see.
+    One panel per platform. In each, for every 1 m/s bin of the scene's own 10 m wind,
+    three boxes over the plume-free scenes -- Q50 from the measured noise, from the L2
+    floor and from the L1 floor -- and beneath, the share of scenes per bin, counted
+    over every scene with and without plumes so that the detections do not shape it.
+    Q50 grows linearly with wind by construction; what the figure adds is where the
+    observations actually fall, and so which fluxes are detectable on the days the
+    satellites see.
 
     Args:
         scenes: Output of :func:`add_detectable_flux`, one corpus.
@@ -973,55 +973,57 @@ def figure_detectable_flux_by_wind(scenes: pd.DataFrame, path: str) -> None:
     )
     print(f"by-wind figure: {int((scenes.wind_speed < WIND_EDGES[0]).sum()):,} scenes below {WIND_EDGES[0]} m/s left out")
     free = scenes[(scenes.isplume != 1) & scenes.wind_bin.notna()]
-    columns = [
-        ("q50_measured", MEASURED, "from the measured noise"),
-        ("q50_L2", RUNG_COLOURS["L2"], "from floor $L_2$, no reference pass"),
-        ("q50_L1", RUNG_COLOURS["L1"], "from floor $L_1$, the physical limit"),
+    hues = [
+        (-0.27, "q50_measured", MEASURED, "from the measured noise of the retrieval"),
+        (0.0, "q50_L2", RUNG_COLOURS["L2"], "from floor $L_2$, no reference pass"),
+        (0.27, "q50_L1", RUNG_COLOURS["L1"], "from the physical limit, floor $L_1$"),
     ]
-    families = ["Sentinel-2", "Landsat"]
     positions = list(range(len(labels)))
 
-    fig = plt.figure(figsize=(14.5, 8.8))
+    fig = plt.figure(figsize=(15.5, 6.6))
     fig.patch.set_facecolor("white")
-    outer = fig.add_gridspec(2, 1, hspace=0.32)
-    box_axes, hist_axes = {}, {}
-    for r, family in enumerate(families):
-        inner = outer[r].subgridspec(2, 3, height_ratios=[3.2, 0.9], hspace=0.06, wspace=0.08)
-        for c, (column, colour, title) in enumerate(columns):
-            ax = fig.add_subplot(inner[0, c], sharey=box_axes.get((0, 0)))
-            hist = fig.add_subplot(inner[1, c], sharex=ax, sharey=hist_axes.get((r, 0)))
-            box_axes[(r, c)], hist_axes[(r, c)] = ax, hist
-            rows = free[free.family == family]
+    grid = fig.add_gridspec(2, 2, height_ratios=[3.4, 0.9], hspace=0.06, wspace=0.07)
+    first, first_hist = None, None
+    for c, family in enumerate(("Sentinel-2", "Landsat")):
+        ax = fig.add_subplot(grid[0, c], sharey=first)
+        hist = fig.add_subplot(grid[1, c], sharex=ax, sharey=first_hist)
+        first, first_hist = first or ax, first_hist or hist
+        rows = free[free.family == family]
+        for offset, column, colour, _ in hues:
             data = [
                 (rows.loc[rows.wind_bin == b, column] * rows.loc[rows.wind_bin == b, "wind_speed"]).values
                 for b in positions
             ]
-            _boxes(ax, data, positions, colour, width=0.56, vert=True)
-            ax.set_yscale("log")
-            _style_vertical(ax, grid=True)
-            ax.tick_params(labelbottom=False)
-            if r == 0:
-                ax.set_title(title, color=INK, fontsize=10.5, loc="left", pad=8)
-            if c == 0:
-                ax.set_ylabel(f"{family}\n" + r"$Q_{50}$ at the scene's wind  [kg h$^{-1}$]",
-                              color=INK_SOFT, fontsize=9)
-            else:
-                ax.tick_params(labelleft=False)
+            _boxes(ax, data, [p + offset for p in positions], colour, width=0.24, vert=True)
+        ax.set_yscale("log")
+        ax.set_xlim(-0.6, len(positions) - 0.4)
+        _style_vertical(ax, grid=True)
+        ax.tick_params(labelbottom=False)
+        ax.set_title(family, color=INK, fontsize=10.5, loc="left", pad=8)
 
-            share = scenes[scenes.family == family].wind_bin.value_counts(normalize=True)
-            hist.bar(positions, [100 * share.get(b, 0.0) for b in positions], width=0.7,
-                     color=INK_SOFT, alpha=0.45, linewidth=0)
-            _style_vertical(hist, grid=False)
-            hist.tick_params(labelsize=7.5)
-            hist.set_xticks(positions, labels)
-            if c == 0:
-                hist.set_ylabel("% of\nscenes", color=INK_SOFT, fontsize=8)
-            else:
-                hist.tick_params(labelleft=False)
-            if r == len(families) - 1:
-                hist.set_xlabel(r"10 m wind speed  [m s$^{-1}$]", color=INK_SOFT, fontsize=9)
+        share = scenes[scenes.family == family].wind_bin.value_counts(normalize=True)
+        hist.bar(positions, [100 * share.get(b, 0.0) for b in positions], width=0.7,
+                 color=INK_SOFT, alpha=0.45, linewidth=0)
+        _style_vertical(hist, grid=False)
+        hist.tick_params(labelsize=7.5)
+        hist.set_xticks(positions, labels)
+        hist.set_xlabel(r"10 m wind speed  [m s$^{-1}$]", color=INK_SOFT, fontsize=9)
+        if c == 0:
+            ax.set_ylabel(r"$Q_{50}$ at the scene's wind  [kg h$^{-1}$]", color=INK_SOFT, fontsize=9)
+            hist.set_ylabel("% of\nscenes", color=INK_SOFT, fontsize=8)
+        else:
+            ax.tick_params(labelleft=False)
+            hist.tick_params(labelleft=False)
 
-    first = box_axes[(0, 0)]
+    fig.legend(
+        handles=[Patch(facecolor=colour, label=label) for _, _, colour, label in hues],
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.06),
+        ncol=3,
+        frameon=False,
+        fontsize=8.5,
+        labelcolor=INK_SOFT,
+    )
     low, high = first.get_ylim()
     low = min(80.0, low)
     ticks = [t for t in (100, 300, 1_000, 3_000, 10_000, 30_000, 100_000, 300_000) if low <= t <= high]
