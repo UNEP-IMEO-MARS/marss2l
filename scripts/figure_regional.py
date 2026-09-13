@@ -959,6 +959,8 @@ def figure_detectable_flux_by_wind(scenes: pd.DataFrame, path: str) -> None:
     three boxes over the plume-free scenes -- Q50 from the measured noise, from the L2
     floor and from the L1 floor -- and beneath, the share of scenes per bin, counted
     over every scene with and without plumes so that the detections do not shape it.
+    The share includes a 0-1 m/s bin, drawn lighter and with no boxes above it: the
+    detection curve is not fitted at those winds, but how often they occur is shown.
     Q50 grows linearly with wind by construction; what the figure adds is where the
     observations actually fall, and so which fluxes are detectable on the days the
     satellites see.
@@ -969,9 +971,12 @@ def figure_detectable_flux_by_wind(scenes: pd.DataFrame, path: str) -> None:
     """
     labels = [f"{lo:g}–{hi:g}" if np.isfinite(hi) else f"≥{lo:g}" for lo, hi in zip(WIND_EDGES[:-1], WIND_EDGES[1:], strict=True)]
     scenes = scenes.assign(
-        wind_bin=pd.cut(scenes.wind_speed, list(WIND_EDGES), right=False, labels=False)
+        wind_bin=pd.cut(scenes.wind_speed, list(WIND_EDGES), right=False, labels=False),
+        # The share beneath also counts the calm scenes, one bin to the left, so that it is a share
+        # of every scene; no Q50 is drawn there, the detection curve not being fitted below 1 m/s.
+        share_bin=pd.cut(scenes.wind_speed, [0, *WIND_EDGES], right=False, labels=False) - 1,
     )
-    print(f"by-wind figure: {int((scenes.wind_speed < WIND_EDGES[0]).sum()):,} scenes below {WIND_EDGES[0]} m/s left out")
+    print(f"by-wind figure: {int((scenes.wind_speed < WIND_EDGES[0]).sum()):,} scenes below {WIND_EDGES[0]} m/s, in the share only")
     free = scenes[(scenes.isplume != 1) & scenes.wind_bin.notna()]
     hues = [
         (-0.27, "q50_measured", MEASURED, "from the measured noise of the retrieval"),
@@ -996,17 +1001,18 @@ def figure_detectable_flux_by_wind(scenes: pd.DataFrame, path: str) -> None:
             ]
             _boxes(ax, data, [p + offset for p in positions], colour, width=0.24, vert=True)
         ax.set_yscale("log")
-        ax.set_xlim(-0.6, len(positions) - 0.4)
+        ax.set_xlim(-1.6, len(positions) - 0.4)
         _style_vertical(ax, grid=True)
         ax.tick_params(labelbottom=False)
         ax.set_title(family, color=INK, fontsize=10.5, loc="left", pad=8)
 
-        share = scenes[scenes.family == family].wind_bin.value_counts(normalize=True)
+        share = scenes[scenes.family == family].share_bin.value_counts(normalize=True)
+        hist.bar([-1], [100 * share.get(-1, 0.0)], width=0.7, color=INK_SOFT, alpha=0.2, linewidth=0)
         hist.bar(positions, [100 * share.get(b, 0.0) for b in positions], width=0.7,
                  color=INK_SOFT, alpha=0.45, linewidth=0)
         _style_vertical(hist, grid=False)
         hist.tick_params(labelsize=7.5)
-        hist.set_xticks(positions, labels)
+        hist.set_xticks([-1, *positions], [f"0–{WIND_EDGES[0]:g}", *labels])
         hist.set_xlabel(r"10 m wind speed  [m s$^{-1}$]", color=INK_SOFT, fontsize=9)
         if c == 0:
             ax.set_ylabel(r"$Q_{50}$ at the scene's wind  [kg h$^{-1}$]", color=INK_SOFT, fontsize=9)
