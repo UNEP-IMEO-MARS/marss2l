@@ -816,20 +816,24 @@ def add_fit_grid_noise(scenes: pd.DataFrame, fit_grid: pd.DataFrame) -> pd.DataF
 
 
 def add_detectable_flux(scenes: pd.DataFrame) -> pd.DataFrame:
-    """Q50 at 1 m/s from the measured noise and from the L1 floor, and the wind.
+    """Q50 at 1 m/s from the measured noise and from the L1 and L2 floors, and the wind.
 
-    The L1 floor is per native pixel; on Sentinel-2's 10 m grid, where the fit's noise
-    lives, a scene at that floor would read it times
+    The floors are per native pixel; on Sentinel-2's 10 m grid, where the fit's noise
+    lives, a scene at a floor would read it times
     :data:`marss2l.shot_noise.INTERPOLATION_FACTOR_S2`.
 
     Returns:
-        ``scenes`` with ``q50_measured``, ``q50_L1`` (kg/h at 1 m/s) and ``wind_speed``.
+        ``scenes`` with ``q50_measured``, ``q50_L1``, ``q50_L2`` (kg/h at 1 m/s) and
+        ``wind_speed``.
     """
     scenes = scenes.copy()
     s2 = scenes.satellite.str.startswith("S2")
-    floor = scenes.sigma_ch4_L1_mean * np.where(s2, shot_noise.INTERPOLATION_FACTOR_S2, 1.0)
+    to_fit_grid = np.where(s2, shot_noise.INTERPOLATION_FACTOR_S2, 1.0)
     scenes["q50_measured"] = shot_noise.q50_from_noise(scenes.measured_fit_grid, scenes.satellite)
-    scenes["q50_L1"] = shot_noise.q50_from_noise(floor, scenes.satellite)
+    for rung in ("L1", "L2"):
+        scenes[f"q50_{rung}"] = shot_noise.q50_from_noise(
+            scenes[f"sigma_ch4_{rung}_mean"] * to_fit_grid, scenes.satellite
+        )
     scenes["wind_speed"] = np.hypot(scenes.wind_u, scenes.wind_v)
     return scenes
 
@@ -848,8 +852,9 @@ def figure_detectable_flux(scenes: pd.DataFrame, path: str) -> None:
 
     Two panels on one region axis: at 1 m/s, the lowest wind the detection curve is
     fitted for and so a low estimate; and at the region's median wind. Each row has
-    two boxes over the region's plume-free scenes -- from the retrieval's measured
-    noise, what the monitoring system detects; from the L1 floor, what any retrieval
+    three boxes over the region's plume-free scenes -- from the retrieval's measured
+    noise, what the monitoring system detects; from the L2 floor, what a retrieval
+    free of the reference pass could at best; from the L1 floor, what any retrieval
     could at best. Both platforms share a box: the flux already folds in each one's
     pixel size and observability.
 
@@ -870,19 +875,21 @@ def figure_detectable_flux(scenes: pd.DataFrame, path: str) -> None:
         (axes[1], "b  At the region's median wind", wind),
     ]:
         for offset, column, colour in [
-            (-0.19, "q50_measured", MEASURED),
-            (0.19, "q50_L1", RUNG_COLOURS["L1"]),
+            (-0.26, "q50_measured", MEASURED),
+            (0.0, "q50_L2", RUNG_COLOURS["L2"]),
+            (0.26, "q50_L1", RUNG_COLOURS["L1"]),
         ]:
             data = [
                 free.loc[free.case_study == case, column].dropna().values
                 * (1.0 if scale is None else scale[case])
                 for case in order
             ]
-            _boxes(ax, data, [i + offset for i in range(len(order))], colour, width=0.3)
+            _boxes(ax, data, [i + offset for i in range(len(order))], colour, width=0.22)
         ax.set_xscale("log")
         _style(ax, xlabel=r"flux detected with 50% probability, $Q_{50}$  [kg h$^{-1}$]", title=title)
 
-    low = min(ax.get_xlim()[0] for ax in axes)
+    # Down to 100 kg/h at least, where the smallest claimed detections sit.
+    low = min(80.0, *(ax.get_xlim()[0] for ax in axes))
     high = max(ax.get_xlim()[1] for ax in axes)
     ticks = [t for t in (30, 100, 300, 1_000, 3_000, 10_000, 30_000, 100_000) if low <= t <= high]
     for ax in axes:
@@ -908,11 +915,12 @@ def figure_detectable_flux(scenes: pd.DataFrame, path: str) -> None:
     axes[0].legend(
         handles=[
             Patch(facecolor=MEASURED, label="from the measured noise of the retrieval"),
+            Patch(facecolor=RUNG_COLOURS["L2"], label="from floor $L_2$, no reference pass"),
             Patch(facecolor=RUNG_COLOURS["L1"], label="from the physical limit, floor $L_1$"),
         ],
         loc="upper left",
         bbox_to_anchor=(0.0, -0.08),
-        ncol=2,
+        ncol=3,
         frameon=False,
         fontsize=8,
         labelcolor=INK_SOFT,
@@ -930,7 +938,7 @@ def _with_flux_summary(summary: pd.DataFrame, flux: pd.DataFrame) -> pd.DataFram
     free = flux[flux.isplume != 1]
     wind = regional_wind(flux)
     summary["wind_median"] = wind.round(2)
-    for column in ("q50_measured", "q50_L1"):
+    for column in ("q50_measured", "q50_L2", "q50_L1"):
         at_1ms = free.groupby("case_study")[column].median()
         summary[f"{column}_1ms"] = at_1ms.round(0)
         summary[f"{column}_wind"] = (at_1ms * wind).round(0)
