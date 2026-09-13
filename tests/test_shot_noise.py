@@ -261,3 +261,49 @@ def test_epsilon_has_the_false_alarm_rate_it_claims(p):
     )
 
     assert (samples > threshold).mean() == pytest.approx(1 - p, rel=0.15)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# From noise to a detectable flux
+# ─────────────────────────────────────────────────────────────────────────────
+def test_q50_reproduces_the_worked_example():
+    """O50 0.05, 4 m/s, 300 ppb, 20 m pixels: 0.05 * 3600 * 4 * 300/1800 * 20 = 2,400 kg/h."""
+    assert sn.q50_from_noise(300, "S2A", wind_speed=4, observability=0.05) == pytest.approx(2400)
+
+
+def test_q50_uses_each_platforms_observability_and_pixel():
+    q = sn.q50_from_noise([300, 300, 300], ["S2A", "S2B", "LC09"])
+    assert q[1] / q[0] == pytest.approx(0.0638 / 0.059)
+    assert q[2] / q[0] == pytest.approx(30 / 20)
+
+
+def test_q50_is_linear_in_wind_and_noise():
+    base = sn.q50_from_noise(250, "LC08")
+    assert sn.q50_from_noise(250, "LC08", wind_speed=3.5) == pytest.approx(3.5 * base)
+    assert sn.q50_from_noise(500, "LC08") == pytest.approx(2 * base)
+
+
+@pytest.mark.parametrize("s", [0.5, 0.9])
+def test_the_detection_curve_is_one_half_at_q50_and_inverts(s):
+    assert sn.probability_of_detection(1500, 1500, s) == pytest.approx(0.5)
+    for p in (0.1, 0.9):
+        flux = sn.flux_at_probability(p, 1500, s)
+        assert sn.probability_of_detection(flux, 1500, s) == pytest.approx(p)
+
+
+def test_the_detection_curve_is_east_et_als_erfc_form():
+    from scipy.special import erfc
+
+    q, q50, s = 800.0, 1500.0, 0.9
+    expected = 0.5 * erfc(-(np.log(q) - np.log(q50)) / (np.sqrt(2) * s))
+    assert sn.probability_of_detection(q, q50, s) == pytest.approx(expected)
+
+
+def test_the_interpolation_factor_is_the_pipelines():
+    """Photon noise on the 10 m grid over the native 20 m one, from the step itself."""
+    from marss2l.resampling import axis_operator, interior_rows
+
+    operator = axis_operator(204)
+    per_axis = (operator[interior_rows(operator)] ** 2).sum(axis=1).mean()
+    # Separable: variance shrinks by per_axis**2, so the standard deviation by per_axis.
+    assert per_axis == pytest.approx(sn.INTERPOLATION_FACTOR_S2, abs=1e-3)

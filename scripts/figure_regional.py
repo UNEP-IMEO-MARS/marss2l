@@ -16,6 +16,11 @@
     reading the gap, since brightness sets the floor and the spread is the
     structure the background estimate has to predict.
 
+``detectable_flux_by_region.png``
+    The noise as a flux: the rate detected with 50 % probability, from the measured
+    noise and from the L1 floor, at 1 m/s and at each region's median wind. Needs
+    ``--fit-grid-stats-csv``: see :func:`add_fit_grid_noise`.
+
 Everything is a groupby on the CSV that ``stats_dataset.py`` writes. Nothing here
 recomputes a raster, and a point is always **one scene** -- pixels within a scene
 are strongly correlated, so a distribution over pixels would claim a precision the
@@ -51,6 +56,7 @@ mpl.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
 
+from marss2l import shot_noise  # noqa: E402
 from marss2l.dataframe_image_plumes import ORDER_CASE_STUDIES, _set_case_study  # noqa: E402
 
 app = cyclopts.App()
@@ -782,6 +788,158 @@ def supplementary_figures(scenes: pd.DataFrame, output_dir: str, label: str) -> 
     )
 
 
+def add_fit_grid_noise(scenes: pd.DataFrame, fit_grid: pd.DataFrame) -> pd.DataFrame:
+    """The measured noise on the grid the detection curve was fitted on.
+
+    :data:`marss2l.shot_noise.OBSERVABILITY_50` was fitted against the noise of the
+    operational products: Sentinel-2 on its interpolated 10 m grid, Landsat on its
+    native 30 m one. Observability is not preserved by interpolation -- W times the
+    noise changes with the grid -- so the Sentinel-2 noise has to come from a sweep of
+    the 10 m chips, while Landsat's is the native one already in ``scenes``.
+
+    Args:
+        scenes: Output of :func:`load_scenes` on the native-grid sweep (Landsat at 30 m).
+        fit_grid: Output of :func:`load_scenes` on the sweep of the published 10 m
+            chips; only its Sentinel-2 rows are used.
+
+    Returns:
+        ``scenes`` with ``measured_fit_grid``.
+    """
+    s2 = fit_grid.loc[fit_grid.satellite.str.startswith("S2"), ["id_loc_image", "measured"]]
+    s2 = s2.rename(columns={"measured": "measured_fit_grid"}).drop_duplicates("id_loc_image")
+    scenes = scenes.drop(columns="measured_fit_grid", errors="ignore").merge(
+        s2, on="id_loc_image", how="left"
+    )
+    landsat = ~scenes.satellite.str.startswith("S2")
+    scenes.loc[landsat, "measured_fit_grid"] = scenes.loc[landsat, "measured"]
+    return scenes
+
+
+def add_detectable_flux(scenes: pd.DataFrame) -> pd.DataFrame:
+    """Q50 at 1 m/s from the measured noise and from the L1 floor, and the wind.
+
+    The L1 floor is per native pixel; on Sentinel-2's 10 m grid, where the fit's noise
+    lives, a scene at that floor would read it times
+    :data:`marss2l.shot_noise.INTERPOLATION_FACTOR_S2`.
+
+    Returns:
+        ``scenes`` with ``q50_measured``, ``q50_L1`` (kg/h at 1 m/s) and ``wind_speed``.
+    """
+    scenes = scenes.copy()
+    s2 = scenes.satellite.str.startswith("S2")
+    floor = scenes.sigma_ch4_L1_mean * np.where(s2, shot_noise.INTERPOLATION_FACTOR_S2, 1.0)
+    scenes["q50_measured"] = shot_noise.q50_from_noise(scenes.measured_fit_grid, scenes.satellite)
+    scenes["q50_L1"] = shot_noise.q50_from_noise(floor, scenes.satellite)
+    scenes["wind_speed"] = np.hypot(scenes.wind_u, scenes.wind_v)
+    return scenes
+
+
+def regional_wind(scenes: pd.DataFrame) -> pd.Series:
+    """Median 10 m wind per region, over **every** scene, with and without plumes.
+
+    Plumes are detected more easily in some winds than others, so a median taken
+    over the plume-free scenes alone, or over the detections alone, would be biased.
+    """
+    return scenes.groupby("case_study").wind_speed.median()
+
+
+def figure_detectable_flux(scenes: pd.DataFrame, path: str) -> None:
+    """The noise as a flux: the rate detected with 50 % probability, by region.
+
+    Two panels on one region axis: at 1 m/s, the lowest wind the detection curve is
+    fitted for and so a low estimate; and at the region's median wind. Each row has
+    two boxes over the region's plume-free scenes -- from the retrieval's measured
+    noise, what the monitoring system detects; from the L1 floor, what any retrieval
+    could at best. Both platforms share a box: the flux already folds in each one's
+    pixel size and observability.
+
+    Args:
+        scenes: Output of :func:`add_detectable_flux`.
+        path: Where to write the figure.
+    """
+    order = case_study_order(scenes, min_scenes=5)
+    wind = regional_wind(scenes)
+    free = scenes[scenes.isplume != 1]
+    fig, axes = plt.subplots(
+        1, 2, figsize=(13.2, 0.44 * len(order) + 2.4), sharey=True, gridspec_kw={"wspace": 0.16}
+    )
+    fig.patch.set_facecolor("white")
+
+    for ax, title, scale in [
+        (axes[0], "a  At 1 m s$^{-1}$ wind", None),
+        (axes[1], "b  At the region's median wind", wind),
+    ]:
+        for offset, column, colour in [
+            (-0.19, "q50_measured", MEASURED),
+            (0.19, "q50_L1", RUNG_COLOURS["L1"]),
+        ]:
+            data = [
+                free.loc[free.case_study == case, column].dropna().values
+                * (1.0 if scale is None else scale[case])
+                for case in order
+            ]
+            _boxes(ax, data, [i + offset for i in range(len(order))], colour, width=0.3)
+        ax.set_xscale("log")
+        _style(ax, xlabel=r"flux detected with 50% probability, $Q_{50}$  [kg h$^{-1}$]", title=title)
+
+    low = min(ax.get_xlim()[0] for ax in axes)
+    high = max(ax.get_xlim()[1] for ax in axes)
+    ticks = [t for t in (30, 100, 300, 1_000, 3_000, 10_000, 30_000, 100_000) if low <= t <= high]
+    for ax in axes:
+        ax.set_xlim(low, high)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([f"{t:,}" for t in ticks])
+        ax.tick_params(axis="x", which="minor", labelbottom=False)
+
+    for i, case in enumerate(order):
+        axes[1].annotate(
+            f"{wind[case]:.1f} m s$^{{-1}}$",
+            xy=(1.01, i),
+            xycoords=axes[1].get_yaxis_transform(),
+            va="center",
+            fontsize=8,
+            color=INK_SOFT,
+        )
+
+    axes[0].set_yticks(range(len(order)))
+    axes[0].set_yticklabels(order, fontsize=8, color=INK)
+    axes[0].set_ylim(-0.7, len(order) - 0.3)
+    axes[0].invert_yaxis()
+    axes[0].legend(
+        handles=[
+            Patch(facecolor=MEASURED, label="from the measured noise of the retrieval"),
+            Patch(facecolor=RUNG_COLOURS["L1"], label="from the physical limit, floor $L_1$"),
+        ],
+        loc="upper left",
+        bbox_to_anchor=(0.0, -0.08),
+        ncol=2,
+        frameon=False,
+        fontsize=8,
+        labelcolor=INK_SOFT,
+    )
+
+    fig.tight_layout()
+    fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"wrote {path}")
+
+
+def _with_flux_summary(summary: pd.DataFrame, flux: pd.DataFrame) -> pd.DataFrame:
+    """The region table plus median wind and Q50 -- pooled, and per platform at 1 m/s."""
+    summary = summary.copy()
+    free = flux[flux.isplume != 1]
+    wind = regional_wind(flux)
+    summary["wind_median"] = wind.round(2)
+    for column in ("q50_measured", "q50_L1"):
+        at_1ms = free.groupby("case_study")[column].median()
+        summary[f"{column}_1ms"] = at_1ms.round(0)
+        summary[f"{column}_wind"] = (at_1ms * wind).round(0)
+        by_family = free.groupby(["case_study", "family"])[column].median().unstack()
+        for family in by_family.columns:
+            summary[f"{column}_1ms_{family}"] = by_family[family].round(0)
+    return summary
+
+
 @app.command
 def figures(
     stats_csv: str,
@@ -793,6 +951,8 @@ def figures(
     extra_label: str = DEFAULT_EXTRA_LABEL,
     permian_shapefile: Optional[str] = None,
     supplement: bool = True,
+    fit_grid_stats_csv: Optional[str] = None,
+    extra_fit_grid_stats_csv: Optional[str] = None,
 ) -> None:
     """Draw F1, F2 and F8 from a sweep, and the supplement from the second corpus.
 
@@ -815,6 +975,10 @@ def figures(
         supplement: Also draw the second corpus stratified by the case studies of
             the first, which is what says whether it differs in regime or only in
             composition.
+        fit_grid_stats_csv: Sweep of the published 10 m chips, for Sentinel-2's noise
+            on the grid the detection curve was fitted on. Given it, the detectable-flux
+            figure is drawn too -- see :func:`add_fit_grid_noise`.
+        extra_fit_grid_stats_csv: The same for the second corpus.
     """
     scenes = load_scenes(stats_csv, images_csv)
     if permian_shapefile is not None:
@@ -856,6 +1020,17 @@ def figures(
     figure_scenes_and_gap(scenes, os.path.join(output_dir, "scenes_and_gap.png"))
     figure_breaches(scenes, os.path.join(output_dir, "breaches_by_region.png"))
 
+    flux = None
+    if fit_grid_stats_csv is not None:
+        fit_grid = load_scenes(fit_grid_stats_csv, images_csv)
+        if extra_fit_grid_stats_csv is not None:
+            fit_grid = pd.concat(
+                [fit_grid, load_scenes(extra_fit_grid_stats_csv, extra_images_csv, label=extra_label)],
+                ignore_index=True,
+            )
+        flux = add_detectable_flux(add_fit_grid_noise(scenes, fit_grid))
+        figure_detectable_flux(flux, os.path.join(output_dir, "detectable_flux_by_region.png"))
+
     aggregations = dict(
         scenes=("measured", "size"),
         epsilon_L1=("epsilon_L1_mean", "median"),
@@ -874,6 +1049,8 @@ def figures(
         .round(4)
         .sort_values("scenes", ascending=False)
     )
+    if flux is not None:
+        summary = _with_flux_summary(summary, flux)
     print(summary.to_string())
     if summary_csv:
         summary.to_csv(summary_csv)

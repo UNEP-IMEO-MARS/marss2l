@@ -34,6 +34,13 @@ four radiances and push the samples through the full retrieval. See
 **These are floors, not predictions of what the retrieval achieves.** They say what
 photon statistics alone permit, assuming a background estimate that contributes
 nothing but its own shot noise.
+
+A noise in ppb becomes a detectable flux through the point-source observability of
+Bruno et al. (2024), :math:`O = Q/(U W \Delta B)`: the probability of detecting a
+plume depends on the flux :math:`Q` only through :math:`O`, so the flux detected
+half the time is :math:`Q_{50} = O_{50} U W \Delta B` (:func:`q50_from_noise`), with
+the detection curve itself the lognormal of East et al. (2026)
+(:func:`probability_of_detection`).
 """
 
 from typing import Dict, Optional, Tuple
@@ -564,3 +571,103 @@ def monte_carlo_delta_xch4(
             clip_values_retrieval=False,
         )
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# From noise to a detectable flux
+# ─────────────────────────────────────────────────────────────────────────────
+#: Background dry-air methane mixing ratio, in ppb. The observability expresses the
+#: scene noise relative to it, following Bruno et al. (2024), who quote it as a
+#: fraction of the background column.
+BACKGROUND_XCH4_PPB = 1800.0
+
+#: Observability at which the probability of detection is 50 %, per instrument: the
+#: lognormal detection curve of East et al. (2026) fitted to the monitoring system's
+#: detections as a function of observability rather than of flux over wind. The noise
+#: in that fit is the standard deviation of the retrieval on the *operational*
+#: products -- Sentinel-2 on its 10 m grid, Landsat on its native 30 m one -- so the
+#: noise passed to :func:`q50_from_noise` must be on the same grids.
+#: **Provisional**: the fit is under review; S2C has no fit of its own and takes S2A's.
+OBSERVABILITY_50: Dict[str, float] = {
+    "S2A": 0.059,
+    "S2B": 0.0638,
+    "S2C": 0.059,
+    "LC08": 0.059,
+    "LC09": 0.059,
+}
+
+#: Pixel size W in metres that the observability of each platform is defined with.
+PIXEL_SIZE = {"S2": 20.0, "LC": 30.0}
+
+#: Per-pixel photon noise on Sentinel-2's operational 10 m grid relative to its native
+#: 20 m one. The 20 m bands are interpolated bilinearly, so each 10 m pixel is a
+#: weighted mean of native ones with weights 3/4 and 1/4 along each axis, and
+#: independent noise shrinks by (9/16 + 1/16) = 0.625. A floor computed per native pixel
+#: enters :func:`q50_from_noise` multiplied by it. Landsat's operational grid is native.
+INTERPOLATION_FACTOR_S2 = 0.625
+
+
+def _observability_50(satellite: str) -> float:
+    if satellite not in OBSERVABILITY_50:
+        raise KeyError(f"No O50 for {satellite!r}. Known: {sorted(OBSERVABILITY_50)}")
+    return OBSERVABILITY_50[satellite]
+
+
+def _pixel_size(satellite: str) -> float:
+    return PIXEL_SIZE[satellite[:2]]
+
+
+def q50_from_noise(
+    noise_ppb: ArrayLike,
+    satellite: ArrayLike,
+    wind_speed: ArrayLike = 1.0,
+    pixel_size: Optional[ArrayLike] = None,
+    observability: Optional[ArrayLike] = None,
+) -> NDArray:
+    r"""The flux detected with 50 % probability, from the scene noise.
+
+    .. math::
+        Q_{50} = O_{50}\, U\, W\, \frac{\sigma}{1800\ \mathrm{ppb}} \times 3600
+
+    in kg h\ :sup:`-1` with :math:`U` in m s\ :sup:`-1` and :math:`W` in m.
+
+    Args:
+        noise_ppb: Standard deviation of the retrieval, in ppb, on the grid
+            :data:`OBSERVABILITY_50` was fitted on.
+        satellite: Instrument(s), for :math:`O_{50}` and the pixel size.
+        wind_speed: 10 m wind speed in m s-1.
+        pixel_size: Overrides the platform's :data:`PIXEL_SIZE`.
+        observability: Overrides :data:`OBSERVABILITY_50`.
+
+    Returns:
+        :math:`Q_{50}` in kg h-1.
+    """
+    satellite = np.asarray(satellite)
+    if observability is None:
+        observability = np.vectorize(_observability_50, otypes=[float])(satellite)
+    if pixel_size is None:
+        pixel_size = np.vectorize(_pixel_size, otypes=[float])(satellite)
+    noise = np.asarray(noise_ppb, dtype=float) / BACKGROUND_XCH4_PPB
+    return 3600.0 * np.asarray(observability) * np.asarray(wind_speed) * np.asarray(pixel_size) * noise
+
+
+def probability_of_detection(flux: ArrayLike, q50: ArrayLike, s: float) -> NDArray:
+    r"""Lognormal detection curve (East et al., 2026).
+
+    .. math::
+        \mathrm{PoD}(q) = \tfrac{1}{2}\,\mathrm{erfc}\!\left(-\frac{\ln q - \ln q_{50}}{s\sqrt{2}}\right)
+
+    Args:
+        flux: Source rate(s), in the unit of ``q50``.
+        q50: Rate detected with 50 % probability.
+        s: Sharpness, the standard deviation of :math:`\ln q` over the transition.
+    """
+    return stats.norm.cdf(np.log(np.asarray(flux, dtype=float) / np.asarray(q50)) / s)
+
+
+def flux_at_probability(p: ArrayLike, q50: ArrayLike, s: float) -> NDArray:
+    """The rate detected with probability ``p``: the inverse of :func:`probability_of_detection`.
+
+    What turns :math:`Q_{50}` into :math:`Q_{10}` and :math:`Q_{90}` once ``s`` is known.
+    """
+    return np.asarray(q50) * np.exp(s * stats.norm.ppf(np.asarray(p, dtype=float)))
