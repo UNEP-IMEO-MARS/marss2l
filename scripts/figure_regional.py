@@ -18,8 +18,12 @@
 
 ``detectable_flux_by_region.png``
     The noise as a flux: the rate detected with 50 % probability, from the measured
-    noise and from the L1 floor, at 1 m/s and at each region's median wind. Needs
-    ``--fit-grid-stats-csv``: see :func:`add_fit_grid_noise`.
+    noise and from the L1 and L2 floors, at 1 m/s and at each region's median wind.
+    Needs ``--fit-grid-stats-csv``: see :func:`add_fit_grid_noise`.
+
+``detectable_flux_by_wind.png``
+    The same three fluxes against the wind each scene was observed at, per platform,
+    with the share of scenes per wind bin beneath.
 
 Everything is a groupby on the CSV that ``stats_dataset.py`` writes. Nothing here
 recomputes a raster, and a point is always **one scene** -- pixels within a scene
@@ -233,13 +237,13 @@ def _style(ax, *, xlabel: str = "", title: str = "") -> None:
     ax.set_title(title, color=INK, fontsize=10.5, loc="left", pad=8)
 
 
-def _boxes(ax, data, positions, colour, width=0.24):
-    """Thin horizontal boxes, no outlier confetti, median emphasised."""
+def _boxes(ax, data, positions, colour, width=0.24, *, vert=False):
+    """Thin boxes, horizontal unless asked otherwise, no outlier confetti, median emphasised."""
     bp = ax.boxplot(
         data,
         positions=positions,
         widths=width,
-        vert=False,
+        vert=vert,
         showfliers=False,
         patch_artist=True,
         medianprops=dict(color="white", linewidth=1.3),
@@ -932,6 +936,105 @@ def figure_detectable_flux(scenes: pd.DataFrame, path: str) -> None:
     print(f"wrote {path}")
 
 
+def _style_vertical(ax, grid: bool) -> None:
+    """Styling of the by-wind panels: light left and bottom spines, soft ticks."""
+    if grid:
+        ax.grid(True, axis="y", color=GRID, linewidth=0.6, zorder=0)
+        ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    for side in ("bottom", "left"):
+        ax.spines[side].set_color(GRID)
+    ax.tick_params(colors=INK_SOFT, labelsize=8, width=0.6)
+
+
+#: Wind bins of the by-wind figure, m/s. Below 1 m/s the detection curve is not fitted.
+WIND_EDGES = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, np.inf)
+
+
+def figure_detectable_flux_by_wind(scenes: pd.DataFrame, path: str) -> None:
+    """Q50 against the wind at which each scene was observed.
+
+    A grid of six panels: rows are the two platforms, columns the noise the flux comes
+    from -- measured, the L2 floor, the L1 floor. In each, boxes over the plume-free
+    scenes in 1 m/s bins of their own 10 m wind, and beneath it the share of scenes
+    per bin, counted over every scene with and without plumes so that the detections
+    do not shape it. Q50 grows linearly with wind by construction; what the figure
+    adds is where the observations actually fall, and so which fluxes are detectable
+    on the days the satellites see.
+
+    Args:
+        scenes: Output of :func:`add_detectable_flux`, one corpus.
+        path: Where to write the figure.
+    """
+    labels = [f"{lo:g}–{hi:g}" if np.isfinite(hi) else f"≥{lo:g}" for lo, hi in zip(WIND_EDGES[:-1], WIND_EDGES[1:], strict=True)]
+    scenes = scenes.assign(
+        wind_bin=pd.cut(scenes.wind_speed, list(WIND_EDGES), right=False, labels=False)
+    )
+    print(f"by-wind figure: {int((scenes.wind_speed < WIND_EDGES[0]).sum()):,} scenes below {WIND_EDGES[0]} m/s left out")
+    free = scenes[(scenes.isplume != 1) & scenes.wind_bin.notna()]
+    columns = [
+        ("q50_measured", MEASURED, "from the measured noise"),
+        ("q50_L2", RUNG_COLOURS["L2"], "from floor $L_2$, no reference pass"),
+        ("q50_L1", RUNG_COLOURS["L1"], "from floor $L_1$, the physical limit"),
+    ]
+    families = ["Sentinel-2", "Landsat"]
+    positions = list(range(len(labels)))
+
+    fig = plt.figure(figsize=(14.5, 8.8))
+    fig.patch.set_facecolor("white")
+    outer = fig.add_gridspec(2, 1, hspace=0.32)
+    box_axes, hist_axes = {}, {}
+    for r, family in enumerate(families):
+        inner = outer[r].subgridspec(2, 3, height_ratios=[3.2, 0.9], hspace=0.06, wspace=0.08)
+        for c, (column, colour, title) in enumerate(columns):
+            ax = fig.add_subplot(inner[0, c], sharey=box_axes.get((0, 0)))
+            hist = fig.add_subplot(inner[1, c], sharex=ax, sharey=hist_axes.get((r, 0)))
+            box_axes[(r, c)], hist_axes[(r, c)] = ax, hist
+            rows = free[free.family == family]
+            data = [
+                (rows.loc[rows.wind_bin == b, column] * rows.loc[rows.wind_bin == b, "wind_speed"]).values
+                for b in positions
+            ]
+            _boxes(ax, data, positions, colour, width=0.56, vert=True)
+            ax.set_yscale("log")
+            _style_vertical(ax, grid=True)
+            ax.tick_params(labelbottom=False)
+            if r == 0:
+                ax.set_title(title, color=INK, fontsize=10.5, loc="left", pad=8)
+            if c == 0:
+                ax.set_ylabel(f"{family}\n" + r"$Q_{50}$ at the scene's wind  [kg h$^{-1}$]",
+                              color=INK_SOFT, fontsize=9)
+            else:
+                ax.tick_params(labelleft=False)
+
+            share = scenes[scenes.family == family].wind_bin.value_counts(normalize=True)
+            hist.bar(positions, [100 * share.get(b, 0.0) for b in positions], width=0.7,
+                     color=INK_SOFT, alpha=0.45, linewidth=0)
+            _style_vertical(hist, grid=False)
+            hist.tick_params(labelsize=7.5)
+            hist.set_xticks(positions, labels)
+            if c == 0:
+                hist.set_ylabel("% of\nscenes", color=INK_SOFT, fontsize=8)
+            else:
+                hist.tick_params(labelleft=False)
+            if r == len(families) - 1:
+                hist.set_xlabel(r"10 m wind speed  [m s$^{-1}$]", color=INK_SOFT, fontsize=9)
+
+    first = box_axes[(0, 0)]
+    low, high = first.get_ylim()
+    low = min(80.0, low)
+    ticks = [t for t in (100, 300, 1_000, 3_000, 10_000, 30_000, 100_000, 300_000) if low <= t <= high]
+    first.set_ylim(low, high)
+    first.set_yticks(ticks)
+    first.set_yticklabels([f"{t:,}" for t in ticks])
+    first.tick_params(axis="y", which="minor", labelleft=False)
+
+    fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"wrote {path}")
+
+
 def _with_flux_summary(summary: pd.DataFrame, flux: pd.DataFrame) -> pd.DataFrame:
     """The region table plus median wind and Q50 -- pooled, and per platform at 1 m/s."""
     summary = summary.copy()
@@ -1038,6 +1141,10 @@ def figures(
             )
         flux = add_detectable_flux(add_fit_grid_noise(scenes, fit_grid))
         figure_detectable_flux(flux, os.path.join(output_dir, "detectable_flux_by_region.png"))
+        figure_detectable_flux_by_wind(
+            flux[flux.dataset == "MARS-S2L"],
+            os.path.join(output_dir, "detectable_flux_by_wind.png"),
+        )
 
     aggregations = dict(
         scenes=("measured", "size"),
