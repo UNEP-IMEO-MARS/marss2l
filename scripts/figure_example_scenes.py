@@ -315,6 +315,29 @@ def corpus_with_paths(
     return scenes
 
 
+def _with_detectable_flux(
+    scenes: pd.DataFrame, fit_grid_stats_csv: Optional[str], images_csv: str
+) -> pd.DataFrame:
+    """Add Q50 at 1 m/s and the wind when a sweep of the 10 m chips is given (see
+    ``figure_regional.add_fit_grid_noise``); otherwise return the scenes as they are."""
+    if fit_grid_stats_csv is None:
+        return scenes
+    from scripts.figure_regional import add_detectable_flux, add_fit_grid_noise, load_scenes
+
+    return add_detectable_flux(add_fit_grid_noise(scenes, load_scenes(fit_grid_stats_csv, images_csv)))
+
+
+def _flux_label(row: pd.Series, show_flux: bool) -> str:
+    """The flux lines of a plume row's label: the operational rate and, when known, Q50
+    at the scene's own wind -- what the retrieval detects half the time there."""
+    if not (show_flux and row.isplume == 1 and pd.notna(row.get("ch4_fluxrate"))):
+        return ""
+    label = f"{row.ch4_fluxrate:,.0f} kg/h,  plume mean {row.ch4_mean_plume:.0f} ppb\n"
+    if pd.notna(row.get("q50_measured")):
+        label += f"$Q_{{50}}$ {row.q50_measured * row.wind_speed:,.0f} kg/h at {row.wind_speed:.1f} m/s\n"
+    return label
+
+
 @app.command
 def figure(
     stats_csv: str,
@@ -338,6 +361,7 @@ def figure(
     sigma_vmax: Optional[float] = None,
     seed: int = 0,
     native_grid: bool = False,
+    fit_grid_stats_csv: Optional[str] = None,
 ) -> None:
     """Draw the example-scene figure.
 
@@ -383,10 +407,15 @@ def figure(
         seed: Sampling seed for the selection.
         native_grid: Draw Sentinel-2 scenes on their native 20 m grid, matching a
             stats CSV swept with ``--native-grid``. Landsat is drawn as stored.
+        fit_grid_stats_csv: Sweep of the published 10 m chips. Given it, a plume row's
+            label also carries Q50, the source rate detected half the time at the
+            scene's own wind from its measured noise and instrument -- see
+            ``figure_regional.add_fit_grid_noise``. Needs ``--show-flux``.
     """
     _check_rung(rung)
     vmax = {"ch4": ch4_vmax}
     scenes = corpus_with_paths(stats_csv, images_csv, permian_shapefile, path_prepend_data)
+    scenes = _with_detectable_flux(scenes, fit_grid_stats_csv, images_csv)
     if extra_stats_csv is not None:
         scenes = pd.concat(
             [scenes, corpus_with_paths(extra_stats_csv, extra_images_csv, permian_shapefile)],
@@ -503,11 +532,7 @@ def figure(
 
         # Horizontal, in the left margin: a rotated label at this size is a
         # smear, and the row identity is the first thing a reader looks for.
-        flux = (
-            f"{row.ch4_fluxrate:,.0f} kg/h,  plume mean {row.ch4_mean_plume:.0f} ppb\n"
-            if show_flux and row.isplume == 1 and pd.notna(row.get("ch4_fluxrate"))
-            else ""
-        )
+        flux = _flux_label(row, show_flux)
         axes[row_index, 0].set_ylabel(
             f"{row.get(label_by, row.case_study)}{'  ·  plume' if row.isplume == 1 else ''}\n"
             f"{row.satellite}   {str(row.tile_date)[:10]}\n"
