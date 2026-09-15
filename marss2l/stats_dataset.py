@@ -613,6 +613,10 @@ def compute_stats(
                 b_u_eff=quantification.B_UEFF_S2,
                 sig_xch4=quantification.SIGMA_CH4_S2_PPB,
                 resolution=(pixel_size, pixel_size),
+                # ch4 is in ppb. The function defaults to ppm, which scaled Q by 1000 and
+                # moved its -600 ppb clip to -0.6 ppb, dropping the negative noise.
+                units_methane_enhancement="ppb",
+                seed=42,
                 return_std=True,
             )
         )

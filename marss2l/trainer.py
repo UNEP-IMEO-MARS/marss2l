@@ -316,6 +316,7 @@ class Trainer:
                                         b_u_eff=quantification.B_UEFF_S2,
                                         sig_xch4=quantification.SIGMA_CH4_S2_PPB,
                                         resolution=(10, 10),
+                                        units_methane_enhancement="ppb",
                                         return_std=True,
                                     )
                                 )
