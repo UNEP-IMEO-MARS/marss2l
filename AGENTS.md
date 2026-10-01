@@ -26,3 +26,12 @@ in any PR review — references to internal / non-public infrastructure:
 **Reviewing PRs:** treat any of the above as a blocking issue. **Enforcement:**
 pre-commit hooks (`gitleaks` + `mars-internal-refs`) — never bypass with
 `--no-verify`; run `make pre-commit`.
+
+## Tests
+
+- A change is done only when `make test` (unit tests) and `make test-integration`
+  (integration-marked pytest plus every notebook in the `Makefile` list, via
+  `nbmake`) pass.
+- The notebooks read the published Hugging Face data through
+  `marss2l.huggingface.HfCachedFileSystem`. Before uploading changed CSVs, check
+  them by running the notebooks with `HfCachedFileSystem(local_dir=<new files>)`.

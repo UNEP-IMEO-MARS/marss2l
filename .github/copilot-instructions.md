@@ -32,3 +32,12 @@ issue and request changes.
 ## Enforcement
 Pre-commit hooks (`gitleaks` + the local `mars-internal-refs` scan) enforce
 these rules; never suggest bypassing them with `--no-verify`.
+
+## Tests
+
+- A change is done only when `make test` (unit tests) and `make test-integration`
+  (integration-marked pytest plus every notebook in the `Makefile` list, via
+  `nbmake`) pass.
+- The notebooks read the published Hugging Face data through
+  `marss2l.huggingface.HfCachedFileSystem`. Before uploading changed CSVs, check
+  them by running the notebooks with `HfCachedFileSystem(local_dir=<new files>)`.

@@ -18,6 +18,7 @@ from shapely.geometry import base, mapping
 
 from marss2l import __version__
 from marss2l.config import AzureConfig
+from marss2l.huggingface import HfCachedHTTPFileSystem
 
 def get_remote_filesystem():
     cfg = AzureConfig.from_env()
@@ -62,7 +63,7 @@ def fs_from_path(path: str) -> fsspec.AbstractFileSystem:
 
     if path.startswith("https://"):
         headers = build_hf_headers()
-        return fsspec.filesystem("https", headers=headers)
+        return HfCachedHTTPFileSystem(headers=headers)
 
     if not isremotepath(path):
         # Return local reader if not remote path

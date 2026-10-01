@@ -40,3 +40,12 @@ Pre-commit hooks (`.pre-commit-config.yaml`: `gitleaks` + the local
 `pre-commit run --all-files`). Maintainers can list real internal literals to
 block in a git-ignored `scripts/.internal-blocklist` (see the tracked
 `.template`).
+
+## Tests
+
+- A change is done only when `make test` (unit tests) and `make test-integration`
+  (integration-marked pytest plus every notebook in the `Makefile` list, via
+  `nbmake`) pass.
+- The notebooks read the published Hugging Face data through
+  `marss2l.huggingface.HfCachedFileSystem`. Before uploading changed CSVs, check
+  them by running the notebooks with `HfCachedFileSystem(local_dir=<new files>)`.
