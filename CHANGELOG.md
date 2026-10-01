@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.11](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.10...v0.2.11) (2026-10-01)
+
+
+### Bug Fixes
+
+* **deps:** add openpyxl, which reads the bundled Landsat SRF workbooks ([998538d](https://github.com/UNEP-IMEO-MARS/marss2l/commit/998538d1ab7ad2ba4a9e3750ba25af8e1e0acf77))
+* **sentinel2:** bundle the Landsat SRF workbooks as package data ([aa95afb](https://github.com/UNEP-IMEO-MARS/marss2l/commit/aa95afb2c3d50312d8499d7bd277e21b0c99630d))
+* **sentinel2:** bundle the Landsat SRF workbooks as package data ([114b423](https://github.com/UNEP-IMEO-MARS/marss2l/commit/114b42334fc799e5722df3236d5e046dae4264a0))
+
 ## [0.2.10](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.9...v0.2.10) (2026-07-13)
 
 
