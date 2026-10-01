@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.12](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.11...v0.2.12) (2026-10-01)
+
+
+### Features
+
+* **huggingface:** cache Hugging Face tables in the HF hub cache ([b19461d](https://github.com/UNEP-IMEO-MARS/marss2l/commit/b19461d95796b34b5ddda335f18c67df8af32378))
+
+
+### Bug Fixes
+
+* huggingface table cache, obtain_flux_rate_s2l89, transmittance clip switch ([8149787](https://github.com/UNEP-IMEO-MARS/marss2l/commit/8149787c51c33990a6d9b8f44c4669dbc14ad559))
+* **huggingface:** open cached tables offline and with the filesystem's token and endpoint ([6fbd061](https://github.com/UNEP-IMEO-MARS/marss2l/commit/6fbd061f714315add255c25f79cb1803e382b049))
+* **quantification:** obtain_flux_rate_s2l89 with ppb units and Sentinel-2 coefficients ([17d4f52](https://github.com/UNEP-IMEO-MARS/marss2l/commit/17d4f525c64ff422c30752e4a44a86aaa7638f14))
+* **transmittance:** honour clip_values_retrieval=False ([fce7113](https://github.com/UNEP-IMEO-MARS/marss2l/commit/fce71130d02895fc198cc2bad6077c163c20b97f))
+
 ## [0.2.11](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.10...v0.2.11) (2026-10-01)
 
 
