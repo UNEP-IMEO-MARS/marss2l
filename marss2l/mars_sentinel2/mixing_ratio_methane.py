@@ -546,12 +546,30 @@ BANDS_TO_SHEET_NAME_L4 = {
 
 SRF_LANDSAT = {"LC09": {}, "LC08": {}, "LT05": {}, "LT04": {}, "LE07": {}}
 
+# The USGS workbooks of LINK_RSR_LANDSAT, bundled as package data so that
+# srf_landsat_band works offline, the same way georeader ships the Sentinel-2
+# SRF document for S2_SAFE_reader.read_srf.
+SRF_FILE_DEFAULT = {
+    satellite: os.path.join(
+        os.path.dirname(__file__), "data", os.path.basename(link)
+    )
+    for satellite, link in LINK_RSR_LANDSAT.items()
+}
 
-def srf_landsat_band(satellite: str, band: str, cache: bool = True) -> pd.DataFrame:
+
+def srf_landsat_band(
+    satellite: str,
+    band: str,
+    cache: bool = True,
+    srf_file: Optional[str] = None,
+) -> pd.DataFrame:
     """
     Loads the Spectral Response Function (SRF) for a given Landsat band.
 
-    It uses the SRF provided by USGS:
+    It uses the SRF provided by USGS, bundled with the package, so no network
+    access is needed. Pass an ``http(s)://`` URL as `srf_file` to use a different
+    revision; it is downloaded once and cached in ``~/.georeader``. The published
+    workbooks are:
      - L8: https://landsat.usgs.gov/landsat/spectral_viewer/bands/L8_OLI_RSR.xlsx
      - L9: https://landsat.usgs.gov/landsat/spectral_viewer/bands/L9_OLI2_RSR.xlsx
      - L7: https://landsat.usgs.gov/landsat/spectral_viewer/bands/L7_ETM_RSR.xlsx
@@ -562,6 +580,8 @@ def srf_landsat_band(satellite: str, band: str, cache: bool = True) -> pd.DataFr
         satellite (str): satellite acronym (LC08, LC09, LT05, LT04, LE07)
         band (str): band name (B01, B02, ..., B09)
         cache (bool, optional): If True, it caches the SRF in memory. Defaults to True.
+        srf_file (str, optional): path or URL of the SRF workbook. Defaults to the
+            one bundled for `satellite`.
 
     Returns:
         pd.DataFrame: SRF for the given band
@@ -578,17 +598,20 @@ def srf_landsat_band(satellite: str, band: str, cache: bool = True) -> pd.DataFr
         if band in SRF_LANDSAT[satellite]:
             return SRF_LANDSAT[satellite][band]
 
-    link = LINK_RSR_LANDSAT[satellite]
-    home_dir = os.path.join(os.path.expanduser("~"), ".georeader")
-    srf_file_local = os.path.join(home_dir, os.path.basename(link))
+    if srf_file is None:
+        srf_file = SRF_FILE_DEFAULT[satellite]
 
-    if not os.path.exists(srf_file_local):
-        os.makedirs(home_dir, exist_ok=True)
-        import fsspec
+    if srf_file.startswith(("http://", "https://")):
+        home_dir = os.path.join(os.path.expanduser("~"), ".georeader")
+        srf_file_local = os.path.join(home_dir, os.path.basename(srf_file))
+        if not os.path.exists(srf_file_local):
+            os.makedirs(home_dir, exist_ok=True)
+            import fsspec
 
-        with fsspec.open(link, "rb") as f:
-            with open(srf_file_local, "wb") as f2:
-                f2.write(f.read())
+            with fsspec.open(srf_file, "rb") as f:
+                with open(srf_file_local, "wb") as f2:
+                    f2.write(f.read())
+        srf_file = srf_file_local
 
     if satellite == "LE07":
         sheet_name = BANDS_TO_SHEET_NAME_L7[band]
@@ -601,7 +624,7 @@ def srf_landsat_band(satellite: str, band: str, cache: bool = True) -> pd.DataFr
     else:
         raise ValueError(f"Satellite {satellite} not supported")
 
-    dat = pd.read_excel(srf_file_local, engine="openpyxl", sheet_name=sheet_name)
+    dat = pd.read_excel(srf_file, engine="openpyxl", sheet_name=sheet_name)
     dat = dat.iloc[:, [0, 1]]
     dat.columns = ["wavelength", band]
     dat = dat.set_index("wavelength")

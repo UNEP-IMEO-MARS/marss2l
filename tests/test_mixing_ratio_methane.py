@@ -303,6 +303,25 @@ class TestModuleConstants:
 class TestSRFLandsatBand:
     """Tests for srf_landsat_band function."""
 
+    def test_bundled_srf_files_exist(self):
+        """Every satellite in LINK_RSR_LANDSAT has its workbook shipped."""
+        import os
+
+        from marss2l.mars_sentinel2 import mixing_ratio_methane as mrm
+
+        assert set(mrm.SRF_FILE_DEFAULT) == set(mrm.LINK_RSR_LANDSAT)
+        for satellite, path in mrm.SRF_FILE_DEFAULT.items():
+            assert os.path.exists(path), f"missing bundled SRF for {satellite}"
+
+    def test_srf_landsat_reads_bundled_file(self):
+        """The default path needs no network: it reads the bundled workbook."""
+        from marss2l.mars_sentinel2 import mixing_ratio_methane as mrm
+
+        srf = mrm.srf_landsat_band("LC08", "B06", cache=False)
+        assert list(srf.columns) == ["B06"]
+        assert srf.index.name == "wavelength"
+        assert len(srf) > 0
+
     def test_srf_landsat_invalid_satellite(self):
         """Test srf_landsat_band raises for invalid satellite."""
         from marss2l.mars_sentinel2 import mixing_ratio_methane as mrm
