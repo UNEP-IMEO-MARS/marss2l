@@ -1,8 +1,8 @@
 """
-Tests for the shot-noise additions to marss2l.stats_dataset.
+Tests for the shot-noise statistics of marss2l.stats_dataset.
 
-compute_stats and its helpers are pure functions of tensors -- no IO, no model --
-which is what makes them cheap to pin down here rather than in an integration run.
+compute_stats and its helpers are pure functions of tensors -- no IO, no model -- which is
+what makes them cheap to pin down here rather than in an integration run.
 """
 
 import fsspec
@@ -35,7 +35,7 @@ def test_valid_mask_keeps_a_clean_scene():
 
 
 def test_valid_mask_drops_zero_pixels_in_any_band():
-    """Zero is how the loader encodes invalid data, and it gives an infinite eta."""
+    """Zero is how the loader encodes invalid data."""
     x = make_stack()
     x[BANDS.index("B12_bg"), 0, 0] = 0.0
 
@@ -53,34 +53,18 @@ def test_valid_mask_drops_cloudy_pixels():
 
 
 def test_valid_mask_keeps_dark_ground():
-    """Dark surfaces stay in: the floor is optimistic there, which keeps it a floor."""
+    """Dark surfaces stay in: a brightness cut would make the floors depend on its threshold."""
     assert stats_dataset.valid_mask(BANDS, make_stack(reflectance=0.002)).all()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# meanabs
-# ─────────────────────────────────────────────────────────────────────────────
-def test_meanabs_survives_cancellation_where_the_mean_does_not():
-    """The reason meanabs exists: on ground centred at zero the mean says nothing."""
-    values = torch.tensor([-100.0, 100.0, -50.0, 50.0])
-
-    summary = stats_dataset._summary(values, "q")
-
-    assert summary["q_mean"] == pytest.approx(0.0)
-    assert summary["q_meanabs"] == pytest.approx(75.0)
-
-
-def test_summary_of_nothing_is_all_nan():
-    summary = stats_dataset._summary(torch.tensor([]), "q")
-    assert set(summary) == {f"q_{s}" for s in ("mean", "meanabs", "std", "min", "max")}
-    assert all(np.isnan(v) for v in summary.values())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # The floors, per scene
 # ─────────────────────────────────────────────────────────────────────────────
-def _shot_noise_stats(satellite="S2A", **kwargs):
-    x = make_stack()
+NO_REFERENCE = dict(satellite_bg="", sza_bg=float("nan"), tile_date_bg="")
+
+
+def _shot_noise_stats(x=None, satellite="S2A", **reference):
+    x = make_stack() if x is None else x
     return stats_dataset.compute_shot_noise_stats(
         BANDS,
         x=x,
@@ -89,118 +73,81 @@ def _shot_noise_stats(satellite="S2A", **kwargs):
         sza=SZA,
         vza=VZA,
         tile_date=DATE,
-        **kwargs,
+        **(reference or NO_REFERENCE),
     )
 
 
 def test_scene_floors_are_ordered_and_in_a_plausible_range():
     stats = _shot_noise_stats(satellite_bg="S2A", sza_bg=25.0, tile_date_bg=DATE)
 
-    assert stats["eta_L1_mean"] <= stats["eta_L2_mean"] <= stats["eta_L3_mean"]
+    assert stats["sigma_ch4_L1_mean"] <= stats["sigma_ch4_L2_mean"] <= stats["sigma_ch4_L3_mean"]
     assert stats["epsilon_L1_mean"] <= stats["epsilon_L2_mean"] <= stats["epsilon_L3_mean"]
-    # A few hundred ppb on ordinary ground -- the range the draft quotes.
+    # A few hundred ppb on ordinary ground.
     assert 10 < stats["epsilon_L3_mean"] < 5_000
-    assert stats["sigma_ch4_L3_mean"] > 0
 
 
 def test_l3_is_absent_without_a_reference_pass():
-    """Offshore: single-pass SBMP, so the primed terms do not exist."""
+    """Offshore: a single-pass retrieval, so the reference-pass terms do not exist."""
     stats = _shot_noise_stats()
 
-    assert "eta_L2_mean" in stats
-    assert not any(key.startswith(("eta_L3", "epsilon_L3", "sigma_ch4_L3")) for key in stats)
+    assert "sigma_ch4_L2_mean" in stats
+    assert not any("L3" in key for key in stats)
 
 
-def test_radiance_is_reported_for_the_current_image_only():
+def test_radiance_is_reported_for_the_2300nm_band_of_the_target_only():
     stats = _shot_noise_stats(satellite_bg="S2A", sza_bg=25.0, tile_date_bg=DATE)
 
-    assert "radiance_B12_mean" in stats and "radiance_B11_mean" in stats
-    assert not any("_bg" in key for key in stats)
+    assert {k for k in stats if k.startswith("radiance")} == {
+        "radiance_B12_mean",
+        "radiance_B12_std",
+    }
+    assert stats["radiance_B12_std"] == pytest.approx(0.0, abs=1e-9)  # uniform scene
+
+
+def test_a_scene_without_valid_pixels_reports_nothing():
+    x = make_stack()
+    x[BANDS.index("cloudmask")] = 1.0
+    assert _shot_noise_stats(x) == {}
 
 
 def test_a_quieter_reference_instrument_lowers_l3():
-    """satellite_bg has to drive the primed terms; Landsat is ~2x quieter."""
+    """satellite_bg has to drive the reference-pass terms; Landsat is ~2x quieter."""
     with_landsat = _shot_noise_stats(satellite_bg="LC09", sza_bg=SZA, tile_date_bg=DATE)
     with_s2 = _shot_noise_stats(satellite_bg="S2A", sza_bg=SZA, tile_date_bg=DATE)
 
-    assert with_landsat["eta_L3_mean"] < with_s2["eta_L3_mean"]
-
-
-def test_band_ratio_spread_measures_variegation_not_brightness():
-    """The heterogeneity panel of F8: uniform ground has none, whatever its albedo.
-
-    Two uniform scenes differing only in brightness must both read a spread of
-    zero -- that is the whole reason the figure plots the ratio rather than a
-    band, since the retrieval is no harder over dark uniform ground than over
-    bright uniform ground.
-    """
-    common = dict(satellite="S2A", sza=SZA, vza=VZA, tile_date=DATE)
-
-    spreads = []
-    for reflectance in (0.05, 0.5):
-        x = make_stack(reflectance)
-        stats = stats_dataset.compute_shot_noise_stats(
-            BANDS, x=x, mask=stats_dataset.valid_mask(BANDS, x), **common
-        )
-        spreads.append(stats["log_ratio_2316_std"])
-        assert stats["ratio_2316_mean"] > 0
-
-    assert all(spread == pytest.approx(0.0, abs=1e-6) for spread in spreads)
-
-
-def test_band_ratio_spread_rises_with_a_second_surface():
-    """Half the scene at a different spectral slope is heterogeneity, and shows."""
-    x = make_stack(0.3)
-    # Darken 2.3 um over half the image only: same brightness change in one band,
-    # which is exactly what the ratio is meant to see.
-    x[BANDS.index("B12"), :, :4] *= 0.5
-    common = dict(satellite="S2A", sza=SZA, vza=VZA, tile_date=DATE)
-
-    stats = stats_dataset.compute_shot_noise_stats(
-        BANDS, x=x, mask=stats_dataset.valid_mask(BANDS, x), **common
-    )
-
-    assert stats["log_ratio_2316_std"] > 0.3
+    assert with_landsat["sigma_ch4_L3_mean"] < with_s2["sigma_ch4_L3_mean"]
 
 
 def test_brighter_ground_gives_a_lower_floor():
-    x_bright, x_dark = make_stack(0.5), make_stack(0.05)
-    common = dict(satellite="S2A", sza=SZA, vza=VZA, tile_date=DATE)
-
-    bright = stats_dataset.compute_shot_noise_stats(
-        BANDS, x=x_bright, mask=stats_dataset.valid_mask(BANDS, x_bright), **common
-    )
-    dark = stats_dataset.compute_shot_noise_stats(
-        BANDS, x=x_dark, mask=stats_dataset.valid_mask(BANDS, x_dark), **common
-    )
+    bright = _shot_noise_stats(make_stack(0.5))
+    dark = _shot_noise_stats(make_stack(0.05))
 
     assert bright["epsilon_L1_mean"] < dark["epsilon_L1_mean"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Measured noise, and image selection
+# Measured noise
 # ─────────────────────────────────────────────────────────────────────────────
-def test_measured_noise_is_reported_over_valid_pixels_only():
+def test_measured_noise_excludes_invalid_and_plume_pixels():
     x = make_stack()
     x[BANDS.index("B12"), 0, 0] = 0.0  # invalid pixel
     ch4 = torch.zeros(8, 8)
-    ch4[0, 0] = 10_000.0  # a wild value that must not reach the statistics
+    ch4[0, 0] = 10_000.0  # a wild value on the invalid pixel
+    ch4[4, :] = 500.0  # a plume
+    target = torch.zeros(8, 8)
+    target[4, :] = 1.0
+    ch4[1, :4], ch4[1, 4:] = -1.0, 1.0  # the noise the background reads
 
-    stats = stats_dataset.measured_noise_stats(
-        BANDS, x=x, ch4=ch4, target=torch.zeros(8, 8), isplume=0
-    )
+    stats = stats_dataset.measured_noise_stats(BANDS, x=x, ch4=ch4, target=target)
 
     assert stats["npixelsvalid"] == 63
-    assert stats["ch4_valid_meanabs"] == pytest.approx(0.0)
+    background = ch4[(target == 0) & stats_dataset.valid_mask(BANDS, x)]
+    assert stats["ch4_valid_noplume_std"] == pytest.approx(background.std().item())
+    assert stats["ch4_valid_noplume_std"] < 1.0
 
 
 def test_mbmp_is_reported_unhalved_but_reflectance_is_not():
-    """The /2 undoes the loader's reflectance x 2, which a ratio never carried.
-
-    MBMP is scale-invariant -- the factor cancels between numerator and
-    denominator -- so applying the correction to it reports half the true value,
-    which is what the CSVs published before this fix contain.
-    """
+    """The /2 undoes the loader's reflectance x 2, which a ratio never carried."""
     stats = stats_dataset.compute_stats(
         BANDS,
         isplume=0,
@@ -214,62 +161,26 @@ def test_mbmp_is_reported_unhalved_but_reflectance_is_not():
     assert stats["B12_mean"] == pytest.approx(0.3)
 
 
-def test_log_mbmp_is_not_halved():
-    """The loader's reflectance x 2 does not apply to a dimensionless ratio."""
-    stats = stats_dataset.measured_noise_stats(
-        BANDS, x=make_stack(), ch4=torch.zeros(8, 8), target=torch.zeros(8, 8), isplume=0
-    )
-    # MBMP == 1 everywhere, so log MBMP == 0. Halving it would give log(0.5).
-    assert stats["log_mbmp_valid_mean"] == pytest.approx(0.0)
-
-
-@pytest.fixture
-def stub_csv(monkeypatch):
-    """Stand in for the CSV read, so select_images can be exercised without one."""
-    dataframe = pd.DataFrame(
-        {
-            "isplume": [True] * 50 + [False] * 50,
-            "s2path": [f"img_{i}.tif" for i in range(100)],
-        }
-    )
+# ─────────────────────────────────────────────────────────────────────────────
+# Image selection and output
+# ─────────────────────────────────────────────────────────────────────────────
+def test_without_a_split_every_image_is_swept(monkeypatch):
+    dataframe = pd.DataFrame({"s2path": [f"img_{i}.tif" for i in range(100)]})
     monkeypatch.setattr(
         stats_dataset.loaders, "read_csv_images", lambda *args, **kwargs: dataframe.copy()
     )
-    return dataframe
-
-
-def test_smoke_test_sample_is_balanced(stub_csv):
-    """20 images, 10 with plumes and 10 without -- not head(), and not 100 + 100."""
-    sample = stats_dataset.select_images("unused.csv", fs=None, smoke_test=True)
-
-    assert len(sample) == 20
-    assert int(sample.isplume.sum()) == 10
-
-
-def test_smoke_test_sample_is_reproducible(stub_csv):
-    first = stats_dataset.select_images("unused.csv", fs=None, smoke_test=True)
-    second = stats_dataset.select_images("unused.csv", fs=None, smoke_test=True)
-
-    assert first.s2path.tolist() == second.s2path.tolist()
-
-
-def test_without_smoke_test_every_image_is_swept(stub_csv):
     assert len(stats_dataset.select_images("unused.csv", fs=None)) == 100
 
 
-def test_smoke_test_of_a_corpus_without_plumes(monkeypatch):
-    """CloudSEN12 has no plumes at all; the sample is then simply the 10 without."""
-    dataframe = pd.DataFrame(
-        {"isplume": [False] * 30, "s2path": [f"img_{i}.tif" for i in range(30)]}
-    )
-    monkeypatch.setattr(
-        stats_dataset.loaders, "read_csv_images", lambda *args, **kwargs: dataframe.copy()
-    )
+def test_write_replaces_the_file_whole(tmp_path):
+    fs = fsspec.filesystem("file")
+    output = str(tmp_path / "stats.csv")
 
-    sample = stats_dataset.select_images("unused.csv", fs=None, smoke_test=True)
+    stats_dataset._write(pd.DataFrame({"a": [1, 2]}), fs, output)
+    stats_dataset._write(pd.DataFrame({"a": [1, 2, 3]}), fs, output)
 
-    assert len(sample) == 10
-    assert not sample.isplume.any()
+    assert len(pd.read_csv(output)) == 3
+    assert not fs.exists(output + ".part")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

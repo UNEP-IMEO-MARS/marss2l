@@ -1,50 +1,29 @@
-"""The two regional figures of the shot-noise paper, from the sweep CSV.
+"""The regional figures of the shot-noise letter, from the sweep CSVs.
 
-``floors_by_region.png`` (F1)
-    The three floors per case study, faceted by satellite family. What the
-    instrument can resolve, and where the multi-pass construction costs most.
+``floors_by_region.png``, ``floors_by_region_epsilon.png``
+    The three floors per case study, faceted by satellite family, as standard
+    deviations and as detection thresholds.
+``scenes_and_gap.png``
+    Brightness and uniformity of the scenes, and the measured noise of the retrieval
+    against its L3 floor, per case study.
+``breaches_by_region.png``
+    How often the measured noise falls below each floor.
+``noise_drivers.png``, ``noise_drivers_by_region.png``, ``noise_drivers_fit_by_region.png``
+    The measured noise explained by the floor and the relative spread of the scene.
+``cloudsen12_gap_by_country.png``, ``corpora_by_region.png``
+    The CloudSEN12 corpus stratified by the MARS-S2L case studies, and both corpora
+    side by side.
+``detectable_flux_by_region.png``, ``detectable_flux_by_wind.png``
+    The noise as the flux detected with 50 % probability, by region and by wind.
 
-``gap_by_region.png`` (F2)
-    The retrieval's measured noise against its own photon-noise floor, per case
-    study, both as standard deviations in ppb, with the reducible share beside it.
-    The crux result: how much of today's error a better background estimate could
-    remove.
-
-``scenes_by_region.png`` (F8)
-    What the scenes are like: how bright, and how uniform -- the mean and the
-    standard deviation of the 2.3 um radiance within a scene. The context for
-    reading the gap, since brightness sets the floor and the spread is the
-    structure the background estimate has to predict.
-
-``detectable_flux_by_region.png``
-    The noise as a flux: the rate detected with 50 % probability, from the measured
-    noise and from the L1 and L2 floors, at 1 m/s and at each region's median wind.
-    Needs ``--fit-grid-stats-csv``: see :func:`add_fit_grid_noise`.
-
-``detectable_flux_by_wind.png``
-    The same three fluxes against the wind each scene was observed at, per platform,
-    with the share of scenes per wind bin beneath.
-
-Everything is a groupby on the CSV that ``stats_dataset.py`` writes. Nothing here
-recomputes a raster, and a point is always **one scene** -- pixels within a scene
-are strongly correlated, so a distribution over pixels would claim a precision the
-data does not have.
-
-Scene selection, per the epic: the named split, ``observability == "clear"``,
-onshore only (offshore uses the single-pass SBMP retrieval, so its noise is not
-comparable and L3 does not exist for it) and no night reference pass.
-
-A second corpus can be added as one further case study -- CloudSEN12, whose
-scenes are worldwide and are not oil-and-gas infrastructure, so it says what the
-floors and the gap look like away from the producing regions the rest of the
-axis is made of. It enters as its own row rather than by country: its countries
-would otherwise scatter across the MARS-S2L case studies and mostly into "Rest",
-mixing two corpora that were selected on entirely different criteria.
+Everything is a groupby on the CSV that ``marss2l.stats_dataset`` writes, and a point is
+always one scene. Scenes are kept if ``observability == "clear"``, onshore (offshore
+scenes use a single-pass retrieval without an L3 floor) and with a daytime reference pass.
 
 Run::
 
-    python -m scripts.figure_regional figures --stats-csv <csv> --images-csv <csv> \\
-        --extra-stats-csv <cloudsen12 csv> --extra-images-csv <cloudsen12 csv> \\
+    python -m scripts.figure_regional figures <stats csv> <images csv> \\
+        --extra-stats-csv <cloudsen12 stats csv> --extra-images-csv <cloudsen12 images csv> \\
         --output-dir <dir>
 """
 
@@ -149,7 +128,8 @@ def apply_permian_labels(scenes: pd.DataFrame, shapefile: str) -> pd.DataFrame:
     basin = gpd.read_file(shapefile).geometry.union_all()
     is_us = scenes.case_study == UNITED_STATES
     inside = pd.Series(
-        [Point(x, y).within(basin) for x, y in zip(scenes.lon, scenes.lat)], index=scenes.index
+        [Point(x, y).within(basin) for x, y in zip(scenes.lon, scenes.lat, strict=True)],
+        index=scenes.index,
     )
 
     scenes = scenes.copy()
@@ -174,8 +154,8 @@ def load_scenes(stats_csv: str, images_csv: str, label: Optional[str] = None) ->
         stats_csv: Output of ``stats_dataset.py``.
         images_csv: The image metadata CSV, for ``observability`` and ``case_study``.
         label: Name to give every scene of this corpus on the case-study axis,
-            overriding the per-country grouping. What makes a second dataset one
-            row of the figures rather than a re-partition of the first.
+            overriding the per-country grouping, so that a second corpus is one row of
+            the figures. Also its ``dataset``; ``MARS-S2L`` when not given.
 
     Returns:
         One row per usable scene, with the measured noise and the ratio to each rung.
@@ -192,16 +172,10 @@ def load_scenes(stats_csv: str, images_csv: str, label: Optional[str] = None) ->
 
     if label is not None:
         scenes["case_study"] = label
-    if "dataset" not in scenes.columns:
-        # Sweeps run before --dataset-name existed carry no such column.
-        scenes["dataset"] = label or "MARS-S2L"
+    scenes["dataset"] = label or "MARS-S2L"
 
-    # O-base: the retrieval's own noise, on pixels where it should read zero. A
-    # corpus with no plumes at all -- CloudSEN12 -- has no _noplume column, since
-    # the sweep only writes one for a scene that has a plume to exclude.
-    without_plume = scenes.ch4_valid_std
-    with_plume = scenes.get("ch4_valid_noplume_std", np.nan)
-    scenes["measured"] = np.where(scenes.isplume == 1, with_plume, without_plume)
+    # The retrieval's own noise, on the valid pixels where it should read zero.
+    scenes["measured"] = scenes.ch4_valid_noplume_std
     scenes = scenes[scenes.measured.notna() & (scenes.measured > 0)]
 
     scenes["family"] = np.where(scenes.satellite.str.startswith("S2"), "Sentinel-2", "Landsat")
@@ -333,167 +307,6 @@ def figure_floors(
     print(f"wrote {path}")
 
 
-def figure_scenes(scenes: pd.DataFrame, path: str) -> None:
-    """F8: what the scenes themselves are like -- how bright, and how uniform.
-
-    The context for reading F2. Brightness sets the floor, through the square
-    root of the radiance in the SNR rescaling; the spread of that radiance within
-    a scene is the simplest measure of the structure the background estimate has
-    to predict, and it is what the gap above the floor is made of. Panel a is
-    coloured like the floor in F2 and panel b like the measured noise, because
-    that is the quantity each one explains.
-
-    Both panels are the 2.3 um radiance, per scene: its mean over valid pixels,
-    and its standard deviation over the same pixels. They are the two moments the
-    sweep already writes, so this figure costs nothing beyond the CSVs behind F1
-    and F2 -- the same scenes, the same selection, the same unit.
-
-    Args:
-        scenes: Output of :func:`load_scenes`.
-        path: Where to write the figure.
-    """
-    order = case_study_order(scenes, min_scenes=5)
-
-    # Shared x as well as y: the two panels are the same quantity in the same
-    # unit, so putting them on one scale shows directly that the spread within a
-    # scene is an order of magnitude below the level -- which a reader cannot see
-    # from two independently scaled axes.
-    fig, axes = plt.subplots(
-        1, 2, figsize=(10.4, 0.42 * len(order) + 2.2), sharey=True, sharex=True
-    )
-    fig.patch.set_facecolor("white")
-
-    panels = [
-        (
-            "radiance_B12_mean",
-            RUNG_COLOURS["L3"],
-            r"mean radiance at 2.3 $\mu$m  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
-            "a  How bright the scene is",
-        ),
-        (
-            "radiance_B12_std",
-            MEASURED,
-            r"std. dev. within the scene  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
-            "b  How uniform it is",
-        ),
-    ]
-
-    for ax, (column, colour, xlabel, title) in zip(axes, panels, strict=True):
-        data = [scenes.loc[scenes.case_study == c, column].dropna().values for c in order]
-        _boxes(ax, data, list(range(len(order))), colour, width=0.42)
-
-        ax.set_yticks(range(len(order)))
-        ax.set_yticklabels(order, fontsize=8, color=INK)
-        ax.set_ylim(-0.7, len(order) - 0.3)
-        ax.invert_yaxis()  # keep ORDER_CASE_STUDIES reading top to bottom
-        ax.set_xscale("log")
-        _style(ax, xlabel=xlabel, title=title)
-
-    # The spread relative to the brightness, which is the two panels divided and
-    # the quantity that actually tracks the gap: an absolute spread is larger over
-    # bright ground for no other reason than that the ground is bright.
-    relative = (
-        (scenes.radiance_B12_std / scenes.radiance_B12_mean)
-        .groupby(scenes.case_study)
-        .median()
-        .reindex(order)
-    )
-    for i, value in enumerate(relative.values):
-        axes[1].annotate(
-            f"{value:.2f}",
-            xy=(1.0, i),
-            xycoords=("axes fraction", "data"),
-            xytext=(6, 0),
-            textcoords="offset points",
-            va="center",
-            fontsize=7.5,
-            color=INK_SOFT,
-        )
-    axes[1].annotate(
-        "std/mean",
-        xy=(1.0, -0.7),
-        xycoords=("axes fraction", "data"),
-        xytext=(6, 0),
-        textcoords="offset points",
-        va="center",
-        fontsize=7.5,
-        style="italic",
-        color=INK_SOFT,
-    )
-
-    fig.tight_layout()
-    fig.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
-    print(f"wrote {path}")
-
-
-def figure_gap(scenes: pd.DataFrame, path: str) -> None:
-    """F2: measured noise against the L3 floor, per case study, with the share."""
-    order = case_study_order(scenes, min_scenes=5)
-
-    fig, (ax, ax_share) = plt.subplots(
-        1,
-        2,
-        figsize=(10.4, 0.42 * len(order) + 2.2),
-        gridspec_kw={"width_ratios": [3.1, 1]},
-        sharey=True,
-    )
-    fig.patch.set_facecolor("white")
-
-    for offset, column, colour in [
-        (0.19, "sigma_ch4_L3_mean", RUNG_COLOURS["L3"]),
-        (-0.19, "measured", MEASURED),
-    ]:
-        data = [scenes.loc[scenes.case_study == c, column].dropna().values for c in order]
-        _boxes(ax, data, [i + offset for i in range(len(order))], colour, width=0.3)
-
-    ax.set_yticks(range(len(order)))
-    ax.set_yticklabels(order, fontsize=8, color=INK)
-    ax.set_ylim(-0.7, len(order) - 0.3)
-    ax.invert_yaxis()  # keep ORDER_CASE_STUDIES reading top to bottom
-    ax.set_xscale("log")
-    _style(
-        ax,
-        xlabel=r"$\sigma(\Delta \mathrm{XCH}_4)$  [ppb]",
-        title="a  What the retrieval reads, against its photon-noise floor",
-    )
-    ax.legend(
-        handles=[
-            Patch(facecolor=MEASURED, label="measured, plume-free pixels"),
-            Patch(facecolor=RUNG_COLOURS["L3"], label="floor L3, propagated"),
-        ],
-        loc="upper left",
-        bbox_to_anchor=(0.0, -0.06),
-        ncol=2,
-        frameon=False,
-        fontsize=8,
-        labelcolor=INK_SOFT,
-    )
-
-    # The single number a reader quotes: the share of variance that is not photons.
-    share = scenes.groupby("case_study").reducible.median().reindex(order)
-    ax_share.barh(range(len(order)), share.values, height=0.5, color=MEASURED, zorder=3)
-    for i, value in enumerate(share.values):
-        ax_share.annotate(
-            f"{value:.0%}",
-            xy=(value, i),
-            xytext=(4, 0),
-            textcoords="offset points",
-            va="center",
-            fontsize=8,
-            color=INK,
-        )
-    ax_share.set_xlim(0, 1.18)
-    ax_share.set_xticks([0, 0.5, 1.0])
-    ax_share.set_xticklabels(["0", "50%", "100%"])
-    _style(ax_share, xlabel="share of variance that is\nnot photon noise", title="b  Reducible")
-
-    fig.tight_layout()
-    fig.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
-    print(f"wrote {path}")
-
-
 def _labels_with_n(scenes: pd.DataFrame, order: list) -> list:
     """Row labels carrying their sample size, for panels where n varies wildly."""
     counts = scenes.case_study.value_counts()
@@ -505,7 +318,7 @@ def _labels_with_n(scenes: pd.DataFrame, order: list) -> list:
 MAX_JITTER = 250
 
 
-def _jittered(ax, values, position: float, colour: str, rng, width: float = 0.16) -> None:
+def _jittered(ax, values, position: float, colour: str, rng, *, width: float = 0.16) -> None:
     """The scenes behind a box, so a row of eighteen cannot pass for a distribution."""
     if len(values) == 0:
         return
@@ -533,10 +346,10 @@ def _robust_limits(arrays: list) -> tuple:
 def figure_by_country(
     scenes: pd.DataFrame,
     path: str,
+    *,
     panels: list,
     order: list,
     title_suffix: str = "",
-    sharex: bool = False,
     log: bool = True,
 ) -> None:
     """A per-case-study figure with the individual scenes drawn behind the boxes.
@@ -555,7 +368,6 @@ def figure_by_country(
             list of ``(column, colour, label)`` drawn together on that panel.
         order: Rows, top to bottom.
         title_suffix: Appended above the figure.
-        sharex: Put the panels on one x scale. For panels in the same unit.
         log: Logarithmic x axis.
     """
     rng = np.random.default_rng(0)
@@ -564,12 +376,10 @@ def figure_by_country(
         len(panels),
         figsize=(5.6 * len(panels), 0.52 * len(order) + 2.4),
         sharey=True,
-        sharex=sharex,
     )
 
     fig.patch.set_facecolor("white")
 
-    pooled: list = []
     for ax, panel in zip(np.atleast_1d(axes), panels, strict=True):
         # A panel may override the figure's x scale: a share bounded by 0 and 1
         # has no business on a logarithmic axis, where its whiskers run off the
@@ -589,16 +399,11 @@ def figure_by_country(
                 _jittered(ax, values, position + offset, INK, rng, width=width * 0.42)
 
         # The boxes hide their outliers but the jitter does not, and a handful of
-        # extreme scenes would otherwise squeeze every box into a decade. Under
-        # sharex the limit has to come from every panel at once, or the last panel
-        # drawn silently clips the first.
+        # extreme scenes would otherwise squeeze every box into a decade.
         if xlim is not None:
             ax.set_xlim(*xlim)
         elif use_log:
-            pooled.extend(v for v in drawn if len(v))
-            if not sharex:
-                ax.set_xlim(*_robust_limits(pooled))
-                pooled = []
+            ax.set_xlim(*_robust_limits(drawn))
 
         ax.set_yticks(range(len(order)))
         ax.set_yticklabels(_labels_with_n(scenes, order), fontsize=8, color=INK)
@@ -617,9 +422,6 @@ def figure_by_country(
                 fontsize=8,
                 labelcolor=INK_SOFT,
             )
-
-    if sharex and pooled:
-        np.atleast_1d(axes)[0].set_xlim(*_robust_limits(pooled))
 
     if title_suffix:
         fig.suptitle(title_suffix, x=0.0, ha="left", fontsize=9, color=INK_SOFT, y=1.02)
@@ -735,16 +537,12 @@ def figure_corpora(main: pd.DataFrame, extra: pd.DataFrame, path: str) -> None:
 
 
 def supplementary_figures(scenes: pd.DataFrame, output_dir: str, label: str) -> None:
-    """The supplement: one corpus, stratified by the case studies of the other.
+    """The second corpus stratified by the case studies of the first.
 
-    CloudSEN12 sits a factor of two above every producing region in the main
-    figures, and the obvious question is whether that is a different regime or a
-    different mixture of places. Stratifying it by the case studies of the other
-    corpus answers it against rows that already have a value to compare with.
+    CloudSEN12 sits above every producing region in the main figures; stratifying it
+    by the MARS-S2L case studies says whether that is a different regime or a
+    different mixture of places.
     """
-    order = [c for c in ORDER_CASE_STUDIES_EXT if c in set(scenes.case_study)]
-    subtitle = f"{label}, stratified by the case studies of the other corpus"
-
     figure_by_country(
         scenes,
         os.path.join(output_dir, "cloudsen12_gap_by_country.png"),
@@ -767,64 +565,19 @@ def supplementary_figures(scenes: pd.DataFrame, output_dir: str, label: str) -> 
                 (-1.0, 1.03),
             ),
         ],
-        order=order,
-        title_suffix=subtitle,
+        order=[c for c in ORDER_CASE_STUDIES_EXT if c in set(scenes.case_study)],
+        title_suffix=f"{label}, stratified by the case studies of the other corpus",
     )
-
-    figure_by_country(
-        scenes,
-        os.path.join(output_dir, "cloudsen12_scenes_by_country.png"),
-        panels=[
-            (
-                [("radiance_B12_mean", RUNG_COLOURS["L3"], "mean")],
-                r"mean radiance at 2.3 $\mu$m  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
-                "a  How bright the scene is",
-            ),
-            (
-                [("radiance_B12_std", MEASURED, "std")],
-                r"std. dev. within the scene  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
-                "b  How uniform it is",
-            ),
-        ],
-        order=order,
-        title_suffix=subtitle,
-        sharex=True,
-    )
-
-
-def add_fit_grid_noise(scenes: pd.DataFrame, fit_grid: pd.DataFrame) -> pd.DataFrame:
-    """The measured noise on the grid the detection curve was fitted on.
-
-    :data:`marss2l.shot_noise.OBSERVABILITY_50` was fitted against the noise of the
-    operational products: Sentinel-2 on its interpolated 10 m grid, Landsat on its
-    native 30 m one. Observability is not preserved by interpolation -- W times the
-    noise changes with the grid -- so the Sentinel-2 noise has to come from a sweep of
-    the 10 m chips, while Landsat's is the native one already in ``scenes``.
-
-    Args:
-        scenes: Output of :func:`load_scenes` on the native-grid sweep (Landsat at 30 m).
-        fit_grid: Output of :func:`load_scenes` on the sweep of the published 10 m
-            chips; only its Sentinel-2 rows are used.
-
-    Returns:
-        ``scenes`` with ``measured_fit_grid``.
-    """
-    s2 = fit_grid.loc[fit_grid.satellite.str.startswith("S2"), ["id_loc_image", "measured"]]
-    s2 = s2.rename(columns={"measured": "measured_fit_grid"}).drop_duplicates("id_loc_image")
-    scenes = scenes.drop(columns="measured_fit_grid", errors="ignore").merge(
-        s2, on="id_loc_image", how="left"
-    )
-    landsat = ~scenes.satellite.str.startswith("S2")
-    scenes.loc[landsat, "measured_fit_grid"] = scenes.loc[landsat, "measured"]
-    return scenes
 
 
 def add_detectable_flux(scenes: pd.DataFrame) -> pd.DataFrame:
     """Q50 at 1 m/s from the measured noise and from the three floors, and the wind.
 
-    The floors are per native pixel; on Sentinel-2's 10 m grid, where the fit's noise
-    lives, a scene at a floor would read it times
-    :data:`marss2l.shot_noise.INTERPOLATION_FACTOR_S2`.
+    :data:`marss2l.shot_noise.OBSERVABILITY_50` was fitted on the noise of the
+    operational products: Sentinel-2 on the 10 m grid, Landsat on its native 30 m one.
+    The Sentinel-2 noise therefore comes from the 10 m chips
+    (``ch4_valid_noplume_std_10m``), and the Sentinel-2 floors, which are per native
+    pixel, are scaled to that grid by :data:`marss2l.shot_noise.NOISE_FACTOR_10M`.
 
     Returns:
         ``scenes`` with ``q50_measured``, ``q50_L1``, ``q50_L2``, ``q50_L3`` (kg/h at 1 m/s)
@@ -832,8 +585,9 @@ def add_detectable_flux(scenes: pd.DataFrame) -> pd.DataFrame:
     """
     scenes = scenes.copy()
     s2 = scenes.satellite.str.startswith("S2")
-    to_fit_grid = np.where(s2, shot_noise.INTERPOLATION_FACTOR_S2, 1.0)
-    scenes["q50_measured"] = shot_noise.q50_from_noise(scenes.measured_fit_grid, scenes.satellite)
+    noise = np.where(s2, scenes.ch4_valid_noplume_std_10m, scenes.measured)
+    to_fit_grid = np.where(s2, shot_noise.NOISE_FACTOR_10M["S2"], 1.0)
+    scenes["q50_measured"] = shot_noise.q50_from_noise(noise, scenes.satellite)
     for rung in ("L1", "L2", "L3"):
         scenes[f"q50_{rung}"] = shot_noise.q50_from_noise(
             scenes[f"sigma_ch4_{rung}_mean"] * to_fit_grid, scenes.satellite
@@ -892,7 +646,9 @@ def figure_detectable_flux(scenes: pd.DataFrame, path: str) -> None:
             ]
             _boxes(ax, data, [i + offset for i in range(len(order))], colour, width=0.17)
         ax.set_xscale("log")
-        _style(ax, xlabel=r"flux detected with 50% probability, $Q_{50}$  [kg h$^{-1}$]", title=title)
+        _style(
+            ax, xlabel=r"flux detected with 50% probability, $Q_{50}$  [kg h$^{-1}$]", title=title
+        )
 
     # Down to 100 kg/h at least, where the smallest claimed detections sit.
     low = min(80.0, *(ax.get_xlim()[0] for ax in axes))
@@ -972,14 +728,19 @@ def figure_detectable_flux_by_wind(scenes: pd.DataFrame, path: str) -> None:
         scenes: Output of :func:`add_detectable_flux`, one corpus.
         path: Where to write the figure.
     """
-    labels = [f"{lo:g}–{hi:g}" if np.isfinite(hi) else f"≥{lo:g}" for lo, hi in zip(WIND_EDGES[:-1], WIND_EDGES[1:], strict=True)]
+    labels = [
+        f"{lo:g}–{hi:g}" if np.isfinite(hi) else f"≥{lo:g}"
+        for lo, hi in zip(WIND_EDGES[:-1], WIND_EDGES[1:], strict=True)
+    ]
     scenes = scenes.assign(
         wind_bin=pd.cut(scenes.wind_speed, list(WIND_EDGES), right=False, labels=False),
         # The share beneath also counts the calm scenes, one bin to the left, so that it is a share
         # of every scene; no Q50 is drawn there, the detection curve not being fitted below 1 m/s.
         share_bin=pd.cut(scenes.wind_speed, [0, *WIND_EDGES], right=False, labels=False) - 1,
     )
-    print(f"by-wind figure: {int((scenes.wind_speed < WIND_EDGES[0]).sum()):,} scenes below {WIND_EDGES[0]} m/s, in the share only")
+    print(
+        f"by-wind figure: {int((scenes.wind_speed < WIND_EDGES[0]).sum()):,} scenes below {WIND_EDGES[0]} m/s, in the share only"
+    )
     free = scenes[(scenes.isplume != 1) & scenes.wind_bin.notna()]
     hues = [
         (-0.33, "q50_measured", MEASURED, "from the measured noise of the retrieval"),
@@ -1000,7 +761,10 @@ def figure_detectable_flux_by_wind(scenes: pd.DataFrame, path: str) -> None:
         rows = free[free.family == family]
         for offset, column, colour, _ in hues:
             data = [
-                (rows.loc[rows.wind_bin == b, column] * rows.loc[rows.wind_bin == b, "wind_speed"]).values
+                (
+                    rows.loc[rows.wind_bin == b, column]
+                    * rows.loc[rows.wind_bin == b, "wind_speed"]
+                ).values
                 for b in positions
             ]
             _boxes(ax, data, [p + offset for p in positions], colour, width=0.19, vert=True)
@@ -1011,15 +775,25 @@ def figure_detectable_flux_by_wind(scenes: pd.DataFrame, path: str) -> None:
         ax.set_title(family, color=INK, fontsize=10.5, loc="left", pad=8)
 
         share = scenes[scenes.family == family].share_bin.value_counts(normalize=True)
-        hist.bar([-1], [100 * share.get(-1, 0.0)], width=0.7, color=INK_SOFT, alpha=0.2, linewidth=0)
-        hist.bar(positions, [100 * share.get(b, 0.0) for b in positions], width=0.7,
-                 color=INK_SOFT, alpha=0.45, linewidth=0)
+        hist.bar(
+            [-1], [100 * share.get(-1, 0.0)], width=0.7, color=INK_SOFT, alpha=0.2, linewidth=0
+        )
+        hist.bar(
+            positions,
+            [100 * share.get(b, 0.0) for b in positions],
+            width=0.7,
+            color=INK_SOFT,
+            alpha=0.45,
+            linewidth=0,
+        )
         _style_vertical(hist, grid=False)
         hist.tick_params(labelsize=7.5)
         hist.set_xticks([-1, *positions], [f"0–{WIND_EDGES[0]:g}", *labels])
         hist.set_xlabel(r"10 m wind speed  [m s$^{-1}$]", color=INK_SOFT, fontsize=9)
         if c == 0:
-            ax.set_ylabel(r"$Q_{50}$ at the scene's wind  [kg h$^{-1}$]", color=INK_SOFT, fontsize=9)
+            ax.set_ylabel(
+                r"$Q_{50}$ at the scene's wind  [kg h$^{-1}$]", color=INK_SOFT, fontsize=9
+            )
             hist.set_ylabel("% of\nscenes", color=INK_SOFT, fontsize=8)
         else:
             ax.tick_params(labelleft=False)
@@ -1036,7 +810,9 @@ def figure_detectable_flux_by_wind(scenes: pd.DataFrame, path: str) -> None:
     )
     low, high = first.get_ylim()
     low = min(80.0, low)
-    ticks = [t for t in (100, 300, 1_000, 3_000, 10_000, 30_000, 100_000, 300_000) if low <= t <= high]
+    ticks = [
+        t for t in (100, 300, 1_000, 3_000, 10_000, 30_000, 100_000, 300_000) if low <= t <= high
+    ]
     first.set_ylim(low, high)
     first.set_yticks(ticks)
     first.set_yticklabels([f"{t:,}" for t in ticks])
@@ -1067,41 +843,28 @@ def _with_flux_summary(summary: pd.DataFrame, flux: pd.DataFrame) -> pd.DataFram
 def figures(
     stats_csv: str,
     images_csv: str,
+    *,
     output_dir: str = ".",
     summary_csv: Optional[str] = None,
     extra_stats_csv: Optional[str] = None,
     extra_images_csv: Optional[str] = None,
     extra_label: str = DEFAULT_EXTRA_LABEL,
     permian_shapefile: Optional[str] = None,
-    supplement: bool = True,
-    fit_grid_stats_csv: Optional[str] = None,
-    extra_fit_grid_stats_csv: Optional[str] = None,
 ) -> None:
-    """Draw F1, F2 and F8 from a sweep, and the supplement from the second corpus.
+    """Draw the regional figures and print the per-region table behind them.
 
     Args:
-        stats_csv: Output of ``stats_dataset.py``.
+        stats_csv: Output of ``marss2l.stats_dataset`` on the native grids.
         images_csv: Image metadata CSV, for observability and case study.
         output_dir: Where to write the figures.
-        summary_csv: Optional path to write the per-region table behind them.
-        extra_stats_csv: Sweep of a second corpus, appended as one further case
-            study. Requires ``extra_images_csv``.
+        summary_csv: Optional path to write the per-region table.
+        extra_stats_csv: Sweep of a second corpus (CloudSEN12), appended as one further
+            case study. Requires ``extra_images_csv``.
         extra_images_csv: Image metadata CSV of that second corpus.
         extra_label: Name of its row on the case-study axis.
-        permian_shapefile: Polygon of the Permian basin. Given one, the United
-            States row becomes the basin and the scenes outside it join ``Rest``
-            -- see :func:`apply_permian_labels`. Applied to **both** corpora, so
-            that one axis label means one thing across every figure; in a
-            worldwide corpus that leaves a small basin row and moves the rest of
-            its United States scenes to ``Rest``, which is the honest reading of
-            what those scenes are.
-        supplement: Also draw the second corpus stratified by the case studies of
-            the first, which is what says whether it differs in regime or only in
-            composition.
-        fit_grid_stats_csv: Sweep of the published 10 m chips, for Sentinel-2's noise
-            on the grid the detection curve was fitted on. Given it, the detectable-flux
-            figure is drawn too -- see :func:`add_fit_grid_noise`.
-        extra_fit_grid_stats_csv: The same for the second corpus.
+        permian_shapefile: Polygon of the Permian basin. Given one, the United States
+            row becomes the basin and the scenes outside it join ``Rest`` (see
+            :func:`apply_permian_labels`), in both corpora.
     """
     scenes = load_scenes(stats_csv, images_csv)
     if permian_shapefile is not None:
@@ -1112,24 +875,21 @@ def figures(
     if extra_stats_csv is not None:
         extra = load_scenes(extra_stats_csv, extra_images_csv, label=extra_label)
         print(f"{len(extra):,} {extra_label} scenes after selection")
-        if supplement:
-            by_country = extra.copy()
-            by_country["case_study"] = by_country["country"].apply(_set_case_study)
-            if permian_shapefile is not None:
-                by_country = apply_permian_labels(by_country, permian_shapefile)
-            supplementary_figures(by_country, output_dir, extra_label)
-            figure_corpora(scenes, by_country, os.path.join(output_dir, "corpora_by_region.png"))
+        by_country = extra.copy()
+        by_country["case_study"] = by_country["country"].apply(_set_case_study)
+        if permian_shapefile is not None:
+            by_country = apply_permian_labels(by_country, permian_shapefile)
+        supplementary_figures(by_country, output_dir, extra_label)
+        figure_corpora(scenes, by_country, os.path.join(output_dir, "corpora_by_region.png"))
 
-            # The drivers are a statement about scenes, so both corpora enter
-            # them keeping their own regions rather than one collapsed row.
-            by_region = pd.concat([scenes, by_country], ignore_index=True)
-            figure_drivers(by_region, os.path.join(output_dir, "noise_drivers.png"))
-            figure_drivers_by_region(
-                by_region, os.path.join(output_dir, "noise_drivers_by_region.png")
-            )
-            figure_drivers_fit_by_region(
-                by_region, os.path.join(output_dir, "noise_drivers_fit_by_region.png")
-            )
+        # The drivers are a statement about scenes, so both corpora enter them keeping
+        # their own regions rather than one collapsed row.
+        by_region = pd.concat([scenes, by_country], ignore_index=True)
+        figure_drivers(by_region, os.path.join(output_dir, "noise_drivers.png"))
+        figure_drivers_by_region(by_region, os.path.join(output_dir, "noise_drivers_by_region.png"))
+        figure_drivers_fit_by_region(
+            by_region, os.path.join(output_dir, "noise_drivers_fit_by_region.png")
+        )
         scenes = pd.concat([scenes, extra], ignore_index=True)
 
     print(f"{len(scenes):,} scenes after selection")
@@ -1138,46 +898,32 @@ def figures(
     figure_floors(
         scenes, os.path.join(output_dir, "floors_by_region_epsilon.png"), quantity="epsilon"
     )
-    figure_gap(scenes, os.path.join(output_dir, "gap_by_region.png"))
-    figure_scenes(scenes, os.path.join(output_dir, "scenes_by_region.png"))
     figure_scenes_and_gap(scenes, os.path.join(output_dir, "scenes_and_gap.png"))
     figure_breaches(scenes, os.path.join(output_dir, "breaches_by_region.png"))
 
-    flux = None
-    if fit_grid_stats_csv is not None:
-        fit_grid = load_scenes(fit_grid_stats_csv, images_csv)
-        if extra_fit_grid_stats_csv is not None:
-            fit_grid = pd.concat(
-                [fit_grid, load_scenes(extra_fit_grid_stats_csv, extra_images_csv, label=extra_label)],
-                ignore_index=True,
-            )
-        flux = add_detectable_flux(add_fit_grid_noise(scenes, fit_grid))
-        figure_detectable_flux(flux, os.path.join(output_dir, "detectable_flux_by_region.png"))
-        figure_detectable_flux_by_wind(
-            flux[flux.dataset == "MARS-S2L"],
-            os.path.join(output_dir, "detectable_flux_by_wind.png"),
-        )
-
-    aggregations = dict(
-        scenes=("measured", "size"),
-        epsilon_L1=("epsilon_L1_mean", "median"),
-        epsilon_L3=("epsilon_L3_mean", "median"),
-        floor_L3=("sigma_ch4_L3_mean", "median"),
-        measured=("measured", "median"),
-        ratio=("ratio_L3", "median"),
-        reducible=("reducible", "median"),
-        radiance_23=("radiance_B12_mean", "median"),
+    flux = add_detectable_flux(scenes)
+    figure_detectable_flux(flux, os.path.join(output_dir, "detectable_flux_by_region.png"))
+    figure_detectable_flux_by_wind(
+        flux[flux.dataset == "MARS-S2L"], os.path.join(output_dir, "detectable_flux_by_wind.png")
     )
-    aggregations["radiance_23_std"] = ("radiance_B12_std", "median")
 
     summary = (
         scenes.groupby("case_study")
-        .agg(**aggregations)
+        .agg(
+            scenes=("measured", "size"),
+            epsilon_L1=("epsilon_L1_mean", "median"),
+            epsilon_L3=("epsilon_L3_mean", "median"),
+            floor_L3=("sigma_ch4_L3_mean", "median"),
+            measured=("measured", "median"),
+            ratio=("ratio_L3", "median"),
+            reducible=("reducible", "median"),
+            radiance_23=("radiance_B12_mean", "median"),
+            radiance_23_std=("radiance_B12_std", "median"),
+        )
         .round(4)
         .sort_values("scenes", ascending=False)
     )
-    if flux is not None:
-        summary = _with_flux_summary(summary, flux)
+    summary = _with_flux_summary(summary, flux)
     print(summary.to_string())
     if summary_csv:
         summary.to_csv(summary_csv)
@@ -1544,16 +1290,16 @@ def figure_breaches(scenes: pd.DataFrame, path: str) -> None:
             positions.append(i + offset)
             empty.append(share == 0)
         ax.scatter(
-            [s for s, e in zip(shares, empty) if not e],
-            [p for p, e in zip(positions, empty) if not e],
+            [s for s, e in zip(shares, empty, strict=True) if not e],
+            [p for p, e in zip(positions, empty, strict=True) if not e],
             s=52,
             color=colour,
             zorder=4,
             label=f"below {rung}",
         )
         ax.scatter(
-            [s for s, e in zip(shares, empty) if e],
-            [p for p, e in zip(positions, empty) if e],
+            [s for s, e in zip(shares, empty, strict=True) if e],
+            [p for p, e in zip(positions, empty, strict=True) if e],
             s=52,
             facecolor="white",
             edgecolor=colour,

@@ -324,8 +324,6 @@ class DatasetPlumes(Dataset):
         self.window_size_data = window_size_data
 
         self.native_grid = native_grid
-        if self.native_grid and cache:
-            raise ValueError("native_grid does not support cache: the cache holds stored-size chips")
         # The last few chips recovered at 20 m, so that image, cloud mask and plume mask of one
         # item share a single recovery.
         self._native_chips: Dict[str, resampling.NativeChip] = {}
@@ -1775,13 +1773,11 @@ class DatasetPlumes(Dataset):
                     "tile_date": item["tile_date"].isoformat(),
                     "satellite": item["satellite"],
                     # Solar/view geometry of both passes, for the shot-noise
-                    # propagation: converting each pass's reflectances to radiances
-                    # needs its own angle and date. The _bg fields are empty for an
-                    # offshore scene, which has no reference pass, and absent from
-                    # CSVs exported before those columns existed.
-                    # Offshore scenes use the single-pass SBMP retrieval, so their
-                    # noise is not comparable with the multi-pass floors and the
-                    # figures exclude them.
+                    # propagation (marss2l.stats_dataset): each pass's reflectances
+                    # are converted to radiance with its own angle and date. The _bg
+                    # fields are empty for an offshore scene, which has no reference
+                    # pass, and for CSVs without the reference-pass columns, such as
+                    # the control releases.
                     "offshore": bool(item["offshore"]),
                     "sza": _as_float(item["sza"]),
                     "vza": _as_float(item["vza"]),
@@ -1966,22 +1962,14 @@ class DatasetPlumes(Dataset):
 
 
 def _as_float(value) -> float:
-    """Coerce a dataframe field to a plain float, missing values becoming NaN.
-
-    The default collate turns floats into tensors but chokes on ``None``, so a
-    missing angle has to arrive as NaN rather than as nothing.
-    """
+    """A dataframe field as a float, missing as NaN (the default collate rejects ``None``)."""
     if value is None or pd.isna(value):
         return float("nan")
     return float(value)
 
 
 def _as_str(value) -> str:
-    """Coerce a dataframe field to a plain string, missing values becoming ``""``.
-
-    Same reason as :func:`_as_float`: the collate handles strings but not ``None``,
-    and an empty string is a value the consumer can test.
-    """
+    """A dataframe field as a string, missing as ``""`` (the default collate rejects ``None``)."""
     if value is None or pd.isna(value):
         return ""
     return str(value)

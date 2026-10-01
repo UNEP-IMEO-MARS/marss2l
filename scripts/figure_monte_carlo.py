@@ -1,23 +1,12 @@
-"""Monte-Carlo validation figures for the shot-noise propagation.
+"""Monte-Carlo validation of the shot-noise propagation (``monte_carlo.png``).
 
-Two figures, both for the shot-noise paper:
+Closed-form ``sigma(MBMP)``, ``sigma(delta XCH4)`` and ``epsilon`` at ``p=0.95`` against
+Monte-Carlo estimates over the operating range of SWIR radiances, with the agreement ratio
+below each. Also prints the realised false-alarm rate of ``epsilon`` against its nominal
+``1-p``.
 
-``monte_carlo.png``
-    Closed-form ``sigma(MBMP)`` and ``sigma(delta XCH4)`` against Monte-Carlo
-    estimates over the operating range of SWIR radiances, with the agreement ratio
-    below each. This validates the two first-order expansions the whole analysis
-    rests on -- if they disagreed anywhere in the operating range, every figure
-    downstream would be wrong.
-
-``monte_carlo_epsilon.png``
-    Validation of the minimum significant enhancement. Left: ``epsilon`` at
-    ``p=0.95`` against the empirical 95th percentile of the retrieval on plume-free
-    ground. Right: the realised false-alarm rate against the nominal ``1-p``, which
-    is what ``epsilon`` actually claims.
-
-**Two instruments are drawn, not four.** S2A is the noisiest of the four in these
-bands and LC09 the quietest, so they bracket S2B and LC08; adding all four would put
-four hues on a scatter for no extra information.
+Two instruments are drawn: S2A, the noisiest in these bands, and LC09, the quietest, which
+bracket the others.
 
 Run::
 
@@ -95,7 +84,6 @@ def _shade_observed(ax) -> None:
 
 def compute_sweep(satellite: str, radiances_23: np.ndarray, n_samples: int, seed: int) -> dict:
     """Closed-form and Monte-Carlo noise at each radiance, for one instrument."""
-    lut = sn._default_lut()
     rng = np.random.default_rng(seed)
 
     out = {k: [] for k in ("eta", "sigma_mbmp_mc", "sigma_ch4", "sigma_ch4_mc", "eps", "eps_mc")}
@@ -105,14 +93,14 @@ def compute_sweep(satellite: str, radiances_23: np.ndarray, n_samples: int, seed
 
         mbmp_samples = sn.monte_carlo_mbmp(*four, satellite=satellite, n_samples=n_samples, rng=rng)
         ch4_samples = sn.monte_carlo_delta_xch4(
-            *four, satellite=satellite, sza=SZA, vza=VZA, n_samples=n_samples, rng=rng, lut=lut
+            *four, satellite=satellite, sza=SZA, vza=VZA, n_samples=n_samples, rng=rng
         )
 
         out["eta"].append(eta)
         out["sigma_mbmp_mc"].append(float(mbmp_samples.std()))
-        out["sigma_ch4"].append(float(sn.sigma_delta_xch4(1.0, eta, satellite, SZA, VZA, lut=lut)))
+        out["sigma_ch4"].append(float(sn.sigma_delta_xch4(eta, satellite, SZA, VZA)))
         out["sigma_ch4_mc"].append(float(ch4_samples.std()))
-        out["eps"].append(float(sn.epsilon(eta, satellite, SZA, VZA, p=0.95, lut=lut)))
+        out["eps"].append(float(sn.epsilon(eta, satellite, SZA, VZA, p=0.95)))
         out["eps_mc"].append(float(np.percentile(ch4_samples, 95)))
 
     return {k: np.asarray(v) for k, v in out.items()}
@@ -122,7 +110,6 @@ def compute_calibration(
     satellite: str, radiances_23: np.ndarray, n_samples: int, seed: int
 ) -> dict:
     """Realised false-alarm rate against the nominal ``1-p``, per radiance."""
-    lut = sn._default_lut()
     rng = np.random.default_rng(seed)
     nominal = np.array([0.32, 0.20, 0.10, 0.05, 0.02, 0.01])
 
@@ -131,13 +118,11 @@ def compute_calibration(
         four = _radiances(float(radiance_23))
         eta = float(sn.eta_ladder(*four, satellite=satellite)["L3"])
         samples = sn.monte_carlo_delta_xch4(
-            *four, satellite=satellite, sza=SZA, vza=VZA, n_samples=n_samples, rng=rng, lut=lut
+            *four, satellite=satellite, sza=SZA, vza=VZA, n_samples=n_samples, rng=rng
         )
         realised.append(
             [
-                float(
-                    (samples > float(sn.epsilon(eta, satellite, SZA, VZA, p=1 - a, lut=lut))).mean()
-                )
+                float((samples > float(sn.epsilon(eta, satellite, SZA, VZA, p=1 - a))).mean())
                 for a in nominal
             ]
         )
@@ -276,127 +261,6 @@ def figure_agreement(sweeps: dict, radiances_23: np.ndarray, path: str) -> None:
     plt.close(fig)
 
 
-def figure_epsilon(sweeps: dict, calibrations: dict, radiances_23: np.ndarray, path: str) -> None:
-    """The detection threshold: its value, and the false-alarm rate it claims."""
-    fig, axes = plt.subplots(1, 2, figsize=(7.0, 3.1))
-    fig.patch.set_facecolor("white")
-
-    left, right = axes
-    for satellite, colour in SERIES.items():
-        sweep = sweeps[satellite]
-        left.plot(radiances_23, sweep["eps"], color=colour, linewidth=2.0, zorder=3)
-        left.plot(
-            radiances_23,
-            sweep["eps_mc"],
-            marker="o",
-            markersize=4.5,
-            linestyle="none",
-            markerfacecolor="white",
-            markeredgecolor=colour,
-            markeredgewidth=1.4,
-            zorder=4,
-        )
-        left.annotate(
-            satellite,
-            xy=(radiances_23[0], sweep["eps"][0]),
-            xytext=(3, 4),
-            textcoords="offset points",
-            color=colour,
-            fontsize=8,
-            fontweight="bold",
-        )
-
-        calibration = calibrations[satellite]
-        for row in calibration["realised"]:
-            right.plot(
-                calibration["nominal"],
-                row,
-                marker="o",
-                markersize=4.0,
-                linestyle="none",
-                markerfacecolor="white",
-                markeredgecolor=colour,
-                markeredgewidth=1.2,
-                alpha=0.85,
-                zorder=3,
-            )
-
-    _shade_observed(left)
-    left.set_xscale("log")
-    left.set_yscale("log")
-    _style_axis(
-        left,
-        xlabel=r"2.3 $\mu$m radiance  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
-        ylabel=r"$\epsilon$ at $p=0.95$  [ppb]",
-        title="a  Detection threshold",
-    )
-    left.legend(
-        handles=[
-            plt.Line2D([], [], color=INK_SOFT, linewidth=2.0, label="closed form"),
-            plt.Line2D(
-                [],
-                [],
-                color=INK_SOFT,
-                marker="o",
-                markersize=4.5,
-                linestyle="none",
-                markerfacecolor="white",
-                markeredgewidth=1.4,
-                label="Monte-Carlo 95th pct",
-            ),
-        ],
-        loc="upper right",
-        frameon=False,
-        fontsize=7.5,
-        labelcolor=INK_SOFT,
-    )
-
-    limits = (0.006, 0.5)
-    right.plot(limits, limits, color=INK_SOFT, linewidth=1.0, zorder=2)
-    right.annotate(
-        "1:1",
-        xy=(0.25, 0.25),
-        xytext=(4, -9),
-        textcoords="offset points",
-        color=INK_SOFT,
-        fontsize=7.5,
-    )
-    right.set_xscale("log")
-    right.set_yscale("log")
-    right.set_xlim(*limits)
-    right.set_ylim(*limits)
-    _style_axis(
-        right,
-        xlabel=r"nominal false-alarm rate  $1-p$",
-        ylabel="realised rate",
-        title="b  Calibration of the threshold",
-    )
-    right.legend(
-        handles=[
-            plt.Line2D(
-                [],
-                [],
-                color=colour,
-                marker="o",
-                markersize=4.5,
-                linestyle="none",
-                markerfacecolor="white",
-                markeredgewidth=1.4,
-                label=satellite,
-            )
-            for satellite, colour in SERIES.items()
-        ],
-        loc="upper left",
-        frameon=False,
-        fontsize=7.5,
-        labelcolor=INK_SOFT,
-    )
-
-    fig.tight_layout()
-    fig.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
-
-
 @app.command
 def figures(
     output_dir: str = ".",
@@ -404,15 +268,14 @@ def figures(
     n_radiances: int = 12,
     seed: int = 0,
 ) -> None:
-    """Compute the Monte-Carlo validation and write both figures.
+    """Compute the Monte-Carlo validation, print the agreement and write ``monte_carlo.png``.
 
     Args:
-        output_dir: Directory to write ``monte_carlo.png`` and
-            ``monte_carlo_epsilon.png`` into.
-        n_samples: Draws per radiance. 200k gives a Monte-Carlo standard error on
-            the estimated sigma of about 0.2%, well inside the agreement claimed.
+        output_dir: Directory to write the figure into.
+        n_samples: Draws per radiance. 200k gives a Monte-Carlo standard error on the
+            estimated sigma of about 0.2%, well inside the agreement claimed.
         n_radiances: Points across the radiance sweep.
-        seed: Base seed, so the figures are reproducible.
+        seed: Base seed, so the figure is reproducible.
     """
     import os
 
@@ -438,11 +301,15 @@ def figures(
                 f"min {ratio.min():.4f} max {ratio.max():.4f}"
             )
 
-    agreement_path = os.path.join(output_dir, "monte_carlo.png")
-    epsilon_path = os.path.join(output_dir, "monte_carlo_epsilon.png")
-    figure_agreement(sweeps, radiances_23, agreement_path)
-    figure_epsilon(sweeps, calibrations, radiances_23, epsilon_path)
-    print(f"wrote {agreement_path}\nwrote {epsilon_path}")
+    # Realised false-alarm rate of epsilon, averaged over radiances and instruments.
+    nominal = calibrations[next(iter(SERIES))]["nominal"]
+    realised = np.mean([c["realised"].mean(axis=0) for c in calibrations.values()], axis=0)
+    for a, r in zip(nominal, realised, strict=True):
+        print(f"  false-alarm rate: nominal {a:.2f} realised {r:.4f}")
+
+    path = os.path.join(output_dir, "monte_carlo.png")
+    figure_agreement(sweeps, radiances_23, path)
+    print(f"wrote {path}")
 
 
 if __name__ == "__main__":

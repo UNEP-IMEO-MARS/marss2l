@@ -4,7 +4,7 @@ MARS stores Sentinel-2 on a 10 m grid. Earth Engine fills the 20 m bands by near
 neighbour on that grid, and ``georeader.readers.ee_image.interpolate_20mbands_s2ee`` then
 re-interpolates them bilinearly: nearest back to 20 m, bilinear up to 10 m. Interpolation
 averages neighbouring native pixels, so it lowers the photon noise of a pixel by a fixed
-factor (0.62 for this step) and makes neighbours share their noise. Any noise measured on the
+factor (0.625 for this step, ``shot_noise.NOISE_FACTOR_10M``) and makes neighbours share their noise. Any noise measured on the
 10 m grid is therefore not comparable with a floor computed per native pixel.
 
 The step is linear and separable, so it can be undone. Along each axis the stored image is
@@ -20,8 +20,8 @@ range, and the outermost row and column on each side are pulled towards the zero
 then clipped. Those rows, the ones whose weights do not sum to one, are left out of the least
 squares. Every native pixel is still observed through its inner neighbours.
 
-The recovered grid is half a native pixel (10 m) away from the true 20 m lattice when the
-10 m image does not start on it; the values are the native ones either way.
+The entry point is :func:`chip_to_20m`, which recovers a stored chip (target and reference
+pass stacked) on its native grid; ``DatasetPlumes(native_grid=True)`` calls it on load.
 """
 
 from dataclasses import dataclass
@@ -38,7 +38,8 @@ from scipy.sparse import linalg as sparse_linalg
 #: Impulse height for measuring the operator; the weights come back to about 1e-5.
 _AMPLITUDE = 60_000
 
-#: Sentinel-2 L1C bands at 20 m, which the pipeline interpolates to 10 m.
+#: Sentinel-2 L1C bands stored at 20 m, which the pipeline interpolated to 10 m. The others are
+#: native 10 m bands and are brought to 20 m by a 2x2 mean instead.
 BANDS_20M = ("B05", "B06", "B07", "B8A", "B11", "B12")
 
 
@@ -70,101 +71,6 @@ def axis_operator(n_out: int) -> np.ndarray:
         out = interpolate_20mbands_s2ee(stack, ["B11", "B12"], inplace=False).values[0]
         operator[:, j] = out[:, width // 2].astype(float) / _AMPLITUDE
     return operator
-
-
-def interior_rows(operator: np.ndarray) -> np.ndarray:
-    """Output rows whose weights sum to one: the ones not touched by padding or clipping."""
-    return np.flatnonzero(np.abs(operator.sum(axis=1) - 1) < 1e-9)
-
-
-@lru_cache(maxsize=None)
-def _left_inverse(n_out: int) -> tuple:
-    operator = axis_operator(n_out)
-    rows = interior_rows(operator)
-    return rows, np.linalg.pinv(operator[rows])
-
-
-def invert_bilinear_2x(values: np.ndarray) -> np.ndarray:
-    """Native 20 m values from 10 m values produced by ``interpolate_20mbands_s2ee``.
-
-    Args:
-        values: ``(H, W)`` or ``(bands, H, W)`` array on the 10 m grid.
-
-    Returns:
-        Float array ``(..., ceil(H/2), ceil(W/2))`` on the 20 m grid.
-    """
-    values = np.asarray(values, dtype=np.float64)
-    if values.ndim == 3:
-        return np.stack([invert_bilinear_2x(v) for v in values])
-    rows, left_r = _left_inverse(values.shape[0])
-    cols, left_c = _left_inverse(values.shape[1])
-    return left_r @ values[np.ix_(rows, cols)] @ left_c.T
-
-
-def _pad_pairs(values: np.ndarray) -> np.ndarray:
-    """Edge-pad the last two axes to even sizes, as the pipeline does before its 2x2 step."""
-    pad_r = _find_padding(values.shape[-2], divisor=2)
-    pad_c = _find_padding(values.shape[-1], divisor=2)
-    widths = [(0, 0)] * (values.ndim - 2) + [pad_r, pad_c]
-    return np.pad(values, widths, mode="edge")
-
-
-def _blocks(values: np.ndarray) -> np.ndarray:
-    padded = _pad_pairs(values)
-    h, w = padded.shape[-2] // 2, padded.shape[-1] // 2
-    return padded.reshape(padded.shape[:-2] + (h, 2, w, 2))
-
-
-def block_mean_2x(values: np.ndarray) -> np.ndarray:
-    """A native 10 m band on the 20 m grid, by 2x2 mean over the pipeline's pairs."""
-    return _blocks(np.asarray(values, dtype=np.float64)).mean(axis=(-3, -1))
-
-
-def block_max_2x(values: np.ndarray) -> np.ndarray:
-    """A mask on the 20 m grid: a 20 m pixel is flagged if any of its 10 m pixels is."""
-    return _blocks(np.asarray(values)).max(axis=(-3, -1))
-
-
-def transform_20m(transform_10m: rasterio.Affine, shape_10m: Sequence[int]) -> rasterio.Affine:
-    """Georeferencing of the recovered 20 m grid, accounting for odd-size padding."""
-    pad_r = _find_padding(shape_10m[-2], divisor=2)[0]
-    pad_c = _find_padding(shape_10m[-1], divisor=2)[0]
-    return transform_10m * rasterio.Affine.translation(-pad_c, -pad_r) * rasterio.Affine.scale(2)
-
-
-def to_20m(image: GeoTensor, band_names: Sequence[str], invalid_margin: int = 2) -> GeoTensor:
-    """A stored 10 m Sentinel-2 image on the native 20 m grid.
-
-    20 m bands are recovered by :func:`invert_bilinear_2x`; native 10 m bands are averaged
-    over 2x2 blocks. A 20 m pixel within ``invalid_margin`` pixels of any zero-valued input
-    pixel -- how the products encode invalid data -- is set to zero in every band, since the
-    inversion couples neighbours and a zero is not a measurement.
-
-    Args:
-        image: ``(bands, H, W)`` GeoTensor at 10 m, reflectance x 10,000.
-        band_names: Sentinel-2 L1C names of the bands, in order.
-        invalid_margin: Dilation of the invalid mask, in 20 m pixels.
-
-    Returns:
-        uint16 GeoTensor ``(bands, ceil(H/2), ceil(W/2))`` at 20 m.
-    """
-    values = np.asarray(image.values)
-    out = np.stack(
-        [
-            invert_bilinear_2x(values[i]) if name in BANDS_20M else block_mean_2x(values[i])
-            for i, name in enumerate(band_names)
-        ]
-    )
-    invalid = block_max_2x((values == 0).any(axis=0))
-    if invalid.any() and invalid_margin > 0:
-        invalid = ndimage.binary_dilation(invalid, iterations=invalid_margin)
-    out[:, invalid] = 0
-    return GeoTensor(
-        np.clip(np.round(out), 0, 65_535).astype(np.uint16),
-        transform=transform_20m(image.transform, values.shape),
-        crs=image.crs,
-        fill_value_default=0,
-    )
 
 
 # ---------------------------------------------------------------------------------------
@@ -213,8 +119,9 @@ class NativeChip:
 
     def mask_to_20m(self, mask_10m: np.ndarray) -> np.ndarray:
         """A 10 m mask on the 20 m cells: a cell is set if any of its 10 m pixels is."""
-        return _pad(_cells(mask_10m, self.row_off, self.col_off, self.shape, "max"),
-                    self.values.shape[-1]).astype(mask_10m.dtype)
+        return _pad(
+            _cells(mask_10m, self.row_off, self.col_off, self.shape, "max"), self.values.shape[-1]
+        ).astype(mask_10m.dtype)
 
 
 def _crop_operator(n: int, start: int) -> tuple:
@@ -254,8 +161,6 @@ _CONTAMINATED = 2
 
 def _usable(invalid: np.ndarray) -> np.ndarray:
     """Pixels the least squares may use: away from zeros, which are not measurements."""
-    if not invalid.any():
-        return np.ones_like(invalid)
     return ~ndimage.binary_dilation(invalid, iterations=_CONTAMINATED)
 
 
@@ -295,8 +200,9 @@ def _fit_half(b12: np.ndarray, usable: np.ndarray) -> tuple:
     return best
 
 
-def _invert_half(values: np.ndarray, band_names: Sequence[str], starts: tuple,
-                 usable: np.ndarray) -> tuple:
+def _invert_half(
+    values: np.ndarray, band_names: Sequence[str], starts: tuple, usable: np.ndarray
+) -> tuple:
     """One half on its fully observed 20 m cells, and where those cells start on the chip."""
     (op_r, cells_r, full_r), (op_c, cells_c, full_c) = (
         _crop_operator(n, start) for n, start in zip(values.shape[-2:], starts, strict=True)
@@ -339,8 +245,6 @@ def chip_to_20m(
     """
     values = np.asarray(values)
     nbands = len(band_names)
-    if values.shape[0] % nbands:
-        raise ValueError(f"{values.shape[0]} bands is not a whole number of {nbands}-band passes")
     size = size or -(-max(values.shape[-2:]) // 2)
     b12 = list(band_names).index("B12")
 
@@ -362,8 +266,9 @@ def chip_to_20m(
     if invalid.any() and invalid_margin > 0:
         # Only input invalidity spreads: the padding beyond the recovered cells is not a
         # neighbour of anything the inversion used.
-        spread = ndimage.binary_dilation(np.logical_or.reduce(invalid_cells[::2]),
-                                         iterations=invalid_margin)
+        spread = ndimage.binary_dilation(
+            np.logical_or.reduce(invalid_cells[::2]), iterations=invalid_margin
+        )
         invalid |= spread
     out = np.concatenate(halves)
     out[:, invalid] = 0
@@ -371,8 +276,9 @@ def chip_to_20m(
 
     native_cloudmask = None
     if cloudmask is not None:
-        native_cloudmask = _pad(_cells(np.asarray(cloudmask), row_off, col_off, shape, "max"),
-                                size).astype(np.asarray(cloudmask).dtype)
+        native_cloudmask = _pad(
+            _cells(np.asarray(cloudmask), row_off, col_off, shape, "max"), size
+        ).astype(np.asarray(cloudmask).dtype)
     return NativeChip(
         values=np.clip(np.round(out), 0, 65_535).astype(np.uint16),
         cloudmask=native_cloudmask,

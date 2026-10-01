@@ -98,10 +98,9 @@ def column_titles(rung: str = "L3", plumes: bool = False) -> list:
 def select_scenes(
     scenes: pd.DataFrame,
     rows: int,
-    seed: int = 0,
+    *,
     plumes: bool = False,
     satellite: Optional[str] = None,
-    *,
     rung: str = "L3",
     max_ratio: Optional[float] = None,
 ) -> pd.DataFrame:
@@ -128,8 +127,6 @@ def select_scenes(
         max_ratio: Keep only scenes whose measured noise is at most this many
             times their floor at ``rung`` -- ``1`` with ``rung="L1"`` draws the
             scenes that read below the physical limit.
-        seed: Unused now that each bin contributes its representative scene
-            rather than a random member; kept so the caller's flag still works.
 
     Returns:
         The chosen rows, ordered by ``epsilon`` at ``rung``.
@@ -146,8 +143,7 @@ def select_scenes(
 
     # A scene half covered by no-data or cloud makes a poor illustration: the
     # panels are then mostly blank and the eye reads the mask, not the retrieval.
-    if {"npixelsvalid", "npixels"}.issubset(frame.columns):
-        frame = frame[frame.npixelsvalid / frame.npixels > 0.98]
+    frame = frame[frame.npixelsvalid / frame.npixels > 0.98]
 
     # Binned on epsilon, which is a monotone function of the same eta as the
     # floor the figure plots -- same partition, and the rows do not move when the
@@ -244,7 +240,7 @@ def scene_rasters(row: pd.Series, fs=None, rung: str = "L3", native_grid: bool =
         satellite_bg=row.satellite_bg or None,
     )
     eta = ladder[rung]
-    sigma = shot_noise.sigma_delta_xch4(1.0, eta, row.satellite, float(row.sza), float(row.vza))
+    sigma = shot_noise.sigma_delta_xch4(eta, row.satellite, float(row.sza), float(row.vza))
 
     def masked(array: np.ndarray) -> GeoTensor:
         """Invalid pixels are not measurements; leave them blank rather than 0."""
@@ -315,33 +311,22 @@ def corpus_with_paths(
     return scenes
 
 
-def _with_detectable_flux(
-    scenes: pd.DataFrame, fit_grid_stats_csv: Optional[str], images_csv: str
-) -> pd.DataFrame:
-    """Add Q50 at 1 m/s and the wind when a sweep of the 10 m chips is given (see
-    ``figure_regional.add_fit_grid_noise``); otherwise return the scenes as they are."""
-    if fit_grid_stats_csv is None:
-        return scenes
-    from scripts.figure_regional import add_detectable_flux, add_fit_grid_noise, load_scenes
-
-    return add_detectable_flux(add_fit_grid_noise(scenes, load_scenes(fit_grid_stats_csv, images_csv)))
-
-
 def _flux_label(row: pd.Series, show_flux: bool) -> str:
-    """The flux lines of a plume row's label: the operational rate and, when known, Q50
-    at the scene's own wind -- what the retrieval detects half the time there."""
-    if not (show_flux and row.isplume == 1 and pd.notna(row.get("ch4_fluxrate"))):
+    """The flux lines of a plume row's label: the operational rate and Q50 at the scene's
+    own wind, what the retrieval detects half the time there."""
+    if not (show_flux and row.isplume == 1):
         return ""
-    label = f"{row.ch4_fluxrate:,.0f} kg/h,  plume mean {row.ch4_mean_plume:.0f} ppb\n"
-    if pd.notna(row.get("q50_measured")):
-        label += f"$Q_{{50}}$ {row.q50_measured * row.wind_speed:,.0f} kg/h at {row.wind_speed:.1f} m/s\n"
-    return label
+    return (
+        f"{row.ch4_fluxrate:,.0f} kg/h,  plume mean {row.ch4_mean_plume:.0f} ppb\n"
+        f"$Q_{{50}}$ {row.q50_measured * row.wind_speed:,.0f} kg/h at {row.wind_speed:.1f} m/s\n"
+    )
 
 
 @app.command
 def figure(
     stats_csv: str,
     images_csv: str,
+    *,
     output_path: str = "example_scenes.png",
     rows: int = 10,
     permian_shapefile: Optional[str] = None,
@@ -359,9 +344,7 @@ def figure(
     ch4_vmax: float = DEFAULT_VMAX["ch4"],
     sigma_vmin: Optional[float] = None,
     sigma_vmax: Optional[float] = None,
-    seed: int = 0,
     native_grid: bool = False,
-    fit_grid_stats_csv: Optional[str] = None,
 ) -> None:
     """Draw the example-scene figure.
 
@@ -393,7 +376,9 @@ def figure(
             ``L1`` shows the physical limit, which no retrieval can beat.
         max_ratio: Sample only scenes whose measured noise is at most this many
             times their floor at ``rung``.
-        show_flux: Add the operational flux rate to the label of a plume row.
+        show_flux: Add to the label of a plume row its operational flux rate and Q50, the
+            rate detected half the time at the scene's own wind from its measured noise
+            (``figure_regional.add_detectable_flux``).
         label_by: Column naming each row -- ``case_study``, or ``country`` where a
             case study groups several countries (the Arabian peninsula, say).
         ch4_vmax: Upper end of the retrieval colour scale, in ppb.
@@ -404,18 +389,16 @@ def figure(
             to show.
         sigma_vmax: Upper end of the floor's scale. Defaults to the 99th
             percentile of the same pixels.
-        seed: Sampling seed for the selection.
         native_grid: Draw Sentinel-2 scenes on their native 20 m grid, matching a
             stats CSV swept with ``--native-grid``. Landsat is drawn as stored.
-        fit_grid_stats_csv: Sweep of the published 10 m chips. Given it, a plume row's
-            label also carries Q50, the source rate detected half the time at the
-            scene's own wind from its measured noise and instrument -- see
-            ``figure_regional.add_fit_grid_noise``. Needs ``--show-flux``.
     """
     _check_rung(rung)
     vmax = {"ch4": ch4_vmax}
     scenes = corpus_with_paths(stats_csv, images_csv, permian_shapefile, path_prepend_data)
-    scenes = _with_detectable_flux(scenes, fit_grid_stats_csv, images_csv)
+    if show_flux:
+        from scripts.figure_regional import add_detectable_flux
+
+        scenes = add_detectable_flux(scenes)
     if extra_stats_csv is not None:
         scenes = pd.concat(
             [scenes, corpus_with_paths(extra_stats_csv, extra_images_csv, permian_shapefile)],
@@ -432,7 +415,6 @@ def figure(
         chosen = select_scenes(
             scenes,
             rows,
-            seed=seed,
             plumes=plumes,
             satellite=satellite,
             rung=rung,
@@ -587,84 +569,6 @@ def figure(
     fig.savefig(output_path, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"wrote {output_path}")
-
-
-#: The columns of the weak-plume table, in the order a reader wants them.
-WEAK_PLUME_COLUMNS = {
-    "case_study": "case study",
-    "location_name": "location",
-    "satellite": "satellite",
-    "date": "date",
-    "ch4_fluxrate": "flux rate [kg/h]",
-    "ch4_fluxrate_std": "flux rate std [kg/h]",
-    "ch4_mean_plume": "mean in plume [ppb]",
-    "npixelsplume": "plume pixels",
-    "sigma_ch4_L1_mean": "floor L1 [ppb]",
-    "sigma_ch4_L3_mean": "floor L3 [ppb]",
-    "measured": "measured [ppb]",
-    "ratio_L1": "measured / L1",
-    "ratio_L3": "measured / L3",
-    "radiance_B12_mean": "L23 [W m-2 sr-1 um-1]",
-    "id_loc_image": "id_loc_image",
-}
-
-
-@app.command
-def weak_plumes(
-    stats_csv: str,
-    images_csv: str,
-    *,
-    output_csv: str = "weak_plumes_near_L1.csv",
-    rung: str = "L1",
-    max_ratio: float = 1.25,
-    top: int = 20,
-    permian_shapefile: Optional[str] = None,
-) -> None:
-    """The weakest validated plumes in scenes whose noise is at, or near, a floor.
-
-    Where the retrieval's noise reaches the photon floor the instrument, not the
-    background estimate, is what limits a detection, so the plumes seen there are
-    the faintest these sensors resolve. This lists them, weakest flux rate first,
-    for choosing which to draw with :func:`figure` ``--only``.
-
-    The flux rate is the operational value from the image metadata. The in-plume
-    concentration is the sweep's mean over the annotated plume pixels; note that
-    it is in ppb from each satellite's own inversion, which converts a given ratio
-    some 37 % higher for Sentinel-2B than for Sentinel-2A, so S2A and S2B rows are
-    not like-for-like in that column.
-
-    Args:
-        stats_csv: Output of ``stats_dataset.py``.
-        images_csv: Image metadata CSV, for the flux rate, date and location.
-        output_csv: Where to write the table.
-        rung: The floor the noise is compared against.
-        max_ratio: Keep scenes whose measured noise is at most this many times the
-            floor at ``rung``.
-        top: How many rows to write.
-        permian_shapefile: Optional basin polygon, so the labels agree with the
-            rest of the paper.
-    """
-    _check_rung(rung)
-    scenes = corpus_with_paths(stats_csv, images_csv, permian_shapefile)
-    plumes = scenes[scenes.isplume == 1]
-    ratio = plumes[f"ratio_{rung}"]
-    for threshold in (1.0, 1.1, max_ratio):
-        print(
-            f"plume scenes with measured <= {threshold} x {rung}: {int((ratio <= threshold).sum())}"
-        )
-
-    table = (
-        plumes[ratio <= max_ratio]
-        .assign(date=lambda frame: frame.tile_date.astype(str).str[:10])
-        .sort_values("ch4_fluxrate")
-        .head(top)[list(WEAK_PLUME_COLUMNS)]
-        .rename(columns=WEAK_PLUME_COLUMNS)
-        .round(2)
-    )
-    os.makedirs(os.path.dirname(os.path.abspath(output_csv)), exist_ok=True)
-    table.to_csv(output_csv, index=False)
-    print(table.to_string(index=False))
-    print(f"wrote {output_csv}")
 
 
 if __name__ == "__main__":
