@@ -308,13 +308,10 @@ class Trainer:
                                 wind_vector = task["wind"][batchidx].cpu().numpy()
                                 wind_speed = np.linalg.norm(wind_vector)
                                 item_extra.update(
-                                    quantification.obtain_flux_rate(
+                                    quantification.obtain_flux_rate_s2l89(
                                         ch4_iter,
                                         pred_binary,
                                         wind_speed=wind_speed,
-                                        a_u_eff=quantification.A_UEFF_S2,
-                                        b_u_eff=quantification.B_UEFF_S2,
-                                        sig_xch4=quantification.SIGMA_CH4_S2_PPB,
                                         resolution=(10, 10),
                                         return_std=True,
                                     )
