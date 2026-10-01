@@ -1,12 +1,13 @@
 """
 Tests for the Hugging Face hub-cache filesystems in marss2l.huggingface.
 
-``hf_hub_download`` and the repo-existence check are monkeypatched, so no test touches the network.
+``hf_hub_download`` is monkeypatched and the Hub API made unreachable, so no test touches the
+network.
 """
 
 import pytest
 from fsspec.implementations.http import HTTPFileSystem
-from huggingface_hub import HfFileSystem
+from huggingface_hub import HfFileSystem, constants
 
 from marss2l import huggingface
 from marss2l.huggingface import REPO_ID, HfCachedFileSystem, HfCachedHTTPFileSystem
@@ -29,11 +30,13 @@ def fake_download(monkeypatch, tmp_path):
 
 
 @pytest.fixture
-def offline_repo(monkeypatch):
-    """Let ``HfFileSystem.resolve_path`` accept any repo and revision without an API call."""
-    monkeypatch.setattr(
-        HfFileSystem, "_repo_and_revision_exist", lambda self, *args, **kwargs: (True, None)
-    )
+def offline_hub(monkeypatch):
+    """Make the Hub API unreachable: table reads must not depend on ``repo_info`` validation."""
+
+    def _unreachable(self, *args, **kwargs):
+        raise ConnectionError("Hub API unreachable")
+
+    monkeypatch.setattr(HfFileSystem, "_repo_and_revision_exist", _unreachable)
 
 
 @pytest.fixture
@@ -57,17 +60,36 @@ class TestHfCachedFileSystem:
             (f"datasets/{REPO_ID}/validated_images_all.csv", "main", "validated_images_all.csv"),
             (f"datasets/{REPO_ID}/data/stats.parquet", "main", "data/stats.parquet"),
             (f"datasets/{REPO_ID}@refs/pr/1/train.csv", "refs/pr/1", "train.csv"),
+            (f"hf://datasets/{REPO_ID}@v1.0/data/test.csv", "v1.0", "data/test.csv"),
         ],
     )
-    def test_table_read_uses_hub_cache(self, fake_download, offline_repo, path, revision, filename):
+    def test_table_read_uses_hub_cache(self, fake_download, offline_hub, path, revision, filename):
         fs = HfCachedFileSystem(skip_instance_cache=True)
 
         with fs.open(path, "rb") as f:
             assert f.read() == b"from-hub"
 
         assert fake_download == [
-            dict(repo_id=REPO_ID, filename=filename, repo_type="dataset", revision=revision)
+            dict(
+                repo_id=REPO_ID,
+                filename=filename,
+                repo_type="dataset",
+                revision=revision,
+                token=None,
+                endpoint=constants.ENDPOINT,
+            )
         ]
+
+    def test_token_and_endpoint_reach_hf_hub_download(self, fake_download, offline_hub):
+        fs = HfCachedFileSystem(
+            token="hf_test", endpoint="https://hub.example.org", skip_instance_cache=True
+        )
+
+        with fs.open(f"datasets/{REPO_ID}/train.csv", "rb"):
+            pass
+
+        assert fake_download[0]["token"] == "hf_test"
+        assert fake_download[0]["endpoint"] == "https://hub.example.org"
 
     def test_other_files_and_writes_go_to_hffilesystem(self, fake_download, parent_open):
         fs = HfCachedFileSystem(skip_instance_cache=True)
@@ -80,7 +102,7 @@ class TestHfCachedFileSystem:
         assert parent_open == [(npy_path, "rb"), (csv_path, "wb")]
         assert fake_download == []
 
-    def test_local_dir_serves_present_file(self, fake_download, offline_repo, tmp_path):
+    def test_local_dir_serves_present_file(self, fake_download, offline_hub, tmp_path):
         local_dir = tmp_path / "release"
         (local_dir / "data").mkdir(parents=True)
         (local_dir / "data" / "stats.csv").write_bytes(b"from-local-dir")
@@ -90,7 +112,7 @@ class TestHfCachedFileSystem:
             assert f.read() == b"from-local-dir"
         assert fake_download == []
 
-    def test_local_dir_falls_through_for_absent_file(self, fake_download, offline_repo, tmp_path):
+    def test_local_dir_falls_through_for_absent_file(self, fake_download, offline_hub, tmp_path):
         fs = HfCachedFileSystem(local_dir=str(tmp_path / "release"), skip_instance_cache=True)
 
         with fs.open(f"datasets/{REPO_ID}/train.csv", "rb") as f:
@@ -118,7 +140,14 @@ class TestHfCachedHTTPFileSystem:
             assert f.read() == b"from-hub"
 
         assert fake_download == [
-            dict(repo_id=REPO_ID, filename=filename, repo_type="dataset", revision=revision)
+            dict(
+                repo_id=REPO_ID,
+                filename=filename,
+                repo_type="dataset",
+                revision=revision,
+                token=None,
+                endpoint=None,
+            )
         ]
 
     def test_other_urls_go_to_httpfilesystem(self, fake_download, parent_open):

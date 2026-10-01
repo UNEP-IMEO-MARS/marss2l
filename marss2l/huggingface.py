@@ -1,7 +1,7 @@
 import os
 import re
 import tempfile
-from typing import Optional
+from typing import Optional, Union
 from urllib.parse import unquote
 from uuid import UUID
 
@@ -17,27 +17,39 @@ REPO_ID = "UNEP-IMEO/MARS-S2L"
 # Tables served from the Hugging Face hub cache instead of streamed on every read.
 CACHED_EXTENSIONS = (".csv", ".parquet")
 
+_REPO_TYPES = {"datasets": "dataset", "spaces": "space", None: "model"}
+
+# [datasets/|spaces/]<namespace>/<name>[@<revision>]/<file>, the HfFileSystem form. Parsed locally
+# (no ``repo_info`` call as in ``HfFileSystem.resolve_path``) so cached tables also open offline.
+# ``refs/pr/<n>`` and ``refs/convert/<name>`` are the revisions that contain slashes.
+_HF_REPO_PATH = re.compile(
+    r"^(?:(?P<type>datasets|spaces)/)?(?P<repo_id>[^/@]+/[^/@]+)"
+    r"(?:@(?P<revision>refs/pr/\d+|refs/convert/\w+|[^/]+))?/(?P<filename>.+)$"
+)
+
 # https://huggingface.co/[datasets/|spaces/]<namespace>/<name>/resolve/<revision>/<file>
 _HF_RESOLVE_URL = re.compile(
     re.escape(constants.ENDPOINT)
     + r"/(?:(?P<type>datasets|spaces)/)?(?P<repo_id>[^/]+/[^/]+)/resolve/(?P<revision>[^/]+)/(?P<filename>[^?#]+)$"
 )
-_URL_REPO_TYPES = {"datasets": "dataset", "spaces": "space", None: "model"}
 
 
 def _cached_repo_file(
+    *,
     repo_type: str,
     repo_id: str,
-    revision: Optional[str],
+    revision: str,
     path_in_repo: str,
     local_dir: Optional[str] = None,
+    token: Optional[Union[bool, str]] = None,
+    endpoint: Optional[str] = None,
 ) -> str:
     """Local path of a file of a Hugging Face repo.
 
     Returns ``<local_dir>/<path_in_repo>`` if it exists, otherwise the copy in the Hugging Face
     hub cache (``~/.cache/huggingface/hub`` or ``$HF_HOME/hub``). ``hf_hub_download`` makes one
     HEAD request to detect a newer version, downloads only on change and falls back to the cached
-    copy offline.
+    copy offline. ``token`` and ``endpoint`` default to the global Hugging Face settings.
     """
     if local_dir is not None:
         local_path = os.path.join(local_dir, path_in_repo)
@@ -46,14 +58,20 @@ def _cached_repo_file(
             return local_path
 
     return hf_hub_download(
-        repo_id=repo_id, filename=path_in_repo, repo_type=repo_type, revision=revision
+        repo_id=repo_id,
+        filename=path_in_repo,
+        repo_type=repo_type,
+        revision=revision,
+        token=token,
+        endpoint=endpoint,
     )
 
 
 class HfCachedFileSystem(HfFileSystem):
     """``HfFileSystem`` that reads ``.csv`` and ``.parquet`` files through the Hugging Face hub cache.
 
-    Other files (image chips, weights) and every write go to ``HfFileSystem`` unchanged.
+    Other files (image chips, weights) and every write go to ``HfFileSystem`` unchanged. Table
+    reads use the filesystem's ``token`` and ``endpoint``, and work offline once cached.
 
     Args:
         local_dir: optional folder that mirrors the repo layout. A table present there is read
@@ -65,16 +83,20 @@ class HfCachedFileSystem(HfFileSystem):
         self.local_dir = local_dir
 
     def _open(self, path: str, mode: str = "rb", revision: Optional[str] = None, **kwargs):
-        if mode != "rb" or not path.endswith(CACHED_EXTENSIONS):
+        match = _HF_REPO_PATH.match(path)
+        if mode != "rb" or match is None or not path.endswith(CACHED_EXTENSIONS):
             return super()._open(path, mode=mode, revision=revision, **kwargs)
 
-        resolved = self.resolve_path(path, revision=revision)
+        if match["revision"] is not None:
+            revision = unquote(match["revision"])
         local_path = _cached_repo_file(
-            repo_type=resolved.repo_type,
-            repo_id=resolved.repo_id,
-            revision=resolved.revision,
-            path_in_repo=resolved.path_in_repo,
+            repo_type=_REPO_TYPES[match["type"]],
+            repo_id=match["repo_id"],
+            revision=revision or constants.DEFAULT_REVISION,
+            path_in_repo=match["filename"],
             local_dir=self.local_dir,
+            token=self.token,
+            endpoint=self.endpoint,
         )
         return open(local_path, "rb")
 
@@ -96,13 +118,14 @@ class HfCachedHTTPFileSystem(HTTPFileSystem):
             return super()._open(path, mode=mode, **kwargs)
 
         local_path = _cached_repo_file(
-            repo_type=_URL_REPO_TYPES[match["type"]],
+            repo_type=_REPO_TYPES[match["type"]],
             repo_id=match["repo_id"],
             revision=unquote(match["revision"]),
             path_in_repo=unquote(match["filename"]),
             local_dir=self.local_dir,
         )
         return open(local_path, "rb")
+
 
 CSV_PATH_DEFAULT_HF_CONVENTION = f"datasets/{REPO_ID}/validated_images_all.csv"
 PARQUET_PATH_DEFAULT_HF_CONVENTION = f"datasets/{REPO_ID}/validated_images_all.parquet"
