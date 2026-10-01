@@ -339,7 +339,7 @@ class TransmittanceCH4Interpolation:
         else:
             invalids_mask = np.isnan(ratio_il) | (ratio_il == 0)
 
-        if clip_values_retrieval is not None:
+        if clip_values_retrieval:
             ratio_il = ratio_il.clip(MIN_MBMP_VALUE, MAX_MBMP_VALUE)
 
         ratio_il_corrected = ratio_il * transmittance_b12_bg / transmittance_b11_bg

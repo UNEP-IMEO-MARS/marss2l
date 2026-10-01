@@ -427,6 +427,23 @@ class TestTransmittanceCH4InterpolationFromLUT:
 
         assert result.shape == (H, W)
 
+    def test_deltach4_from_ratio_transmittance_clip_can_be_switched_off(self, mock_srf):
+        """clip_values_retrieval=False leaves ratios above MAX_MBMP_VALUE unclipped."""
+        from marss2l.mars_sentinel2 import transmittance_to_ch4 as t2ch4
+
+        interp = t2ch4.TransmittanceCH4InterpolationFromLUT()
+        ratio_il = np.array([t2ch4.MAX_MBMP_VALUE, t2ch4.MAX_MBMP_VALUE + 0.02])
+
+        clipped = interp.deltach4_from_ratio_transmittance(
+            satellite="S2A", sza=30, vza=10, ratio_il=ratio_il
+        )
+        unclipped = interp.deltach4_from_ratio_transmittance(
+            satellite="S2A", sza=30, vza=10, ratio_il=ratio_il, clip_values_retrieval=False
+        )
+
+        assert clipped[1] == pytest.approx(clipped[0])
+        assert unclipped[1] != pytest.approx(unclipped[0])
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tests for TransmittanceCH4InterpolationFromDict
