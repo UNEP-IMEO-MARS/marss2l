@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.13](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.12...v0.2.13) (2026-10-07)
+
+
+### Documentation
+
+* **figures:** add the ROC panel to the top row of Figure 2 ([fc97d0b](https://github.com/UNEP-IMEO-MARS/marss2l/commit/fc97d0bb46b99a61a6ce2ec125452eb70073470f))
+* **figures:** add the ROC panel to the top row of Figure 2 ([42b9313](https://github.com/UNEP-IMEO-MARS/marss2l/commit/42b9313bc86639c7df913a3bef4af70e0ae7db6e))
+
 ## [0.2.12](https://github.com/UNEP-IMEO-MARS/marss2l/compare/v0.2.11...v0.2.12) (2026-10-01)
 
 
