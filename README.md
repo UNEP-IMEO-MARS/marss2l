@@ -49,6 +49,8 @@ hf download --local-dir /path/to/localdir/MARS-S2L \
 
 The following notebooks show how to load and plot images using the `torch.Dataset` directly from the Hugging Face repository: [`notebooks/examples/plot_images_dataset_train.ipynb`](./notebooks/examples/plot_images_dataset_train.ipynb) and [`notebooks/examples/plot_plumes_dataset_test.ipynb`](./notebooks/examples/plot_plumes_dataset_test.ipynb).
 
+The metadata tables (`.csv` and `.parquet`) are read through the Hugging Face hub cache (`~/.cache/huggingface/hub`, or `$HF_HOME/hub` if `HF_HOME` is set): `marss2l.huggingface.HfCachedFileSystem` (for `datasets/UNEP-IMEO/MARS-S2L/...` paths) and the filesystem that `marss2l.utils.fs_from_path` returns for `https://huggingface.co/...` URLs download each table once and afterwards only check whether a newer version exists; offline they serve the cached copy. `HfCachedFileSystem(local_dir="/path/to/files")` reads a table from `local_dir` instead when it exists there under the same relative path, which lets you check new files before uploading them.
+
 ## Retrain the MARS-S2L model
 
 We trained the model on a A100 GPU with 80Gb RAM. In order to re-train the proposed model and the baseline run:

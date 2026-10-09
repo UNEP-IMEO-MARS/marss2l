@@ -107,6 +107,8 @@ docstring-parser==0.18.0
     # via cyclopts
 earthengine-api==1.7.29
     # via marss2l (pyproject.toml)
+et-xmlfile==2.0.0
+    # via openpyxl
 executing==2.2.1
     # via stack-data
 fastjsonschema==2.21.2
@@ -381,6 +383,8 @@ nvidia-nvtx==13.0.85
     # via cuda-toolkit
 opencv-python==4.13.0.92
     # via satalign
+openpyxl==3.1.5
+    # via marss2l (pyproject.toml)
 packaging==25.0
     # via
     #   basemap
