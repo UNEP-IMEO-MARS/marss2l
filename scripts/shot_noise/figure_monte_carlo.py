@@ -10,7 +10,7 @@ bracket the others.
 
 Run::
 
-    python -m scripts.figure_monte_carlo figures --output-dir <dir>
+    python -m scripts.shot_noise.figure_monte_carlo figures --output-dir <dir>
 """
 
 from typing import Tuple

@@ -22,7 +22,7 @@ scenes use a single-pass retrieval without an L3 floor) and with a daytime refer
 
 Run::
 
-    python -m scripts.figure_regional figures <stats csv> <images csv> \\
+    python -m scripts.shot_noise.figure_regional figures <stats csv> <images csv> \\
         --extra-stats-csv <cloudsen12 stats csv> --extra-images-csv <cloudsen12 images csv> \\
         --output-dir <dir>
 """

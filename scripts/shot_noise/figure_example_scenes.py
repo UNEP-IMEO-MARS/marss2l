@@ -21,7 +21,7 @@ and the ppb range follow ``notebooks/examples/download_and_inference.ipynb``.
 
 Run::
 
-    python -m scripts.figure_example_scenes figure \\
+    python -m scripts.shot_noise.figure_example_scenes figure \\
         --stats-csv <stats csv> --images-csv <images csv> \\
         --rows 10 --output-path <dir>/example_scenes.png
 """
@@ -293,7 +293,7 @@ def corpus_with_paths(
     path_prepend_data: Optional[str] = None,
 ) -> pd.DataFrame:
     """One corpus, selected as the other figures select it, plus its image paths."""
-    from scripts.figure_regional import apply_permian_labels, load_scenes
+    from scripts.shot_noise.figure_regional import apply_permian_labels, load_scenes
 
     scenes = load_scenes(stats_csv, images_csv)
     if permian_shapefile is not None:
@@ -396,7 +396,7 @@ def figure(
     vmax = {"ch4": ch4_vmax}
     scenes = corpus_with_paths(stats_csv, images_csv, permian_shapefile, path_prepend_data)
     if show_flux:
-        from scripts.figure_regional import add_detectable_flux
+        from scripts.shot_noise.figure_regional import add_detectable_flux
 
         scenes = add_detectable_flux(scenes)
     if extra_stats_csv is not None:

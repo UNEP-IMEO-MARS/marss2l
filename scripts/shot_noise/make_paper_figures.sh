@@ -4,7 +4,7 @@
 #
 # Usage, from the root of this repository:
 #
-#     scripts/make_paper_figures.sh <MARS-S2L root> <Permian basin shapefile> <output dir>
+#     scripts/shot_noise/make_paper_figures.sh <MARS-S2L root> <Permian basin shapefile> <output dir>
 #
 # The Permian basin polygon is the EIA's PermianBasin_Extent layer
 # (PermianBasin_Boundary_Structural_Tectonic.zip).
@@ -26,16 +26,16 @@ mkdir -p "$OUT"
 
 # Floors, gap, breaches, noise drivers, CloudSEN12 supplement and detectable flux (11 figures),
 # and the per-region table the text quotes.
-python -m scripts.figure_regional figures "$STATS" "$IMAGES" \
+python -m scripts.shot_noise.figure_regional figures "$STATS" "$IMAGES" \
     --extra-stats-csv "$DATA/cloudsen12_data/cloudsen12_stats_dataset_native.csv" \
     --extra-images-csv "$DATA/cloudsen12_clear_images.csv" \
     --permian-shapefile "$PERMIAN" --output-dir "$OUT" --summary-csv "$OUT/region_summary.csv"
 
 # Appendix B: the first-order expansions against Monte Carlo. No data needed.
-python -m scripts.figure_monte_carlo figures --output-dir "$OUT"
+python -m scripts.shot_noise.figure_monte_carlo figures --output-dir "$OUT"
 
 scenes() {
-    python -m scripts.figure_example_scenes figure "$STATS" "$IMAGES" \
+    python -m scripts.shot_noise.figure_example_scenes figure "$STATS" "$IMAGES" \
         --permian-shapefile "$PERMIAN" --path-prepend-data "$DATA" --native-grid "$@"
 }
 
