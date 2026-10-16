@@ -236,6 +236,40 @@ def valid_mask(bands_out: list, x: torch.Tensor) -> torch.Tensor:
     return mask
 
 
+def _remove_outliers_recursively(x, threshold=3, n_iterations=5):
+    """Recursively NaN out values more than ``threshold`` SD from the mean (in place)."""
+    for _ in range(n_iterations):
+        m, s = np.nanmean(x), np.nanstd(x)
+        x[np.abs(x - m) > threshold * s] = np.nan
+    return x
+
+
+def retrieval_noise_std(retrieval, fill_value=None) -> float:
+    """Robust noise standard deviation of a CH4 retrieval, as in the PoD study of
+    Montesino-San Martín et al. (in preparation).
+
+    Drop fill values and zero / no-retrieval pixels, symmetrise about zero, remove outliers
+    recursively (5 x 3-sigma), then take the standard deviation. The recursive clipping
+    rejects retrieval-artefact pixels that a plain ``nanstd`` would let inflate the noise.
+
+    Args:
+        retrieval: CH4 retrieval values, any shape (a plume-free scene, or its plume-free pixels).
+        fill_value: Fill value to exclude; ``None`` when the invalid pixels are already removed.
+
+    Returns:
+        Robust noise standard deviation; NaN when fewer than two values remain.
+    """
+    x = np.asarray(retrieval, dtype=float).ravel()
+    if fill_value is not None:
+        x = x[x != fill_value]
+    x = x[np.isfinite(x) & (x != 0)]
+    if x.size < 2:
+        return float("nan")
+    x = np.concatenate((x, -x))
+    x = _remove_outliers_recursively(x)
+    return float(np.nanstd(x))
+
+
 def measured_noise_stats(
     bands_out: list, *, x: torch.Tensor, ch4: torch.Tensor, target: torch.Tensor
 ) -> dict:
@@ -250,7 +284,10 @@ def measured_noise_stats(
         target: Plume mask (H, W); all zero for a plume-free scene.
 
     Returns:
-        ``npixelsvalid`` and ``ch4_valid_noplume_std`` (ppb).
+        ``npixelsvalid`` and ``ch4_valid_noplume_std`` (ppb), and the outlier-filtered
+        standard deviation of :func:`retrieval_noise_std` (ppb) over the valid pixels,
+        ``xch4_stdnoise_nooutliers``, and over the valid pixels outside the plume,
+        ``xch4_stdnoise_nooutliers_noplume``.
     """
     valid = valid_mask(bands_out, x)
     background = ch4[valid & (target == 0)]
@@ -259,6 +296,8 @@ def measured_noise_stats(
         "ch4_valid_noplume_std": background.std().item()
         if background.numel() > 1
         else float("nan"),
+        "xch4_stdnoise_nooutliers": retrieval_noise_std(ch4[valid].numpy()),
+        "xch4_stdnoise_nooutliers_noplume": retrieval_noise_std(background.numpy()),
     }
 
 
@@ -384,6 +423,8 @@ def compute_stats(
             - "ch4_std_noplume": Standard deviation of CH4 concentrations outside the plume (if isplume is 1).
             - "ch4_min_noplume": Minimum of CH4 concentrations outside the plume (if isplume is 1).
             - "ch4_max_noplume": Maximum of CH4 concentrations outside the plume (if isplume is 1).
+            - "npixelsvalid", "ch4_valid_noplume_std", "xch4_stdnoise_nooutliers" and
+              "xch4_stdnoise_nooutliers_noplume": see :func:`measured_noise_stats`.
             - Additional keys for flux rate quantification if isplume is 1.
             - For each band in bands_out (excluding "_bg" band, "U", "V"):
                 - "{band}_mean": Mean of the band data.

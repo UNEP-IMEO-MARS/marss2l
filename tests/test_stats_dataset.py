@@ -146,6 +146,52 @@ def test_measured_noise_excludes_invalid_and_plume_pixels():
     assert stats["ch4_valid_noplume_std"] < 1.0
 
 
+def test_outlier_filtered_noise_ignores_a_wild_pixel():
+    rng = np.random.default_rng(0)
+    x = make_stack()
+    ch4 = torch.from_numpy(rng.normal(0.0, 100.0, (8, 8)).astype(np.float32))
+    ch4[2, 2] = 5_000.0  # a retrieval artefact on a valid pixel
+    target = torch.zeros(8, 8)
+
+    stats = stats_dataset.measured_noise_stats(BANDS, x=x, ch4=ch4, target=target)
+
+    assert stats["ch4_valid_noplume_std"] > 500.0
+    assert stats["xch4_stdnoise_nooutliers_noplume"] < 150.0
+    assert stats["xch4_stdnoise_nooutliers"] == stats["xch4_stdnoise_nooutliers_noplume"]
+
+
+def test_outlier_filtered_noise_agrees_with_the_plain_std_on_gaussian_noise():
+    rng = np.random.default_rng(1)
+    noise = rng.normal(0.0, 100.0, 100_000)
+    assert stats_dataset.retrieval_noise_std(noise) == pytest.approx(noise.std(), rel=0.05)
+
+
+def test_outlier_filtered_noise_excludes_invalid_and_plume_pixels():
+    rng = np.random.default_rng(2)
+    x = make_stack()
+    x[BANDS.index("B12"), 0, 0] = 0.0  # invalid pixel
+    ch4 = torch.from_numpy(rng.normal(0.0, 1.0, (8, 8)).astype(np.float32))
+    ch4[0, 0] = 10_000.0  # a wild value on the invalid pixel
+    ch4[4, :] = 500.0  # a plume
+    target = torch.zeros(8, 8)
+    target[4, :] = 1.0
+
+    stats = stats_dataset.measured_noise_stats(BANDS, x=x, ch4=ch4, target=target)
+
+    background = ch4[(target == 0) & stats_dataset.valid_mask(BANDS, x)].numpy()
+    assert stats["xch4_stdnoise_nooutliers_noplume"] == pytest.approx(
+        stats_dataset.retrieval_noise_std(background)
+    )
+    assert stats["xch4_stdnoise_nooutliers_noplume"] < 2.0
+    assert stats["xch4_stdnoise_nooutliers"] > 10 * stats["xch4_stdnoise_nooutliers_noplume"]
+
+
+def test_outlier_filtered_noise_of_too_few_pixels_is_nan():
+    assert np.isnan(stats_dataset.retrieval_noise_std(np.array([])))
+    assert np.isnan(stats_dataset.retrieval_noise_std(np.array([3.0])))
+    assert np.isnan(stats_dataset.retrieval_noise_std(np.array([-1.0, 5.0]), fill_value=5.0))
+
+
 def test_mbmp_is_reported_unhalved_but_reflectance_is_not():
     """The /2 undoes the loader's reflectance x 2, which a ratio never carried."""
     stats = stats_dataset.compute_stats(

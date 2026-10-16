@@ -58,6 +58,7 @@ Run from the root of this repository.
 | Sentinel-2 rows of `data/stats_dataset_native.csv` | the same command with `--split test_2023 --native-grid --window-size 100` | Public |
 | Landsat rows of `data/stats_dataset_native.csv` | the same sweep with `--window-size 67` over Landsat chips exported at 30 m | *Private only*: the 30 m chips are not published |
 | `ch4_valid_noplume_std_10m` of the native files | `ch4_valid_noplume_std` of the same image in the 10 m statistics | Public for MARS-S2L, *private only* for CloudSEN12 |
+| `xch4_stdnoise_nooutliers_noplume_10m` of the native files | `xch4_stdnoise_nooutliers_noplume` of the same image in the 10 m statistics | As above |
 | CloudSEN12 statistics, 10 m and 20 m | `python -m marss2l.stats_dataset --dataset-name CloudSEN12` over the CloudSEN12 scenes, with `--native-grid --window-size 100` for 20 m | *Private only*: the CloudSEN12 imagery is not published |
 | Reference-pass columns of the images tables | Read from the operational database of the monitoring system, then `solar_geometry.repair_sza_dataframe` | *Private only*; the repair itself is public code |
 
