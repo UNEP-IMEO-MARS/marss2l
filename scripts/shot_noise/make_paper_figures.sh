@@ -24,8 +24,8 @@ STATS=$DATA/data/stats_dataset_native.csv
 IMAGES=${IMAGES:-$DATA/validated_images_all.csv}
 mkdir -p "$OUT"
 
-# Floors, gap, breaches, noise drivers, CloudSEN12 supplement and detectable flux (11 figures),
-# and the per-region table the text quotes.
+# Floors, gap, breaches, noise drivers, CloudSEN12 supplement, detectable flux and the
+# probability of detection by region (pod_by_region.png), and the per-region table the text quotes.
 python -m scripts.shot_noise.figure_regional figures "$STATS" "$IMAGES" \
     --extra-stats-csv "$DATA/cloudsen12_data/cloudsen12_stats_dataset_native.csv" \
     --extra-images-csv "$DATA/cloudsen12_clear_images.csv" \

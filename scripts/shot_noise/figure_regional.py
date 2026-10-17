@@ -19,6 +19,9 @@
 ``pod_by_region_{retrieval,L3,L2,L1}.png``
     The probability of detection of every plume-free scene at its own wind, per region,
     from the retrieval noise and from each floor, with the regional log-logistic.
+``pod_by_region.png``
+    The paper's version: per region, the retrieval noise above and ``L1`` beneath, with
+    CloudSEN12 in place of "Rest". Drawn when the second corpus is given.
 
 Everything is a groupby on the CSV that ``marss2l.stats_dataset`` writes, and a point is
 always one scene. Scenes are kept if ``observability == "clear"``, onshore (offshore
@@ -912,8 +915,6 @@ def figure_pod_by_region(
     Returns:
         Per region: scenes, fitted Q50 and slope, Q10, Q50 and Q90 in t/h.
     """
-    from matplotlib.collections import LineCollection
-
     _, colour, title = POD_NOISES[noise]
     free = scenes[(scenes.isplume != 1) & (scenes[f"q50_{noise}"] * scenes.wind_speed > 0)]
     order = case_study_order(free, min_scenes=5)
@@ -928,38 +929,10 @@ def figure_pod_by_region(
     )
     fig.patch.set_facecolor("white")
     axes = np.atleast_1d(axes).ravel()
-    flux = POD_FLUX_GRID
     rows = []
     for ax, case in zip(axes[: len(order)], order, strict=True):
         group = free[free.case_study == case]
-        curves = scene_pod_curves(group, noise, flux)
-        # Fainter lines where there are more of them, so dense regions do not saturate.
-        alpha = float(np.clip(10.0 / len(group), 0.004, 0.35))
-        segments = np.stack([np.broadcast_to(flux, curves.shape), curves], axis=-1)
-        ax.add_collection(LineCollection(segments, colors="#8a929c", alpha=alpha, linewidths=0.5))
-
-        mean = curves.mean(axis=0)
-        q50, slope = fit_log_logistic(flux, mean)
-        ax.plot(flux, mean, color=INK, linewidth=0.9, linestyle=(0, (2, 2)), zorder=3)
-        ax.plot(flux, 1.0 / (1.0 + (flux / q50) ** -slope), color=colour, linewidth=2.0, zorder=4)
-        q = {level: quantile_flux(q50, slope, level) for level in POD_LEVELS}
-        for level, value in q.items():
-            ax.plot(
-                [value, value], [0, level], color=colour, linewidth=0.8, linestyle=":", zorder=4
-            )
-            ax.plot(value, level, "o", color=colour, markersize=3.5, zorder=5)
-        ax.text(
-            0.03,
-            0.97,
-            "\n".join(
-                f"$Q_{{{int(100 * lv)}}}$ {_t_per_h(q[lv])} t h$^{{-1}}$" for lv in POD_LEVELS
-            ),
-            transform=ax.transAxes,
-            va="top",
-            ha="left",
-            fontsize=7.5,
-            color=INK,
-        )
+        q, slope = _pod_panel(ax, group, noise, colour, xlim)
         rows.append(
             dict(
                 case_study=case,
@@ -968,28 +941,12 @@ def figure_pod_by_region(
                 **{f"q{int(100 * lv)}_t_h": round(q[lv], 3) for lv in POD_LEVELS},
             )
         )
-
-        ax.set_xscale("log")
-        ax.set_xlim(*xlim)
-        ax.set_ylim(0, 1)
-        ax.grid(True, color=GRID, linewidth=0.5, zorder=0)
-        ax.set_axisbelow(True)
-        for side in ("top", "right"):
-            ax.spines[side].set_visible(False)
-        ax.spines["left"].set_color(GRID)
-        ax.spines["bottom"].set_color(GRID)
-        ax.tick_params(colors=INK_SOFT, labelsize=7.5, width=0.6)
         ax.set_title(f"{case}  (n={len(group):,})", color=INK, fontsize=9, loc="left")
     for ax in axes[len(order) :]:
         ax.set_visible(False)
     # Panels with an empty slot below them are the bottom of their column.
     for i, ax in enumerate(axes[: len(order)]):
         ax.xaxis.set_tick_params(labelbottom=i + ncols >= len(order))
-    ticks = [t for t in (0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100) if xlim[0] <= t <= xlim[1]]
-    for ax in axes[: len(order)]:
-        ax.set_xticks(ticks)
-        ax.set_xticklabels([f"{t:g}" for t in ticks])
-        ax.tick_params(axis="x", which="minor", labelbottom=False)
     fig.supxlabel("source rate  [t h$^{-1}$]", color=INK_SOFT, fontsize=9.5, y=0.03)
     fig.supylabel("probability of detection", color=INK_SOFT, fontsize=9.5, x=0.06)
     fig.suptitle(
@@ -1001,13 +958,7 @@ def figure_pod_by_region(
         y=0.995,
     )
     fig.legend(
-        handles=[
-            plt.Line2D([], [], color="#8a929c", linewidth=1, label="one scene"),
-            plt.Line2D(
-                [], [], color=INK, linewidth=0.9, linestyle=(0, (2, 2)), label="mean of the scenes"
-            ),
-            plt.Line2D([], [], color=colour, linewidth=2, label="log-logistic fitted to the mean"),
-        ],
+        handles=_pod_legend([(colour, "log-logistic fitted to the mean")]),
         loc="upper left",
         bbox_to_anchor=(0.12, 0.0),
         ncol=3,
@@ -1021,6 +972,171 @@ def figure_pod_by_region(
     return pd.DataFrame(rows).set_index("case_study")
 
 
+def _pod_panel(ax, group: pd.DataFrame, noise: str, colour: str, xlim: tuple) -> tuple:
+    """One region's PoD: every scene (grey), their mean (dashed) and the log-logistic
+    fitted to it (``colour``), with its Q10, Q50 and Q90 marked and printed.
+
+    Returns:
+        ``({level: flux in t/h}, slope)`` of the fitted curve.
+    """
+    from matplotlib.collections import LineCollection
+
+    flux = POD_FLUX_GRID
+    curves = scene_pod_curves(group, noise, flux)
+    # Fainter lines where there are more of them, so dense regions do not saturate.
+    alpha = float(np.clip(10.0 / len(group), 0.004, 0.35))
+    segments = np.stack([np.broadcast_to(flux, curves.shape), curves], axis=-1)
+    ax.add_collection(LineCollection(segments, colors="#8a929c", alpha=alpha, linewidths=0.5))
+
+    mean = curves.mean(axis=0)
+    q50, slope = fit_log_logistic(flux, mean)
+    ax.plot(flux, mean, color=INK, linewidth=0.9, linestyle=(0, (2, 2)), zorder=3)
+    ax.plot(flux, 1.0 / (1.0 + (flux / q50) ** -slope), color=colour, linewidth=2.0, zorder=4)
+    q = {level: quantile_flux(q50, slope, level) for level in POD_LEVELS}
+    for level, value in q.items():
+        ax.plot([value, value], [0, level], color=colour, linewidth=0.8, linestyle=":", zorder=4)
+        ax.plot(value, level, "o", color=colour, markersize=3.5, zorder=5)
+    ax.text(
+        0.03,
+        0.97,
+        "\n".join(f"$Q_{{{int(100 * lv)}}}$ {_t_per_h(q[lv])} t h$^{{-1}}$" for lv in POD_LEVELS),
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=7.5,
+        color=INK,
+    )
+
+    ax.set_xscale("log")
+    ax.set_xlim(*xlim)
+    ax.set_ylim(0, 1)
+    ax.grid(True, color=GRID, linewidth=0.5, zorder=0)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.spines["left"].set_color(GRID)
+    ax.spines["bottom"].set_color(GRID)
+    ax.tick_params(colors=INK_SOFT, labelsize=7.5, width=0.6)
+    ticks = [t for t in (0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100) if xlim[0] <= t <= xlim[1]]
+    ax.set_xticks(ticks)
+    ax.set_xticklabels([f"{t:g}" for t in ticks])
+    ax.tick_params(axis="x", which="minor", labelbottom=False)
+    return q, slope
+
+
+def _pod_legend(fits: list) -> list:
+    """Legend handles: one scene, the mean, and one fitted curve per ``(colour, label)``."""
+    return [
+        plt.Line2D([], [], color="#8a929c", linewidth=1, label="one scene"),
+        plt.Line2D(
+            [], [], color=INK, linewidth=0.9, linestyle=(0, (2, 2)), label="mean of the scenes"
+        ),
+    ] + [plt.Line2D([], [], color=c, linewidth=2, label=label) for c, label in fits]
+
+
+def _pod_xlim(scenes: pd.DataFrame, low_noise: str, high_noise: str) -> tuple:
+    """A flux axis from the Q10 of the quietest ``low_noise`` scenes to the Q90 of the
+    noisiest ``high_noise`` ones, with a margin."""
+    free = scenes[(scenes.isplume != 1) & (scenes[f"q50_{low_noise}"] * scenes.wind_speed > 0)]
+    slope = free.satellite.map(shot_noise.POD_SLOPE)
+    low = (free[f"q50_{low_noise}"] * free.wind_speed / 1000.0 * (1 / 9) ** (1 / slope)).quantile(
+        0.005
+    )
+    high = (free[f"q50_{high_noise}"] * free.wind_speed / 1000.0 * 9 ** (1 / slope)).quantile(0.995)
+    return low / 1.5, high * 1.5
+
+
+#: The regions of the paired PoD figure: "Rest" is a remainder rather than a region.
+POD_PAIRED_DROP = ("Rest",)
+
+
+def figure_pod_paired(scenes: pd.DataFrame, path: str, ncols: int = 4) -> pd.DataFrame:
+    """The PoD of each region from the retrieval noise, with the PoD at ``L1`` beneath it.
+
+    Regions run ``ncols`` to a row; each row of regions takes two rows of panels, the
+    retrieval noise above and the physical limit below, on one flux axis, so that the two
+    curves of a region are read one above the other.
+
+    Args:
+        scenes: Both corpora from :func:`add_detectable_flux`, the second under its own
+            ``case_study`` label; the plume scenes and :data:`POD_PAIRED_DROP` are dropped.
+        path: Where to write the figure.
+        ncols: Regions per row.
+
+    Returns:
+        Per region and noise: scenes, slope, Q10, Q50 and Q90 in t/h.
+    """
+    noises = ("measured", "L1")
+    free = scenes[
+        (scenes.isplume != 1)
+        & (scenes.q50_L1 * scenes.wind_speed > 0)
+        & ~scenes.case_study.isin(POD_PAIRED_DROP)
+    ]
+    order = case_study_order(free, min_scenes=5)
+    xlim = _pod_xlim(free, "L1", "measured")
+    groups = int(np.ceil(len(order) / ncols))
+
+    # A thin spacer row between the pairs, so a region's two panels sit closer to each
+    # other than to the region above.
+    heights = []
+    for g in range(groups):
+        heights += [1, 1] + ([0.32] if g < groups - 1 else [])
+    fig = plt.figure(figsize=(3.3 * ncols, 2.0 * 2 * groups + 0.5))
+    fig.patch.set_facecolor("white")
+    grid = fig.add_gridspec(len(heights), ncols, height_ratios=heights, hspace=0.12, wspace=0.08)
+    first = None
+    rows = []
+    for index, case in enumerate(order):
+        g, column = divmod(index, ncols)
+        group = free[free.case_study == case]
+        for k, noise in enumerate(noises):
+            ax = fig.add_subplot(grid[3 * g + k, column], sharex=first, sharey=first)
+            first = first or ax
+            colour = POD_NOISES[noise][1]
+            q, slope = _pod_panel(ax, group, noise, colour, xlim)
+            rows.append(
+                dict(
+                    case_study=case,
+                    noise=noise,
+                    scenes=len(group),
+                    slope=round(slope, 2),
+                    **{f"q{int(100 * lv)}_t_h": round(q[lv], 3) for lv in POD_LEVELS},
+                )
+            )
+            if k == 0:
+                ax.set_title(f"{case}  (n={len(group):,})", color=INK, fontsize=9, loc="left")
+                ax.xaxis.set_tick_params(labelbottom=False)
+            if column > 0:
+                ax.yaxis.set_tick_params(labelleft=False)
+            else:
+                ax.set_ylabel(
+                    "retrieval noise" if noise == "measured" else "$L_1$",
+                    color=colour,
+                    fontsize=9,
+                )
+
+    fig.supxlabel("source rate  [t h$^{-1}$]", color=INK_SOFT, fontsize=9.5, y=0.075)
+    fig.supylabel("probability of detection", color=INK_SOFT, fontsize=9.5, x=0.06)
+    fig.legend(
+        handles=_pod_legend(
+            [
+                (POD_NOISES["measured"][1], "fitted, retrieval noise"),
+                (POD_NOISES["L1"][1], "fitted, physical limit $L_1$"),
+            ]
+        ),
+        loc="upper left",
+        bbox_to_anchor=(0.12, 0.065),
+        ncol=4,
+        frameon=False,
+        fontsize=8,
+        labelcolor=INK_SOFT,
+    )
+    fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"wrote {path}")
+    return pd.DataFrame(rows).set_index(["case_study", "noise"])
+
+
 def _t_per_h(value: float) -> str:
     return f"{value:.2f}" if value < 1 else f"{value:.1f}" if value < 10 else f"{value:.0f}"
 
@@ -1031,12 +1147,7 @@ def figures_pod_by_region(scenes: pd.DataFrame, output_dir: str) -> pd.DataFrame
     The axis runs from the Q10 of the quietest L1 scenes to the Q90 of the noisiest
     retrieval ones, so that every figure can be read against the others.
     """
-    free = scenes[(scenes.isplume != 1) & (scenes.q50_L1 * scenes.wind_speed > 0)]
-    at_wind = {n: free[f"q50_{n}"] * free.wind_speed / 1000.0 for n in POD_NOISES}
-    slope = free.satellite.map(shot_noise.POD_SLOPE)
-    low = (at_wind["L1"] * (1 / 9) ** (1 / slope)).quantile(0.005)
-    high = (at_wind["measured"] * 9 ** (1 / slope)).quantile(0.995)
-    xlim = (low / 1.5, high * 1.5)
+    xlim = _pod_xlim(scenes, "L1", "measured")
     tables = {
         noise: figure_pod_by_region(scenes, noise, os.path.join(output_dir, file), xlim)
         for noise, (file, _, _) in POD_NOISES.items()
@@ -1128,6 +1239,9 @@ def figures(
     )
     pod = figures_pod_by_region(flux[flux.dataset == "MARS-S2L"], output_dir)
     print(pod.to_string())
+    if extra_stats_csv is not None:
+        paired = figure_pod_paired(flux, os.path.join(output_dir, "pod_by_region.png"))
+        print(paired.to_string())
 
     summary = (
         scenes.groupby("case_study")
