@@ -491,7 +491,7 @@ def figure_corpora(main: pd.DataFrame, extra: pd.DataFrame, path: str) -> None:
         (
             "radiance_B12_std",
             r"std. dev. within the scene  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
-            "c  How uniform it is",
+            "c  How heterogeneous it is",
         ),
     ]
 
