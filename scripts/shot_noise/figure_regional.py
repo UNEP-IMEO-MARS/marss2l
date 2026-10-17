@@ -1433,13 +1433,12 @@ def figure_breaches(scenes: pd.DataFrame, path: str) -> None:
 def figure_scenes_and_gap(scenes: pd.DataFrame, path: str) -> None:
     """The main result: what the scenes are, and what the retrieval reads on them.
 
-    Four panels on one case-study axis. The first two describe the imagery -- how
+    Three panels on one case-study axis. The first two describe the imagery -- how
     bright each scene is at 2.3 um and how much that radiance varies within it --
-    and the last two describe the retrieval: its measured noise against the floor
-    photon statistics permit, and the share of variance that leaves. They belong
-    in one figure because the second pair is only interpretable through the
-    first: brightness sets a region's floor and variegation sets its distance
-    above it.
+    and the third describes the retrieval: its measured noise against the floors
+    photon statistics permit. They belong in one figure because the third is only
+    interpretable through the first two: brightness sets a region's floor and
+    variegation sets its distance above it.
 
     Args:
         scenes: Output of :func:`load_scenes` for both corpora.
@@ -1447,7 +1446,7 @@ def figure_scenes_and_gap(scenes: pd.DataFrame, path: str) -> None:
     """
     order = case_study_order(scenes, min_scenes=5)
     fig, axes = plt.subplots(
-        1, 4, figsize=(16.4, 0.44 * len(order) + 2.4), sharey=True, gridspec_kw={"wspace": 0.12}
+        1, 3, figsize=(12.6, 0.44 * len(order) + 2.4), sharey=True, gridspec_kw={"wspace": 0.12}
     )
     fig.patch.set_facecolor("white")
 
@@ -1510,23 +1509,6 @@ def figure_scenes_and_gap(scenes: pd.DataFrame, path: str) -> None:
         fontsize=8,
         labelcolor=INK_SOFT,
     )
-
-    share = scenes.groupby("case_study").reducible.median().reindex(order)
-    axes[3].barh(range(len(order)), share.values, height=0.5, color=MEASURED, zorder=3)
-    for i, value in enumerate(share.values):
-        axes[3].annotate(
-            f"{value:.0%}",
-            xy=(value, i),
-            xytext=(4, 0),
-            textcoords="offset points",
-            va="center",
-            fontsize=8,
-            color=INK,
-        )
-    axes[3].set_xlim(0, 1.18)
-    axes[3].set_xticks([0, 0.5, 1.0])
-    axes[3].set_xticklabels(["0", "50%", "100%"])
-    _style(axes[3], xlabel="share of variance that is\nnot photon noise", title="d  Reducible")
 
     axes[0].set_yticks(range(len(order)))
     axes[0].set_yticklabels(order, fontsize=8, color=INK)
