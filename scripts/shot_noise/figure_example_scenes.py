@@ -318,9 +318,9 @@ def _flux_label(row: pd.Series, show_flux: bool) -> str:
     if not (show_flux and row.isplume == 1):
         return ""
     return (
-        f"{row.ch4_fluxrate:,.0f} kg/h at {row.wind_speed:.1f} m/s\n"
-        f"$Q_{{50}}$ {row.q50_measured * row.wind_speed:,.0f} kg/h, "
-        f"{row.q50_L1 * row.wind_speed:,.0f} at $L_1$\n"
+        f"\n{row.ch4_fluxrate:,.0f} kg/h at {row.wind_speed:.1f} m/s\n"
+        f"$Q_{{50}}$ {row.q50_measured * row.wind_speed:,.0f} kg/h, retrieval noise\n"
+        f"$Q_{{50}}$ {row.q50_L1 * row.wind_speed:,.0f} kg/h, $L_1$"
     )
 
 
@@ -520,10 +520,10 @@ def figure(
         axes[row_index, 0].set_ylabel(
             f"{row.get(label_by, row.case_study)}{'  ·  plume' if row.isplume == 1 else ''}\n"
             f"{row.satellite}   {str(row.tile_date)[:10]}\n"
-            f"{flux}"
             f"floor ${_rung_tex(rung)}$ {row[floor]:.0f} ppb\n"
             f"measured {row.measured:.0f} ppb{' (plume-free px)' if row.isplume == 1 else ''}\n"
-            f"({row.measured / row[floor]:.1f}$\\times$ floor)",
+            f"({row.measured / row[floor]:.1f}$\\times$ floor)"
+            f"{flux}",
             fontsize=10,
             rotation=0,
             ha="right",
