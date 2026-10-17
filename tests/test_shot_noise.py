@@ -278,8 +278,9 @@ def test_the_landsat_noise_factor_is_the_cubic_spline_resize():
 # ─────────────────────────────────────────────────────────────────────────────
 def test_q50_uses_each_platforms_observability_and_pixel():
     q = sn.q50_from_noise([300, 300, 300], ["S2A", "S2B", "LC09"])
-    assert q[1] / q[0] == pytest.approx(0.0638 / 0.059)
-    assert q[2] / q[0] == pytest.approx(30 / 20)
+    o50 = sn.OBSERVABILITY_50
+    assert q[1] / q[0] == pytest.approx(o50["S2B"] / o50["S2A"])
+    assert q[2] / q[0] == pytest.approx(o50["LC09"] / o50["S2A"] * 30 / 20)
 
 
 def test_q50_is_linear_in_wind_and_noise():
@@ -287,3 +288,12 @@ def test_q50_is_linear_in_wind_and_noise():
     assert sn.q50_from_noise(250, "LC08", wind_speed=3.5) == pytest.approx(3.5 * base)
     assert sn.q50_from_noise(500, "LC08") == pytest.approx(2 * base)
     assert np.shape(base) == ()
+
+
+def test_pod_is_half_at_q50_and_spans_q10_q90_by_the_slope():
+    a = sn.POD_SLOPE["S2A"]
+    q50 = 1200.0
+    assert sn.probability_of_detection(q50, q50, a) == pytest.approx(0.5)
+    q90 = q50 * 9 ** (1 / a)
+    assert sn.probability_of_detection(q90, q50, a) == pytest.approx(0.9)
+    assert sn.probability_of_detection(q50**2 / q90, q50, a) == pytest.approx(0.1)

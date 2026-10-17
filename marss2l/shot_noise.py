@@ -345,16 +345,27 @@ NOISE_FACTOR_10M = {"S2": 0.625, "LC": 0.48}
 #: Background methane mixing ratio the noise is expressed relative to, ppb.
 BACKGROUND_XCH4_PPB = 1800.0
 
-#: Observability at 50 % probability of detection, per instrument. Fitted against noise
-#: measured on the published products (Sentinel-2 at 10 m, Landsat at 30 m), so the noise
-#: passed to :func:`q50_from_noise` must be on those grids. **Provisional**: to be replaced
-#: by a fit in the observability of Bruno et al. (2024) on the native grids.
+#: Observability at 50 % probability of detection, per instrument: the median O50 of the PoD
+#: model of Montesino-San Martín et al. (in preparation), Table 3. Fitted against the
+#: outlier-filtered retrieval noise of the operational products (Sentinel-2 at 10 m, Landsat
+#: at 30 m), so the noise passed to :func:`q50_from_noise` must be that estimator on those
+#: grids. Sentinel-2C has no fit of its own and takes the value of Sentinel-2A.
 OBSERVABILITY_50: Dict[str, float] = {
-    "S2A": 0.059,
-    "S2B": 0.0638,
-    "S2C": 0.059,
-    "LC08": 0.059,
-    "LC09": 0.059,
+    "S2A": 0.0521,
+    "S2B": 0.0550,
+    "S2C": 0.0521,
+    "LC08": 0.0585,
+    "LC09": 0.0565,
+}
+
+#: Slope :math:`a` of the log-logistic PoD of each instrument, the median of Montesino-San
+#: Martín et al. (in preparation), Table 3. Sentinel-2C takes the value of Sentinel-2A.
+POD_SLOPE: Dict[str, float] = {
+    "S2A": 3.542,
+    "S2B": 3.948,
+    "S2C": 3.542,
+    "LC08": 2.275,
+    "LC09": 2.328,
 }
 
 
@@ -379,3 +390,18 @@ def q50_from_noise(
     return q50.reshape(
         np.broadcast_shapes(np.shape(satellite), np.shape(noise_ppb), np.shape(wind_speed))
     )
+
+
+def probability_of_detection(flux: ArrayLike, q50: ArrayLike, slope: ArrayLike) -> NDArray:
+    r"""Log-logistic probability of detecting a source of rate ``flux`` (Montesino-San Martín
+    et al., Eq. 1).
+
+    .. math:: \mathrm{PoD} = 1 / \left(1 + (Q / Q_{50})^{-a}\right)
+
+    Args:
+        flux: Source rate, in the units of ``q50``.
+        q50: Rate detected with 50 % probability, e.g. from :func:`q50_from_noise`.
+        slope: Slope :math:`a`, e.g. from :data:`POD_SLOPE`.
+    """
+    log_ratio = np.log(np.asarray(flux, dtype=np.float64) / np.asarray(q50, dtype=np.float64))
+    return 1.0 / (1.0 + np.exp(-np.asarray(slope, dtype=np.float64) * log_ratio))

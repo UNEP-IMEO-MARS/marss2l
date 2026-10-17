@@ -16,6 +16,9 @@
     side by side.
 ``detectable_flux_by_region.png``, ``detectable_flux_by_wind.png``
     The noise as the flux detected with 50 % probability, by region and by wind.
+``pod_by_region_{retrieval,L3,L2,L1}.png``
+    The probability of detection of every plume-free scene at its own wind, per region,
+    from the retrieval noise and from each floor, with the regional log-logistic.
 
 Everything is a groupby on the CSV that ``marss2l.stats_dataset`` writes, and a point is
 always one scene. Scenes are kept if ``observability == "clear"``, onshore (offshore
@@ -44,6 +47,12 @@ from marss2l import shot_noise  # noqa: E402
 from marss2l.dataframe_image_plumes import ORDER_CASE_STUDIES, _set_case_study  # noqa: E402
 
 app = cyclopts.App()
+
+#: The measured noise of a scene: the outlier-filtered standard deviation of the retrieval over
+#: its valid plume-free pixels (``marss2l.stats_dataset.retrieval_noise_std``), the estimator of
+#: the PoD study the detectable flux rate is calibrated on. ``_10M`` is the same on the 10 m chips.
+MEASURED_NOISE = "xch4_stdnoise_nooutliers_noplume"
+MEASURED_NOISE_10M = f"{MEASURED_NOISE}_10m"
 
 #: Label for the second corpus, and the name of its row on the case-study axis.
 DEFAULT_EXTRA_LABEL = "CloudSEN12"
@@ -176,13 +185,13 @@ def load_scenes(stats_csv: str, images_csv: str, label: Optional[str] = None) ->
     scenes["dataset"] = label or "MARS-S2L"
 
     # The retrieval's own noise, on the valid pixels where it should read zero.
-    scenes["measured"] = scenes.ch4_valid_noplume_std
+    scenes["measured"] = scenes[MEASURED_NOISE]
     scenes = scenes[scenes.measured.notna() & (scenes.measured > 0)]
 
     scenes["family"] = np.where(scenes.satellite.str.startswith("S2"), "Sentinel-2", "Landsat")
     for rung in RUNG_COLOURS:
         scenes[f"ratio_{rung}"] = scenes.measured / scenes[f"sigma_ch4_{rung}_mean"]
-    # Exact, because both sides are standard deviations of the same quantity.
+    # Both sides are standard deviations of the same quantity, so the shares add in variance.
     scenes["reducible"] = 1 - (scenes.sigma_ch4_L3_mean / scenes.measured) ** 2
 
     return scenes
@@ -577,7 +586,7 @@ def add_detectable_flux(scenes: pd.DataFrame) -> pd.DataFrame:
     :data:`marss2l.shot_noise.OBSERVABILITY_50` was fitted on the noise of the
     operational products: Sentinel-2 on the 10 m grid, Landsat on its native 30 m one.
     The Sentinel-2 noise therefore comes from the 10 m chips
-    (``ch4_valid_noplume_std_10m``), and the Sentinel-2 floors, which are per native
+    (:data:`MEASURED_NOISE_10M`), and the Sentinel-2 floors, which are per native
     pixel, are scaled to that grid by :data:`marss2l.shot_noise.NOISE_FACTOR_10M`.
 
     Returns:
@@ -586,7 +595,7 @@ def add_detectable_flux(scenes: pd.DataFrame) -> pd.DataFrame:
     """
     scenes = scenes.copy()
     s2 = scenes.satellite.str.startswith("S2")
-    noise = np.where(s2, scenes.ch4_valid_noplume_std_10m, scenes.measured)
+    noise = np.where(s2, scenes[MEASURED_NOISE_10M], scenes.measured)
     to_fit_grid = np.where(s2, shot_noise.NOISE_FACTOR_10M["S2"], 1.0)
     scenes["q50_measured"] = shot_noise.q50_from_noise(noise, scenes.satellite)
     for rung in ("L1", "L2", "L3"):
@@ -824,6 +833,217 @@ def figure_detectable_flux_by_wind(scenes: pd.DataFrame, path: str) -> None:
     print(f"wrote {path}")
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Probability of detection per region
+# ─────────────────────────────────────────────────────────────────────────────
+
+#: The noise each PoD figure is drawn from, as the ``q50_*`` column of
+#: :func:`add_detectable_flux`, with its file name, the colour of the regional
+#: curve and the wording of the title.
+POD_NOISES = {
+    "measured": ("pod_by_region_retrieval.png", MEASURED, "retrieval noise"),
+    "L3": ("pod_by_region_L3.png", RUNG_HUES["L3"], "floor $L_3$, ideal background"),
+    "L2": ("pod_by_region_L2.png", RUNG_HUES["L2"], "floor $L_2$, no reference pass"),
+    "L1": ("pod_by_region_L1.png", RUNG_HUES["L1"], "floor $L_1$, the physical limit"),
+}
+
+#: Flux grid the scene curves are averaged on and the regional curve is fitted to, t/h.
+POD_FLUX_GRID = np.logspace(-3, 3, 601)
+
+POD_LEVELS = (0.1, 0.5, 0.9)
+
+
+def scene_pod_curves(scenes: pd.DataFrame, noise: str, flux=POD_FLUX_GRID) -> np.ndarray:
+    """PoD of every scene at its own wind, one row per scene, over ``flux`` in t/h.
+
+    Each scene's curve is the log-logistic of Montesino-San Martín et al. with the slope
+    of its instrument (:data:`marss2l.shot_noise.POD_SLOPE`) and the midpoint
+    ``q50_<noise>`` of :func:`add_detectable_flux` times the scene's wind.
+    """
+    q50 = (scenes[f"q50_{noise}"] * scenes.wind_speed).to_numpy() / 1000.0
+    slope = scenes.satellite.map(shot_noise.POD_SLOPE).to_numpy()
+    return shot_noise.probability_of_detection(flux[None, :], q50[:, None], slope[:, None])
+
+
+def fit_log_logistic(flux: np.ndarray, pod: np.ndarray) -> tuple:
+    """The log-logistic closest to ``pod`` on ``flux``: a logistic regression on ln(flux).
+
+    The mean PoD at each grid point is the fraction detected there, so the fit maximises
+    the binomial likelihood of those fractions, every grid point weighing the same.
+
+    Returns:
+        ``(q50, slope)``, ``q50`` in the units of ``flux``.
+    """
+    from scipy.optimize import minimize
+
+    x = np.log(flux)
+    p = np.clip(pod, 1e-9, 1 - 1e-9)
+
+    def deviance(theta):
+        z = theta[1] * (x - theta[0])
+        # -[p ln s(z) + (1 - p) ln(1 - s(z))], written to stay finite for large |z|.
+        return np.sum(np.logaddexp(0.0, -z) * p + np.logaddexp(0.0, z) * (1 - p))
+
+    start = (x[np.argmin(np.abs(p - 0.5))], 2.0)
+    theta = minimize(
+        deviance, start, method="Nelder-Mead", options={"xatol": 1e-6, "fatol": 1e-9}
+    ).x
+    return float(np.exp(theta[0])), float(theta[1])
+
+
+def quantile_flux(q50: float, slope: float, level: float) -> float:
+    """Flux detected with probability ``level`` on a log-logistic curve."""
+    return q50 * (level / (1 - level)) ** (1 / slope)
+
+
+def figure_pod_by_region(
+    scenes: pd.DataFrame, noise: str, path: str, xlim: tuple, ncols: int = 4
+) -> pd.DataFrame:
+    """One panel per region: the PoD of every plume-free scene at its own wind and noise
+    (grey), and the log-logistic fitted to their mean (colour), with its Q10, Q50 and Q90.
+
+    Args:
+        scenes: MARS-S2L scenes from :func:`add_detectable_flux`; the plume scenes are dropped.
+        noise: ``"measured"`` for the retrieval noise, or a floor ``"L1"``-``"L3"``.
+        path: Where to write the figure.
+        xlim: Flux range of the x axis, t/h, shared by the figures to compare them.
+        ncols: Panels per row.
+
+    Returns:
+        Per region: scenes, fitted Q50 and slope, Q10, Q50 and Q90 in t/h.
+    """
+    from matplotlib.collections import LineCollection
+
+    _, colour, title = POD_NOISES[noise]
+    free = scenes[(scenes.isplume != 1) & (scenes[f"q50_{noise}"] * scenes.wind_speed > 0)]
+    order = case_study_order(free, min_scenes=5)
+    nrows = int(np.ceil(len(order) / ncols))
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(3.3 * ncols, 2.5 * nrows),
+        sharex=True,
+        sharey=True,
+        gridspec_kw={"hspace": 0.42, "wspace": 0.08},
+    )
+    fig.patch.set_facecolor("white")
+    axes = np.atleast_1d(axes).ravel()
+    flux = POD_FLUX_GRID
+    rows = []
+    for ax, case in zip(axes[: len(order)], order, strict=True):
+        group = free[free.case_study == case]
+        curves = scene_pod_curves(group, noise, flux)
+        # Fainter lines where there are more of them, so dense regions do not saturate.
+        alpha = float(np.clip(10.0 / len(group), 0.004, 0.35))
+        segments = np.stack([np.broadcast_to(flux, curves.shape), curves], axis=-1)
+        ax.add_collection(LineCollection(segments, colors="#8a929c", alpha=alpha, linewidths=0.5))
+
+        mean = curves.mean(axis=0)
+        q50, slope = fit_log_logistic(flux, mean)
+        ax.plot(flux, mean, color=INK, linewidth=0.9, linestyle=(0, (2, 2)), zorder=3)
+        ax.plot(flux, 1.0 / (1.0 + (flux / q50) ** -slope), color=colour, linewidth=2.0, zorder=4)
+        q = {level: quantile_flux(q50, slope, level) for level in POD_LEVELS}
+        for level, value in q.items():
+            ax.plot(
+                [value, value], [0, level], color=colour, linewidth=0.8, linestyle=":", zorder=4
+            )
+            ax.plot(value, level, "o", color=colour, markersize=3.5, zorder=5)
+        ax.text(
+            0.03,
+            0.97,
+            "\n".join(
+                f"$Q_{{{int(100 * lv)}}}$ {_t_per_h(q[lv])} t h$^{{-1}}$" for lv in POD_LEVELS
+            ),
+            transform=ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=7.5,
+            color=INK,
+        )
+        rows.append(
+            dict(
+                case_study=case,
+                scenes=len(group),
+                slope=round(slope, 2),
+                **{f"q{int(100 * lv)}_t_h": round(q[lv], 3) for lv in POD_LEVELS},
+            )
+        )
+
+        ax.set_xscale("log")
+        ax.set_xlim(*xlim)
+        ax.set_ylim(0, 1)
+        ax.grid(True, color=GRID, linewidth=0.5, zorder=0)
+        ax.set_axisbelow(True)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+        ax.spines["left"].set_color(GRID)
+        ax.spines["bottom"].set_color(GRID)
+        ax.tick_params(colors=INK_SOFT, labelsize=7.5, width=0.6)
+        ax.set_title(f"{case}  (n={len(group):,})", color=INK, fontsize=9, loc="left")
+    for ax in axes[len(order) :]:
+        ax.set_visible(False)
+    # Panels with an empty slot below them are the bottom of their column.
+    for i, ax in enumerate(axes[: len(order)]):
+        ax.xaxis.set_tick_params(labelbottom=i + ncols >= len(order))
+    ticks = [t for t in (0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100) if xlim[0] <= t <= xlim[1]]
+    for ax in axes[: len(order)]:
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([f"{t:g}" for t in ticks])
+        ax.tick_params(axis="x", which="minor", labelbottom=False)
+    fig.supxlabel("source rate  [t h$^{-1}$]", color=INK_SOFT, fontsize=9.5, y=0.03)
+    fig.supylabel("probability of detection", color=INK_SOFT, fontsize=9.5, x=0.06)
+    fig.suptitle(
+        f"PoD of the plume-free MARS-S2L scenes at their own wind, from the {title}",
+        color=INK,
+        fontsize=11,
+        x=0.12,
+        ha="left",
+        y=0.995,
+    )
+    fig.legend(
+        handles=[
+            plt.Line2D([], [], color="#8a929c", linewidth=1, label="one scene"),
+            plt.Line2D(
+                [], [], color=INK, linewidth=0.9, linestyle=(0, (2, 2)), label="mean of the scenes"
+            ),
+            plt.Line2D([], [], color=colour, linewidth=2, label="log-logistic fitted to the mean"),
+        ],
+        loc="upper left",
+        bbox_to_anchor=(0.12, 0.0),
+        ncol=3,
+        frameon=False,
+        fontsize=8,
+        labelcolor=INK_SOFT,
+    )
+    fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"wrote {path}")
+    return pd.DataFrame(rows).set_index("case_study")
+
+
+def _t_per_h(value: float) -> str:
+    return f"{value:.2f}" if value < 1 else f"{value:.1f}" if value < 10 else f"{value:.0f}"
+
+
+def figures_pod_by_region(scenes: pd.DataFrame, output_dir: str) -> pd.DataFrame:
+    """The four PoD figures, retrieval noise and the three floors, on one shared flux axis.
+
+    The axis runs from the Q10 of the quietest L1 scenes to the Q90 of the noisiest
+    retrieval ones, so that every figure can be read against the others.
+    """
+    free = scenes[(scenes.isplume != 1) & (scenes.q50_L1 * scenes.wind_speed > 0)]
+    at_wind = {n: free[f"q50_{n}"] * free.wind_speed / 1000.0 for n in POD_NOISES}
+    slope = free.satellite.map(shot_noise.POD_SLOPE)
+    low = (at_wind["L1"] * (1 / 9) ** (1 / slope)).quantile(0.005)
+    high = (at_wind["measured"] * 9 ** (1 / slope)).quantile(0.995)
+    xlim = (low / 1.5, high * 1.5)
+    tables = {
+        noise: figure_pod_by_region(scenes, noise, os.path.join(output_dir, file), xlim)
+        for noise, (file, _, _) in POD_NOISES.items()
+    }
+    return pd.concat(tables, axis=1)
+
+
 def _with_flux_summary(summary: pd.DataFrame, flux: pd.DataFrame) -> pd.DataFrame:
     """The region table plus median wind and Q50 -- pooled, and per platform at 1 m/s."""
     summary = summary.copy()
@@ -906,6 +1126,8 @@ def figures(
     figure_detectable_flux_by_wind(
         flux[flux.dataset == "MARS-S2L"], os.path.join(output_dir, "detectable_flux_by_wind.png")
     )
+    pod = figures_pod_by_region(flux[flux.dataset == "MARS-S2L"], output_dir)
+    print(pod.to_string())
 
     summary = (
         scenes.groupby("case_study")
