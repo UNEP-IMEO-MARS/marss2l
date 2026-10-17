@@ -518,10 +518,10 @@ def figure(
         # smear, and the row identity is the first thing a reader looks for.
         flux = _flux_label(row, show_flux)
         axes[row_index, 0].set_ylabel(
-            f"{row.get(label_by, row.case_study)}{'  ·  plume' if row.isplume == 1 else ''}\n"
+            f"{row.get(label_by, row.case_study)}\n"
             f"{row.satellite}   {str(row.tile_date)[:10]}\n"
             f"floor ${_rung_tex(rung)}$ {row[floor]:.0f} ppb\n"
-            f"measured {row.measured:.0f} ppb{' (plume-free px)' if row.isplume == 1 else ''}\n"
+            f"measured {row.measured:.0f} ppb\n"
             f"({row.measured / row[floor]:.1f}$\\times$ floor)"
             f"{flux}",
             fontsize=10,
