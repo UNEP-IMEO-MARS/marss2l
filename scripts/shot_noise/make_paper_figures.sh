@@ -31,6 +31,12 @@ python -m scripts.shot_noise.figure_regional figures "$STATS" "$IMAGES" \
     --extra-images-csv "$DATA/cloudsen12_clear_images.csv" \
     --permian-shapefile "$PERMIAN" --output-dir "$OUT" --summary-csv "$OUT/region_summary.csv"
 
+# Figure 1: where the scenes of the two corpora are. Natural Earth coastlines, which cartopy
+# downloads on first use.
+python -m scripts.shot_noise.figure_corpora_map figure "$STATS" "$IMAGES" \
+    "$DATA/cloudsen12_data/cloudsen12_stats_dataset_native.csv" "$DATA/cloudsen12_clear_images.csv" \
+    --output-path "$OUT/corpora_map.png"
+
 # Appendix B: the first-order expansions against Monte Carlo. No data needed.
 python -m scripts.shot_noise.figure_monte_carlo figures --output-dir "$OUT"
 

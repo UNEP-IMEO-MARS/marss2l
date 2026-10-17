@@ -43,6 +43,7 @@ The Permian basin label needs the EIA's `PermianBasin_Extent` layer, from
 | `marss2l/solar_geometry.py` | Solar zenith angles: parsing the acquisition time from a product name, and repairing implausible stored angles |
 | `scripts/shot_noise/figure_regional.py` | Every data figure (floors, gap, drivers, breaches, CloudSEN12 supplement, detectable source rate) and the per-region table |
 | `scripts/shot_noise/figure_example_scenes.py` | The raster figures: example scenes and plumes drawn against their per-pixel floor |
+| `scripts/shot_noise/figure_corpora_map.py` | The map of where the scenes of the two corpora are |
 | `scripts/shot_noise/figure_monte_carlo.py` | The agreement of the first-order expansions with Monte Carlo |
 | `scripts/shot_noise/make_paper_figures.sh` | All the figures in one command, every scene id pinned |
 
