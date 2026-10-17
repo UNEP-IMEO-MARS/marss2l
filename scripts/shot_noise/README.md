@@ -53,7 +53,7 @@ Run from the root of this repository.
 
 | Product | How to regenerate it | Data it needs |
 | --- | --- | --- |
-| All figures and the per-region table | `bash scripts/shot_noise/make_paper_figures.sh <MARS-S2L root> <PermianBasin_Extent shapefile> <output dir>` | Public. The two Landsat-9 rows of `example_plumes.png` were drawn from 30 m chips: *private only* (see below); from the public 10 m chips they look smoother, with the same labels |
+| All figures and the per-region table | `bash scripts/shot_noise/make_paper_figures.sh <MARS-S2L root> <PermianBasin_Extent shapefile> <output dir>` | Public. The Landsat-9 rows of `example_plumes.png` and `other_plumes.png` were drawn from 30 m chips: *private only* (see below); from the public 10 m chips they look smoother, with the same labels |
 | Monte-Carlo figure alone | `python -m scripts.shot_noise.figure_monte_carlo figures --output-dir <dir>` | None |
 | `data/stats_dataset.csv` | `python -m marss2l.stats_dataset --csv-path <root>/validated_images_all.csv --path-prepend-data <root> --split <split> --output-file <file>` for `train_2023`, `val_2023` and `test_2023`, then concatenated | Public |
 | Sentinel-2 rows of `data/stats_dataset_native.csv` | the same command with `--split test_2023 --native-grid --window-size 100` | Public |

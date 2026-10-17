@@ -312,13 +312,15 @@ def corpus_with_paths(
 
 
 def _flux_label(row: pd.Series, show_flux: bool) -> str:
-    """The flux lines of a plume row's label: the operational rate and Q50 at the scene's
-    own wind, what the retrieval detects half the time there."""
+    """The flux lines of a plume row's label: the operational rate and the wind of the scene,
+    and Q50 at that wind, what the retrieval as operated detects half the time there and what
+    a retrieval at the physical limit ``L1`` would."""
     if not (show_flux and row.isplume == 1):
         return ""
     return (
-        f"{row.ch4_fluxrate:,.0f} kg/h,  plume mean {row.ch4_mean_plume:.0f} ppb\n"
-        f"$Q_{{50}}$ {row.q50_measured * row.wind_speed:,.0f} kg/h at {row.wind_speed:.1f} m/s\n"
+        f"{row.ch4_fluxrate:,.0f} kg/h at {row.wind_speed:.1f} m/s\n"
+        f"$Q_{{50}}$ {row.q50_measured * row.wind_speed:,.0f} kg/h, "
+        f"{row.q50_L1 * row.wind_speed:,.0f} at $L_1$\n"
     )
 
 

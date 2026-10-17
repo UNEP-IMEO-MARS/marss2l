@@ -10,11 +10,11 @@
 # (PermianBasin_Boundary_Structural_Tectonic.zip).
 #
 # The raster figures draw Sentinel-2 on its native 20 m grid, recovered from the 10 m chips.
-# Landsat is drawn from the chips the images CSV points to: the two Landsat-9 rows of
-# example_plumes.png were drawn from 30 m chips, which are not part of the dataset, so from the
-# published 10 m chips those two rows look smoother than in the paper. Their labels, which come
-# from the statistics, are the same. Set IMAGES to an images CSV pointing at 30 m Landsat chips
-# to reproduce them exactly.
+# Landsat is drawn from the chips the images CSV points to: the Landsat-9 rows of
+# example_plumes.png and other_plumes.png were drawn from 30 m chips, which are not part of the
+# dataset, so from the published 10 m chips those rows look smoother than in the paper. Their
+# labels, which come from the statistics, are the same. Set IMAGES to an images CSV pointing at
+# 30 m Landsat chips to reproduce them exactly.
 set -euo pipefail
 
 DATA=$1
@@ -51,20 +51,19 @@ scenes --output-path "$OUT/example_scenes.png" \
     --only 2da11c8c-b70c-427c-bcb9-7e2d179e6cf2 \
     --only 303719b4-fcde-48e5-81d0-c4a63af07748
 
-# Five validated plumes: Egypt, Turkmenistan, Syria, Permian basin, Iran.
-scenes --plumes --output-path "$OUT/example_plumes.png" \
-    --only eb382a5d-d768-4661-9aab-0c07a20456ff \
+# Five validated plumes against the L1 floor: Algeria, Turkmenistan, Syria, Permian basin, Iran.
+scenes --rung L1 --plumes --show-flux --output-path "$OUT/example_plumes.png" \
+    --only d16faad1-3b99-44d8-a85c-4667a58b9a4d \
     --only 57485b16-9c17-46fc-9a3a-9d74a44aa6b8 \
-    --only 9a7e5701-163a-47cb-aded-5613d12e7543 \
+    --only a6032970-a58f-410d-94d8-1cb5815c121b \
     --only e57557e3-ec88-4bd3-9189-b9af1648454d \
     --only b16dd610-f395-436b-b144-4e364fe01434
 
-# Weak plumes near the L1 floor: Turkmenistan, Algeria, Syria, Saudi Arabia.
-scenes --rung L1 --label-by country --ch4-vmax 600 --plumes --show-flux \
-    --output-path "$OUT/weak_plumes_at_limit.png" \
+# Four further validated plumes, drawn the same way: Egypt, Syria, Turkmenistan, Saudi Arabia.
+scenes --rung L1 --label-by country --plumes --show-flux --output-path "$OUT/other_plumes.png" \
+    --only eb382a5d-d768-4661-9aab-0c07a20456ff \
+    --only 9a7e5701-163a-47cb-aded-5613d12e7543 \
     --only eb53420b-b504-44db-9e3a-37992a056e3c \
-    --only d16faad1-3b99-44d8-a85c-4667a58b9a4d \
-    --only a6032970-a58f-410d-94d8-1cb5815c121b \
     --only b2d60cfe-00c5-4b9c-b103-7bf08f1ba3e1
 
 # Plume-free scenes whose noise reads below L1: Libya, Algeria, Egypt, Turkmenistan.
