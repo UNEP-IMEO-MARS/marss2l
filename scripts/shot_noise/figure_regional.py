@@ -1578,7 +1578,7 @@ def figure_scenes_and_gap(scenes: pd.DataFrame, path: str) -> None:
             axes[1],
             "radiance_B12_std",
             r"std. dev. within the scene  [W m$^{-2}$ sr$^{-1}$ $\mu$m$^{-1}$]",
-            "b  How uniform it is",
+            "b  How heterogeneous it is",
         ),
     ]:
         data = [scenes.loc[scenes.case_study == c, column].dropna().values for c in order]
