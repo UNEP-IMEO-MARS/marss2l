@@ -566,16 +566,7 @@ def supplementary_figures(scenes: pd.DataFrame, output_dir: str, label: str) -> 
                     ("sigma_ch4_L3_mean", RUNG_COLOURS["L3"], "floor L3, propagated"),
                 ],
                 r"$\sigma(\Delta \mathrm{XCH}_4)$  [ppb]",
-                "a  What the retrieval reads, against its photon-noise floor",
-            ),
-            (
-                [("reducible", MEASURED, "reducible share")],
-                "share of variance that is not photon noise",
-                "b  Reducible",
-                False,
-                # Negative means a scene read below its own floor, which is a
-                # result rather than an error; one decade of it is enough to see.
-                (-1.0, 1.03),
+                "What the retrieval reads, against its photon-noise floor",
             ),
         ],
         order=[c for c in ORDER_CASE_STUDIES_EXT if c in set(scenes.case_study)],
@@ -619,10 +610,11 @@ def regional_wind(scenes: pd.DataFrame) -> pd.Series:
 
 
 def figure_detectable_flux(scenes: pd.DataFrame, path: str) -> None:
-    """The noise as a flux: the rate detected with 50 % probability, by region.
+    """The noise as a flux: the rate detected with 50 % probability at 1 m/s, by region.
 
-    Two panels on one region axis: at 1 m/s, the lowest wind the detection curve is
-    fitted for and so a low estimate; and at the region's median wind. Each row has
+    1 m/s is the lowest wind the detection curve is fitted for, so the rates are low
+    estimates that compare the regions and the floors on their noise alone; the regions at
+    the winds they are observed at are drawn by :func:`figure_pod_paired`. Each row has
     four boxes over the region's plume-free scenes -- from the retrieval's measured
     noise, what the monitoring system detects; from the L3 floor, what the same
     retrieval could with an ideal background estimate; from the L2 floor, what a
@@ -635,59 +627,39 @@ def figure_detectable_flux(scenes: pd.DataFrame, path: str) -> None:
         path: Where to write the figure.
     """
     order = case_study_order(scenes, min_scenes=5)
-    wind = regional_wind(scenes)
     free = scenes[scenes.isplume != 1]
-    fig, axes = plt.subplots(
-        1, 2, figsize=(13.2, 0.56 * len(order) + 2.4), sharey=True, gridspec_kw={"wspace": 0.16}
-    )
+    fig, ax = plt.subplots(figsize=(7.2, 0.56 * len(order) + 2.4))
     fig.patch.set_facecolor("white")
 
-    for ax, title, scale in [
-        (axes[0], "a  At 1 m s$^{-1}$ wind", None),
-        (axes[1], "b  At the region's median wind", wind),
+    for offset, column, colour in [
+        (-0.3, "q50_measured", MEASURED),
+        (-0.1, "q50_L3", RUNG_COLOURS["L3"]),
+        (0.1, "q50_L2", RUNG_COLOURS["L2"]),
+        (0.3, "q50_L1", RUNG_COLOURS["L1"]),
     ]:
-        for offset, column, colour in [
-            (-0.3, "q50_measured", MEASURED),
-            (-0.1, "q50_L3", RUNG_COLOURS["L3"]),
-            (0.1, "q50_L2", RUNG_COLOURS["L2"]),
-            (0.3, "q50_L1", RUNG_COLOURS["L1"]),
-        ]:
-            data = [
-                free.loc[free.case_study == case, column].dropna().values
-                * (1.0 if scale is None else scale[case])
-                for case in order
-            ]
-            _boxes(ax, data, [i + offset for i in range(len(order))], colour, width=0.17)
-        ax.set_xscale("log")
-        _style(
-            ax, xlabel=r"flux detected with 50% probability, $Q_{50}$  [kg h$^{-1}$]", title=title
-        )
+        data = [free.loc[free.case_study == case, column].dropna().values for case in order]
+        _boxes(ax, data, [i + offset for i in range(len(order))], colour, width=0.17)
+    ax.set_xscale("log")
+    _style(
+        ax,
+        xlabel=r"flux detected with 50% probability, $Q_{50}$  [kg h$^{-1}$]",
+        title="At 1 m s$^{-1}$ wind",
+    )
 
     # Down to 100 kg/h at least, where the smallest claimed detections sit.
-    low = min(80.0, *(ax.get_xlim()[0] for ax in axes))
-    high = max(ax.get_xlim()[1] for ax in axes)
+    low = min(80.0, ax.get_xlim()[0])
+    high = ax.get_xlim()[1]
     ticks = [t for t in (30, 100, 300, 1_000, 3_000, 10_000, 30_000, 100_000) if low <= t <= high]
-    for ax in axes:
-        ax.set_xlim(low, high)
-        ax.set_xticks(ticks)
-        ax.set_xticklabels([f"{t:,}" for t in ticks])
-        ax.tick_params(axis="x", which="minor", labelbottom=False)
+    ax.set_xlim(low, high)
+    ax.set_xticks(ticks)
+    ax.set_xticklabels([f"{t:,}" for t in ticks])
+    ax.tick_params(axis="x", which="minor", labelbottom=False)
 
-    for i, case in enumerate(order):
-        axes[1].annotate(
-            f"{wind[case]:.1f} m s$^{{-1}}$",
-            xy=(1.01, i),
-            xycoords=axes[1].get_yaxis_transform(),
-            va="center",
-            fontsize=8,
-            color=INK_SOFT,
-        )
-
-    axes[0].set_yticks(range(len(order)))
-    axes[0].set_yticklabels(order, fontsize=8, color=INK)
-    axes[0].set_ylim(-0.7, len(order) - 0.3)
-    axes[0].invert_yaxis()
-    axes[0].legend(
+    ax.set_yticks(range(len(order)))
+    ax.set_yticklabels(order, fontsize=8, color=INK)
+    ax.set_ylim(-0.7, len(order) - 0.3)
+    ax.invert_yaxis()
+    ax.legend(
         handles=[
             Patch(facecolor=MEASURED, label="from the measured noise of the retrieval"),
             Patch(facecolor=RUNG_COLOURS["L3"], label="from floor $L_3$, ideal background"),
@@ -696,7 +668,7 @@ def figure_detectable_flux(scenes: pd.DataFrame, path: str) -> None:
         ],
         loc="upper left",
         bbox_to_anchor=(0.0, -0.08),
-        ncol=4,
+        ncol=2,
         frameon=False,
         fontsize=8,
         labelcolor=INK_SOFT,
@@ -1214,14 +1186,13 @@ def figures(
         supplementary_figures(by_country, output_dir, extra_label)
         figure_corpora(scenes, by_country, os.path.join(output_dir, "corpora_by_region.png"))
 
-        # The drivers are a statement about scenes, so both corpora enter them keeping
-        # their own regions rather than one collapsed row.
-        by_region = pd.concat([scenes, by_country], ignore_index=True)
-        figure_drivers(by_region, os.path.join(output_dir, "noise_drivers.png"))
-        figure_drivers_fit_by_region(
-            by_region, os.path.join(output_dir, "noise_drivers_fit_by_region.png")
-        )
+        # Only the two figures above split the second corpus by region; everywhere else,
+        # the noise drivers included, it is one row of its own.
         scenes = pd.concat([scenes, extra], ignore_index=True)
+        figure_drivers(scenes, os.path.join(output_dir, "noise_drivers.png"))
+        figure_drivers_fit_by_region(
+            scenes, os.path.join(output_dir, "noise_drivers_fit_by_region.png")
+        )
 
     print(f"{len(scenes):,} scenes after selection")
 
@@ -1244,7 +1215,8 @@ def figures(
         print(paired.to_string())
 
     summary = (
-        scenes.groupby("case_study")
+        scenes.assign(relative_spread=relative_spread(scenes))
+        .groupby("case_study")
         .agg(
             scenes=("measured", "size"),
             epsilon_L1=("epsilon_L1_mean", "median"),
@@ -1255,6 +1227,7 @@ def figures(
             reducible=("reducible", "median"),
             radiance_23=("radiance_B12_mean", "median"),
             radiance_23_std=("radiance_B12_std", "median"),
+            relative_spread=("relative_spread", "median"),
         )
         .round(4)
         .sort_values("scenes", ascending=False)
@@ -1319,7 +1292,7 @@ def figure_drivers(scenes: pd.DataFrame, path: str, sample: int = 6000) -> None:
     L3 floor and its relative spread, against the measured noise, with the 1:1 line.
 
     Args:
-        scenes: Both corpora, with per-region ``case_study``.
+        scenes: Both corpora, the second as one ``case_study`` of its own.
         path: Where to write the figure.
         sample: Scenes drawn per corpus. 47,000 points is a silhouette, not a
             scatter; the fit uses every scene regardless.
