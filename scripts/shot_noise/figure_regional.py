@@ -9,7 +9,7 @@
 ``breaches_by_region.png``
     How often the measured noise falls below each floor.
 ``noise_drivers.png``, ``noise_drivers_fit_by_region.png``
-    The measured noise predicted from the floor and the relative spread of the scene,
+    The measured noise predicted from the L2 floor and the relative spread of the scene,
     pooled and per region.
 ``cloudsen12_gap_by_country.png``, ``corpora_by_region.png``
     The CloudSEN12 corpus stratified by the MARS-S2L case studies, and both corpora
@@ -56,6 +56,10 @@ app = cyclopts.App()
 #: the PoD study the detectable flux rate is calibrated on. ``_10M`` is the same on the 10 m chips.
 MEASURED_NOISE = "xch4_stdnoise_nooutliers_noplume"
 MEASURED_NOISE_10M = f"{MEASURED_NOISE}_10m"
+
+#: Floor of the noise model: L2 holds only the photon noise of the target, so the model
+#: needs no reference pass.
+DRIVER_FLOOR = "sigma_ch4_L2_mean"
 
 #: Label for the second corpus, and the name of its row on the case-study axis.
 DEFAULT_EXTRA_LABEL = "CloudSEN12"
@@ -1255,7 +1259,7 @@ def relative_spread(scenes: pd.DataFrame) -> pd.Series:
 
 
 def noise_model(scenes: pd.DataFrame) -> tuple:
-    """Fit log(measured) on log(floor) and log(relative spread).
+    """Fit log(measured) on log(L2 floor) and log(relative spread).
 
     The two quantities the budget says should matter -- one from the photons and
     one from the surface -- as a plain least-squares fit in logs, which is the
@@ -1265,12 +1269,12 @@ def noise_model(scenes: pd.DataFrame) -> tuple:
         ``(coefficients, r2, r2_floor_only, r2_spread_only)``.
     """
     frame = scenes.assign(cv=relative_spread(scenes)).dropna(
-        subset=["measured", "sigma_ch4_L3_mean", "cv"]
+        subset=["measured", DRIVER_FLOOR, "cv"]
     )
     frame = frame[(frame.cv > 0) & (frame.measured > 0)]
 
     y = np.log(frame.measured.to_numpy())
-    floor = np.log(frame.sigma_ch4_L3_mean.to_numpy())
+    floor = np.log(frame[DRIVER_FLOOR].to_numpy())
     spread = np.log(frame.cv.to_numpy())
 
     def fit(*columns):
@@ -1289,7 +1293,7 @@ def figure_drivers(scenes: pd.DataFrame, path: str, sample: int = 6000) -> None:
     """F3: the measured noise predicted from two properties of the scene.
 
     One panel: the two-factor prediction of :func:`noise_model`, from the scene's
-    L3 floor and its relative spread, against the measured noise, with the 1:1 line.
+    L2 floor and its relative spread, against the measured noise, with the 1:1 line.
 
     Args:
         scenes: Both corpora, the second as one ``case_study`` of its own.
@@ -1298,16 +1302,14 @@ def figure_drivers(scenes: pd.DataFrame, path: str, sample: int = 6000) -> None:
             scatter; the fit uses every scene regardless.
     """
     frame = scenes.assign(cv=relative_spread(scenes))
-    frame = frame[(frame.cv > 0) & (frame.measured > 0) & frame.ratio_L3.notna()]
+    frame = frame[(frame.cv > 0) & (frame.measured > 0) & frame[DRIVER_FLOOR].notna()]
     beta, r2, r2_floor, r2_spread = noise_model(frame)
 
     rng = np.random.default_rng(0)
     fig, ax = plt.subplots(figsize=(3.6, 3.2))
     fig.patch.set_facecolor("white")
 
-    predicted = np.exp(
-        beta[0] + beta[1] * np.log(frame.sigma_ch4_L3_mean) + beta[2] * np.log(frame.cv)
-    )
+    predicted = np.exp(beta[0] + beta[1] * np.log(frame[DRIVER_FLOOR]) + beta[2] * np.log(frame.cv))
     for corpus in [c for c in CORPUS_COLOURS if c in set(frame.dataset)]:
         mask = frame.dataset == corpus
         idx = np.flatnonzero(mask.to_numpy())
@@ -1334,7 +1336,7 @@ def figure_drivers(scenes: pd.DataFrame, path: str, sample: int = 6000) -> None:
     ax.set_ylabel(r"measured $\sigma(\Delta \mathrm{XCH}_4)$  [ppb]", color=INK_SOFT, fontsize=9)
     ax.annotate(
         f"$R^2$ = {r2:.2f}\nfloor alone {r2_floor:.2f},  spread alone {r2_spread:.2f}\n"
-        rf"$\sigma \propto \sigma_{{L_3}}^{{{beta[1]:.2f}}} \, "
+        rf"$\sigma \propto \sigma_{{L_2}}^{{{beta[1]:.2f}}} \, "
         rf"(\sigma_{{L_{{23}}}}/\overline{{L_{{23}}}})^{{{beta[2]:.2f}}}$",
         xy=(0.03, 0.97),
         xycoords="axes fraction",
@@ -1361,10 +1363,10 @@ def figure_drivers_fit_by_region(scenes: pd.DataFrame, path: str, min_scenes: in
     pooled value would mean the regions need their own.
     """
     frame = scenes.assign(cv=relative_spread(scenes))
-    frame = frame[(frame.cv > 0) & (frame.measured > 0) & frame.sigma_ch4_L3_mean.notna()]
+    frame = frame[(frame.cv > 0) & (frame.measured > 0) & frame[DRIVER_FLOOR].notna()]
     beta, *_ = noise_model(frame)
     frame["predicted"] = np.exp(
-        beta[0] + beta[1] * np.log(frame.sigma_ch4_L3_mean) + beta[2] * np.log(frame.cv)
+        beta[0] + beta[1] * np.log(frame[DRIVER_FLOOR]) + beta[2] * np.log(frame.cv)
     )
     order = [
         c
@@ -1414,7 +1416,7 @@ def figure_drivers_fit_by_region(scenes: pd.DataFrame, path: str, min_scenes: in
         _style(ax, title=f"{case}  (n = {len(subset):,})")
         ax.annotate(
             f"$R^2$ pooled fit  {r2_pooled:.2f}\n$R^2$ refitted  {r2_refit:.2f}\n"
-            rf"refit: $\sigma \propto \sigma_{{L_3}}^{{{beta_refit[1]:.2f}}}\,"
+            rf"refit: $\sigma \propto \sigma_{{L_2}}^{{{beta_refit[1]:.2f}}}\,"
             rf"(\sigma_{{L_{{23}}}}/\overline{{L_{{23}}}})^{{{beta_refit[2]:.2f}}}$",
             xy=(0.04, 0.94),
             xycoords="axes fraction",
@@ -1427,7 +1429,7 @@ def figure_drivers_fit_by_region(scenes: pd.DataFrame, path: str, min_scenes: in
         ax.set_visible(False)
 
     fig.suptitle(
-        rf"pooled fit, all regions: $\sigma \propto \sigma_{{L_3}}^{{{beta[1]:.2f}}}\,"
+        rf"pooled fit, all regions: $\sigma \propto \sigma_{{L_2}}^{{{beta[1]:.2f}}}\,"
         rf"(\sigma_{{L_{{23}}}}/\overline{{L_{{23}}}})^{{{beta[2]:.2f}}}$",
         color=INK,
         fontsize=10,
