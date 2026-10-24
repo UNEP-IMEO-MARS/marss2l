@@ -6,7 +6,10 @@ They do not catch a wrong constant or a flipped ratio, because a plausible wrong
 still produces a plausible figure. The cheap by-hand tests above them are what catch those.
 """
 
+from datetime import datetime, timezone
+
 import numpy as np
+import pandas as pd
 import pytest
 
 from marss2l import shot_noise as sn
@@ -297,3 +300,19 @@ def test_pod_is_half_at_q50_and_spans_q10_q90_by_the_slope():
     q90 = q50 * 9 ** (1 / a)
     assert sn.probability_of_detection(q90, q50, a) == pytest.approx(0.9)
     assert sn.probability_of_detection(q50**2 / q90, q50, a) == pytest.approx(0.1)
+
+
+def test_as_utc_assumes_utc_for_naive_datetimes():
+    """datetime.fromisoformat returns a naive datetime; it must not shift."""
+    naive = datetime.fromisoformat("2024-12-26T09:33:19")
+    assert sn.as_utc(naive) == datetime(2024, 12, 26, 9, 33, 19, tzinfo=timezone.utc)
+
+
+def test_as_utc_converts_other_timezones():
+    aware = pd.Timestamp("2024-12-26T11:33:19+02:00")
+    assert sn.as_utc(aware) == datetime(2024, 12, 26, 9, 33, 19, tzinfo=timezone.utc)
+
+
+def test_as_utc_rejects_non_timestamps():
+    with pytest.raises(ValueError):
+        sn.as_utc(object())

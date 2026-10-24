@@ -31,11 +31,13 @@ These are *floors*: what photon statistics alone permit, given a background esti
 contributes nothing but its own photon noise.
 """
 
+from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Dict, Optional, Tuple
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+import pandas as pd
 from scipy import stats
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -151,6 +153,36 @@ def band_irradiance(satellite: str, band: str) -> float:
     return float(np.atleast_1d(reflectance.integrated_irradiance(srf))[0])
 
 
+def as_utc(when) -> datetime:
+    """Coerce a timestamp to a timezone-aware UTC datetime.
+
+    ``datetime.fromisoformat`` returns a naive datetime; a naive datetime is taken
+    to be UTC, not local time.
+
+    Args:
+        when: datetime, pandas Timestamp or ISO-8601 string.
+
+    Returns:
+        Timezone-aware UTC datetime.
+
+    Raises:
+        ValueError: if ``when`` cannot be interpreted as a timestamp.
+    """
+    if isinstance(when, str):
+        when = pd.to_datetime(when, utc=True, format="mixed")
+
+    if isinstance(when, pd.Timestamp):
+        when = when.to_pydatetime()
+
+    if not isinstance(when, datetime):
+        raise ValueError(f"Cannot interpret {when!r} as a timestamp")
+
+    if when.tzinfo is None:
+        return when.replace(tzinfo=timezone.utc)
+
+    return when.astimezone(timezone.utc)
+
+
 def radiance_from_reflectance(
     reflectance_values: ArrayLike, satellite: str, band: str, sza: float, date_of_acquisition
 ) -> NDArray:
@@ -170,8 +202,6 @@ def radiance_from_reflectance(
         Radiance in W m-2 sr-1 um-1.
     """
     from georeader import reflectance as georeader_reflectance
-
-    from marss2l.solar_geometry import as_utc
 
     earth_sun = georeader_reflectance.earth_sun_distance_correction_factor(
         as_utc(date_of_acquisition)

@@ -40,7 +40,6 @@ The Permian basin label needs the EIA's `PermianBasin_Extent` layer, from
 | `marss2l/shot_noise.py` | Reflectance to radiance, SNR scaled to the radiance of each pixel, the L1/L2/L3 floors, σ(ΔXCH₄) and the minimum significant enhancement ε, and the Monte-Carlo check of the closed forms |
 | `marss2l/stats_dataset.py` | The per-image sweep: measured noise on plume-free pixels and the floors, one row per image |
 | `marss2l/resampling.py` | Sentinel-2 back on its native 20 m grid, by inverting the bilinear 20 → 10 m step of the chips |
-| `marss2l/solar_geometry.py` | Solar zenith angles: parsing the acquisition time from a product name, and repairing implausible stored angles |
 | `scripts/shot_noise/figure_regional.py` | Every data figure (floors, gap, drivers, breaches, CloudSEN12 supplement, detectable source rate, probability of detection by region) and the per-region table |
 | `scripts/shot_noise/figure_example_scenes.py` | The raster figures: example scenes and plumes drawn against their per-pixel floor |
 | `scripts/shot_noise/figure_corpora_map.py` | The map of where the scenes of the two corpora are |
@@ -61,13 +60,12 @@ Run from the root of this repository.
 | `ch4_valid_noplume_std_10m` of the native files | `ch4_valid_noplume_std` of the same image in the 10 m statistics | Public for MARS-S2L, *private only* for CloudSEN12 |
 | `xch4_stdnoise_nooutliers_noplume_10m` of the native files | `xch4_stdnoise_nooutliers_noplume` of the same image in the 10 m statistics | As above |
 | CloudSEN12 statistics, 10 m and 20 m | `python -m marss2l.stats_dataset --dataset-name CloudSEN12` over the CloudSEN12 scenes, with `--native-grid --window-size 100` for 20 m | *Private only*: the CloudSEN12 imagery is not published |
-| Reference-pass columns of the images tables | Read from the operational database of the monitoring system, then `solar_geometry.repair_sza_dataframe` | *Private only*; the repair itself is public code |
+| Reference-pass columns of the images tables | Read from the operational database of the monitoring system; implausible solar zenith angles replaced by the angle computed at the scene centre and time | *Private only* |
 
 The sweep takes `--num-workers` data-loader processes (default 4). A sweep over all splits runs for
 a few hours on a workstation; `--max-iter` stops it early for a quick look.
 
 ## Tests
 
-`tests/test_shot_noise.py`, `tests/test_stats_dataset.py`, `tests/test_resampling.py` and
-`tests/test_solar_geometry.py` cover the modules above, including the Monte-Carlo agreement of the
-closed forms.
+`tests/test_shot_noise.py`, `tests/test_stats_dataset.py` and `tests/test_resampling.py` cover the
+modules above, including the Monte-Carlo agreement of the closed forms.

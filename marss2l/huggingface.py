@@ -181,7 +181,7 @@ COLUMNS_DF_EXPORT = [
     "vza_bg",
     "satellite_bg",
     # Provenance of the two solar zenith angles: "db" if the stored value was
-    # kept, "computed" if it was substituted (see marss2l.solar_geometry).
+    # kept, "computed" if it was substituted.
     "sza_source",
     "sza_bg_source",
     "crs",
