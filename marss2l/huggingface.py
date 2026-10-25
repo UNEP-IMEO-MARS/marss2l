@@ -180,10 +180,6 @@ COLUMNS_DF_EXPORT = [
     "sza_bg",
     "vza_bg",
     "satellite_bg",
-    # Provenance of the two solar zenith angles: "db" if the stored value was
-    # kept, "computed" if it was substituted.
-    "sza_source",
-    "sza_bg_source",
     "crs",
     "transform_a",
     "transform_b",

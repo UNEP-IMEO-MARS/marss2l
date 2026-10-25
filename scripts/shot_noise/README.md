@@ -22,11 +22,11 @@ The files the analysis uses (columns are described in the dataset card):
 
 | File | What it holds |
 | --- | --- |
-| `validated_images_all.csv` | Image metadata, including the reference (background) pass: `tile_date_bg`, `sza_bg`, `vza_bg`, `satellite_bg`, and the `sza_source` / `sza_bg_source` flags |
+| `validated_images_all.csv` | Validated images and their metadata |
 | `validated_images_plumes.csv` | Validated plumes and their source rates (`ch4_fluxrate`) |
 | `data/stats_dataset.csv` | Per-image statistics of the train, validation and test images on the 10 m chips, with the photon-noise columns |
 | `data/stats_dataset_native.csv` | The paper's statistics: test split, Sentinel-2 at 20 m and Landsat at 30 m |
-| `cloudsen12_clear_images.csv` | Metadata of the CloudSEN12 control scenes, with their reference pass |
+| `cloudsen12_clear_images.csv` | Metadata of the CloudSEN12 control scenes |
 | `cloudsen12_data/cloudsen12_stats_dataset.csv` | CloudSEN12 statistics on the 10 m chips |
 | `cloudsen12_data/cloudsen12_stats_dataset_native.csv` | CloudSEN12 statistics at 20 m, used by the paper |
 
@@ -60,7 +60,6 @@ Run from the root of this repository.
 | `ch4_valid_noplume_std_10m` of the native files | `ch4_valid_noplume_std` of the same image in the 10 m statistics | Public for MARS-S2L, *private only* for CloudSEN12 |
 | `xch4_stdnoise_nooutliers_noplume_10m` of the native files | `xch4_stdnoise_nooutliers_noplume` of the same image in the 10 m statistics | As above |
 | CloudSEN12 statistics, 10 m and 20 m | `python -m marss2l.stats_dataset --dataset-name CloudSEN12` over the CloudSEN12 scenes, with `--native-grid --window-size 100` for 20 m | *Private only*: the CloudSEN12 imagery is not published |
-| Reference-pass columns of the images tables | Read from the operational database of the monitoring system; implausible solar zenith angles replaced by the angle computed at the scene centre and time | *Private only* |
 
 The sweep takes `--num-workers` data-loader processes (default 4). A sweep over all splits runs for
 a few hours on a workstation; `--max-iter` stops it early for a quick look.

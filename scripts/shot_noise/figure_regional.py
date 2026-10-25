@@ -103,7 +103,7 @@ def _read_meta(images_csv: str) -> pd.DataFrame:
     mapping the MARS-S2L export used.
     """
     columns = pd.read_csv(images_csv, nrows=0).columns
-    wanted = ["id_loc_image", "observability", "sza_bg_source", "lon", "lat"]
+    wanted = ["id_loc_image", "observability", "lon", "lat"]
     wanted.append("case_study" if "case_study" in columns else "country")
     if "country" not in wanted and "country" in columns:
         # Carried for the per-country stratification of the supplement, which
@@ -183,7 +183,6 @@ def load_scenes(stats_csv: str, images_csv: str, label: Optional[str] = None) ->
     scenes = scenes[
         (scenes.observability == "clear")
         & (~scenes.offshore.astype(bool))
-        & (scenes.sza_bg_source != "night")
         & scenes.sigma_ch4_L3_mean.notna()
     ].copy()
 
