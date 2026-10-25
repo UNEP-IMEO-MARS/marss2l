@@ -23,7 +23,7 @@ The files the analysis uses (columns are described in the dataset card):
 | File | What it holds |
 | --- | --- |
 | `validated_images_all.csv` | Image metadata, including the reference (background) pass: `tile_date_bg`, `sza_bg`, `vza_bg`, `satellite_bg`, and the `sza_source` / `sza_bg_source` flags |
-| `validated_images_plumes.csv` | Validated plumes, with their source rate recomputed on the native grid (`*_native` columns) |
+| `validated_images_plumes.csv` | Validated plumes and their source rates (`ch4_fluxrate`) |
 | `data/stats_dataset.csv` | Per-image statistics of the train, validation and test images on the 10 m chips, with the photon-noise columns |
 | `data/stats_dataset_native.csv` | The paper's statistics: test split, Sentinel-2 at 20 m and Landsat at 30 m |
 | `cloudsen12_clear_images.csv` | Metadata of the CloudSEN12 control scenes, with their reference pass |
