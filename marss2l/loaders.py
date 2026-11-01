@@ -1368,14 +1368,13 @@ class DatasetPlumes(Dataset):
         else:
             self.logger.debug(f"\t\t Not simulating plume on source")
 
-        plume_source = None
+        # Plume source location, so the simulator rotates around it and keeps it in the image
+        plume_source = (
+            plume_item["pixel_row"] - window_plume.row_off,
+            plume_item["pixel_col"] - window_plume.col_off,
+        )
         fluxrate = plume_item["ch4_fluxrate"]
         if loc_injection is not None:
-            # Load plume source location
-            plume_source = (
-                plume_item["pixel_row"] - window_plume.row_off,
-                plume_item["pixel_col"] - window_plume.col_off,
-            )
             # Make enhancement lower when we are simulating in sources
             ch4_plume = ch4_plume / self.div_factor_simulate_sources
             fluxrate = fluxrate / self.div_factor_simulate_sources
