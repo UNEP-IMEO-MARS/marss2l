@@ -252,7 +252,8 @@ _FIT_RANGE = (0.90, 1.05)
 def _lut_slope_at_one(satellite: str, sza: float, vza: float) -> float:
     """Slope of the look-up-table inverse at MBMP = 1, in ppb per unit ratio, from a quadratic
     :math:`a m^2 + b m + c` fitted over :data:`_FIT_RANGE`: :math:`2a + b`. Negative, since a
-    smaller ratio means more methane. Within 0.2 % of a numerical derivative of the table."""
+    smaller ratio means more methane. Within about 1 % of a numerical derivative of the table
+    (up to 4 % for S2B at the lowest air-mass factor)."""
     mbmp = np.linspace(*_FIT_RANGE, 101)
     ppb = default_lut().deltach4_from_ratio_transmittance(
         satellite, sza=sza, vza=vza, ratio_il=mbmp

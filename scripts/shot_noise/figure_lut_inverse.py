@@ -3,9 +3,9 @@
 The enhancement against the ratio of the 2.3 and 1.6 um band transmittances,
 :math:`\\Delta\\tau_{23/16}^{-1}`, at each air-mass factor of the look-up table, for Sentinel-2A and Landsat-8. Dots are the
 nodes of the table; the dashed curves are the quadratics of
-:func:`marss2l.shot_noise.sigma_delta_xch4`, drawn over the range they are fitted on (shaded).
-Beneath, the same nodes against the relative transmittance of the 2.3 um band alone, with a
-quadratic fitted over :data:`FIT_RANGE_23`.
+:func:`marss2l.shot_noise.sigma_delta_xch4`, fitted over its range and drawn beyond it to cover every
+node. Beneath, the same nodes against the relative transmittance of the 2.3 um band alone, with a
+quadratic fitted over the same range and drawn the same way.
 No data needed.
 
 Run::
@@ -27,7 +27,6 @@ app = cyclopts.App()
 INK = "#0b0b0b"
 INK_SOFT = "#52514e"
 GRID = "#dededa"
-BAND = "#eeeeea"
 
 #: Ordinal blue ramp, light to dark with the air-mass factor (steps 250-700, one per table AMF).
 RAMP = ["#86b6ef", "#5598e7", "#3987e5", "#2a78d6", "#256abf", "#1c5cab", "#104281", "#0d366b"]
@@ -61,9 +60,8 @@ def lut_nodes(satellite: str, amf: float):
     return deltach4, t23, t23 / t16
 
 
-#: Range over which the inverse of the 2.3 um band alone is fitted by a quadratic. Wider than the
-#: ratio's, since the band alone departs further from one for the same enhancement.
-FIT_RANGE_23 = (0.85, 1.05)
+#: Range over which the inverse of the 2.3 um band alone is fitted by a quadratic: the ratio's.
+FIT_RANGE_23 = sn._FIT_RANGE
 
 
 def inverse_23(satellite: str, amf: float, t23: np.ndarray) -> np.ndarray:
@@ -95,34 +93,31 @@ def quadratic(satellite: str, amf: float) -> np.ndarray:
 PANELS = (("S2A", "Sentinel-2A"), ("LC08", "Landsat-8"))
 
 
+def _drawn_range(nodes: np.ndarray, fit_range) -> np.ndarray:
+    """Where a fitted quadratic is drawn: its fit range, extended to cover every node."""
+    return np.linspace(min(nodes.min(), fit_range[0]), max(nodes.max(), fit_range[1]), 200)
+
+
 def _panel_ratio(ax, satellite: str) -> None:
     """LUT nodes against the band ratio at every air-mass factor, and the quadratic fitted at each."""
-    lo, hi = sn._FIT_RANGE
-    ax.axvspan(lo, hi, color=BAND, zorder=0, linewidth=0)
-    xf = np.linspace(lo, hi, 200)
     for amf, colour in zip(sn.default_lut().amf_arr, RAMP):
         deltach4, _, ratio = lut_nodes(satellite, float(amf))
         ax.scatter(ratio, deltach4, s=20, color=colour, edgecolor="white", linewidth=1.0,
                    zorder=5, label=f"AMF {amf:.2f}")
+        xf = _drawn_range(ratio, sn._FIT_RANGE)
         ax.plot(xf, np.polyval(quadratic(satellite, float(amf)), xf), color=colour,
                 linewidth=1.4, linestyle=(0, (4, 2)), zorder=4)
-    ax.text(0.5 * (lo + hi), 0.97, "quadratic fit range", transform=ax.get_xaxis_transform(),
-            ha="center", va="top", fontsize=7, color=INK_SOFT)
 
 
 def _panel_band(ax, satellite: str) -> None:
     """LUT nodes against the relative transmittance of the 2.3 um band alone, and the quadratic
     fitted at each air-mass factor."""
-    lo, hi = FIT_RANGE_23
-    ax.axvspan(lo, hi, color=BAND, zorder=0, linewidth=0)
-    xf = np.linspace(lo, hi, 200)
     for amf, colour in zip(sn.default_lut().amf_arr, RAMP):
         deltach4, t23, _ = lut_nodes(satellite, float(amf))
         ax.scatter(t23, deltach4, s=20, color=colour, edgecolor="white", linewidth=1.0, zorder=5)
+        xf = _drawn_range(t23, FIT_RANGE_23)
         ax.plot(xf, np.polyval(quadratic_23(satellite, float(amf)), xf), color=colour,
                 linewidth=1.4, linestyle=(0, (4, 2)), zorder=4)
-    ax.text(0.5 * (lo + hi), 0.97, "quadratic fit range", transform=ax.get_xaxis_transform(),
-            ha="center", va="top", fontsize=7, color=INK_SOFT)
 
 
 @app.command
