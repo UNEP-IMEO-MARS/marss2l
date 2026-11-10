@@ -11,8 +11,8 @@
 #
 # The raster figures draw Sentinel-2 on its native 20 m grid, recovered from the 10 m chips.
 # Landsat is drawn from the chips the images CSV points to: the Landsat-9 rows of
-# example_plumes.png and other_plumes.png were drawn from 30 m chips, which are not part of the
-# dataset, so from the published 10 m chips those rows look smoother than in the paper. Their
+# example_plumes.png were drawn from 30 m chips, which are not part of the dataset, so from the
+# published 10 m chips those rows look smoother than in the paper. Their
 # labels, which come from the statistics, are the same. Set IMAGES to an images CSV pointing at
 # 30 m Landsat chips to reproduce them exactly.
 set -euo pipefail
@@ -24,18 +24,22 @@ STATS=$DATA/data/stats_dataset_native.csv
 IMAGES=${IMAGES:-$DATA/validated_images_all.csv}
 mkdir -p "$OUT"
 
-# Floors, gap, breaches, noise drivers, CloudSEN12 supplement, detectable flux and the
+# Floors, gap, noise drivers, CloudSEN12 supplement, detectable flux and the
 # probability of detection by region (pod_by_region.png), and the per-region table the text quotes.
 python -m scripts.shot_noise.figure_regional figures "$STATS" "$IMAGES" \
     --extra-stats-csv "$DATA/cloudsen12_data/cloudsen12_stats_dataset_native.csv" \
     --extra-images-csv "$DATA/cloudsen12_clear_images.csv" \
     --permian-shapefile "$PERMIAN" --output-dir "$OUT" --summary-csv "$OUT/region_summary.csv"
 
-# Figure 1: where the scenes of the two corpora are. Natural Earth coastlines, which cartopy
+# Figure 2: where the scenes of the two corpora are. Natural Earth coastlines, which cartopy
 # downloads on first use.
 python -m scripts.shot_noise.figure_corpora_map figure "$STATS" "$IMAGES" \
     "$DATA/cloudsen12_data/cloudsen12_stats_dataset_native.csv" "$DATA/cloudsen12_clear_images.csv" \
     --output-path "$OUT/corpora_map.png"
+
+# Figure 1: the look-up-table inverse, against the band ratio with its quadratic fits and against the
+# 2.3 um band alone, Sentinel-2A and Landsat-8. No data needed.
+python -m scripts.shot_noise.figure_lut_inverse figure --output-path "$OUT/lut_inverse.png"
 
 # Appendix B: the first-order expansions against Monte Carlo. No data needed.
 python -m scripts.shot_noise.figure_monte_carlo figures --output-dir "$OUT"
@@ -58,18 +62,3 @@ scenes --rung L1 --plumes --show-flux --output-path "$OUT/example_plumes.png" \
     --only a6032970-a58f-410d-94d8-1cb5815c121b \
     --only e57557e3-ec88-4bd3-9189-b9af1648454d \
     --only b16dd610-f395-436b-b144-4e364fe01434
-
-# Four further validated plumes, drawn the same way: Egypt, Syria, Turkmenistan, Saudi Arabia.
-scenes --rung L1 --label-by country --plumes --show-flux --output-path "$OUT/other_plumes.png" \
-    --only eb382a5d-d768-4661-9aab-0c07a20456ff \
-    --only 9a7e5701-163a-47cb-aded-5613d12e7543 \
-    --only eb53420b-b504-44db-9e3a-37992a056e3c \
-    --only b2d60cfe-00c5-4b9c-b103-7bf08f1ba3e1
-
-# Plume-free scenes whose noise reads below L1: Libya, Algeria, Egypt, Turkmenistan.
-scenes --rung L1 --label-by country --ch4-vmax 600 --detection \
-    --output-path "$OUT/below_L1_scenes.png" \
-    --only 06e0e66f-d375-4584-adb2-f0e34f2cabfd \
-    --only f122a63a-eff6-4962-82ce-758bddf43db6 \
-    --only cf408830-1b42-460b-a28b-41ec87480617 \
-    --only d3b77218-3ab8-4654-bf0b-80f0ca85b7bf

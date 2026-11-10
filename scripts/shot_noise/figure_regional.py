@@ -7,7 +7,8 @@
     Brightness and uniformity of the scenes, and the measured noise of the retrieval
     against its three floors, per case study.
 ``breaches_by_region.png``
-    How often the measured noise falls below each floor.
+    How often the measured noise falls below each floor. No longer in the paper, so the
+    ``figures`` command does not draw it; :func:`figure_breaches` still does.
 ``noise_drivers.png``, ``noise_drivers_fit_by_region.png``
     The measured noise predicted from the L2 floor and the relative spread of the scene,
     pooled and per region.
@@ -1204,7 +1205,6 @@ def figures(
         scenes, os.path.join(output_dir, "floors_by_region_epsilon.png"), quantity="epsilon"
     )
     figure_scenes_and_gap(scenes, os.path.join(output_dir, "scenes_and_gap.png"))
-    figure_breaches(scenes, os.path.join(output_dir, "breaches_by_region.png"))
 
     flux = add_detectable_flux(scenes)
     figure_detectable_flux(flux, os.path.join(output_dir, "detectable_flux_by_region.png"))

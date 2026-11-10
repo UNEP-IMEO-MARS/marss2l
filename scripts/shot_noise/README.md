@@ -40,9 +40,10 @@ The Permian basin label needs the EIA's `PermianBasin_Extent` layer, from
 | `marss2l/shot_noise.py` | Reflectance to radiance, SNR scaled to the radiance of each pixel, the L1/L2/L3 floors, σ(ΔXCH₄) and the minimum significant enhancement ε, and the Monte-Carlo check of the closed forms |
 | `marss2l/stats_dataset.py` | The per-image sweep: measured noise on plume-free pixels and the floors, one row per image |
 | `marss2l/resampling.py` | Sentinel-2 back on its native 20 m grid, by inverting the bilinear 20 → 10 m step of the chips |
-| `scripts/shot_noise/figure_regional.py` | Every data figure (floors, gap, drivers, breaches, CloudSEN12 supplement, detectable source rate, probability of detection by region) and the per-region table |
+| `scripts/shot_noise/figure_regional.py` | Every data figure (floors, gap, drivers, CloudSEN12 supplement, detectable source rate, probability of detection by region) and the per-region table |
 | `scripts/shot_noise/figure_example_scenes.py` | The raster figures: example scenes and plumes drawn against their per-pixel floor |
 | `scripts/shot_noise/figure_corpora_map.py` | The map of where the scenes of the two corpora are |
+| `scripts/shot_noise/figure_lut_inverse.py` | The look-up-table inverse, ΔXCH₄ against the transmittance ratio and against the 2.3 µm band alone, each with the quadratic fitted around one at each air-mass factor |
 | `scripts/shot_noise/figure_monte_carlo.py` | The agreement of the first-order expansions with Monte Carlo |
 | `scripts/shot_noise/make_paper_figures.sh` | All the figures in one command, every scene id pinned |
 
@@ -52,7 +53,8 @@ Run from the root of this repository.
 
 | Product | How to regenerate it | Data it needs |
 | --- | --- | --- |
-| All figures and the per-region table | `bash scripts/shot_noise/make_paper_figures.sh <MARS-S2L root> <PermianBasin_Extent shapefile> <output dir>` | Public. The Landsat-9 rows of `example_plumes.png` and `other_plumes.png` were drawn from 30 m chips: *private only* (see below); from the public 10 m chips they look smoother, with the same labels |
+| All figures and the per-region table | `bash scripts/shot_noise/make_paper_figures.sh <MARS-S2L root> <PermianBasin_Extent shapefile> <output dir>` | Public. The Landsat-9 rows of `example_plumes.png` were drawn from 30 m chips: *private only* (see below); from the public 10 m chips they look smoother, with the same labels |
+| Look-up-table figure alone | `python -m scripts.shot_noise.figure_lut_inverse figure --output-path <dir>/lut_inverse.png` | None |
 | Monte-Carlo figure alone | `python -m scripts.shot_noise.figure_monte_carlo figures --output-dir <dir>` | None |
 | `data/stats_dataset.csv` | `python -m marss2l.stats_dataset --csv-path <root>/validated_images_all.csv --path-prepend-data <root> --split <split> --output-file <file>` for `train_2023`, `val_2023` and `test_2023`, then concatenated | Public |
 | Sentinel-2 rows of `data/stats_dataset_native.csv` | the same command with `--split test_2023 --native-grid --window-size 100` | Public |
