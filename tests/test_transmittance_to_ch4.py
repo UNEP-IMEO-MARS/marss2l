@@ -412,6 +412,40 @@ class TestTransmittanceCH4InterpolationFromLUT:
 
         assert result.shape == (H, W)
 
+    def test_deltach4_from_B12_transmittance_negative_follows_constructor(self, mock_srf):
+        """A transmittance above one reads negative unless allow_negative_ch4 is False."""
+        from marss2l.mars_sentinel2 import transmittance_to_ch4 as t2ch4
+
+        interp = t2ch4.TransmittanceCH4InterpolationFromLUT()
+        trans_b12 = np.ones((4, 4)) * 1.05
+
+        result = interp.deltach4_from_B12_transmittance(
+            satellite="S2A", sza=30, vza=10, trans_b12=trans_b12
+        )
+        no_negative = interp.deltach4_from_B12_transmittance(
+            satellite="S2A", sza=30, vza=10, trans_b12=trans_b12, allow_negative_ch4=False
+        )
+
+        assert np.all(result < 0)
+        assert np.all(no_negative == 0)
+
+    def test_deltach4_from_B12_transmittance_clip_can_be_switched_off(self, mock_srf):
+        """clip_values_retrieval=False leaves transmittances above MAX_MBMP_VALUE unclipped."""
+        from marss2l.mars_sentinel2 import transmittance_to_ch4 as t2ch4
+
+        interp = t2ch4.TransmittanceCH4InterpolationFromLUT()
+        trans_b12 = np.array([t2ch4.MAX_MBMP_VALUE, t2ch4.MAX_MBMP_VALUE + 0.02])
+
+        clipped = interp.deltach4_from_B12_transmittance(
+            satellite="S2A", sza=30, vza=10, trans_b12=trans_b12
+        )
+        unclipped = interp.deltach4_from_B12_transmittance(
+            satellite="S2A", sza=30, vza=10, trans_b12=trans_b12, clip_values_retrieval=False
+        )
+
+        assert clipped[1] == pytest.approx(clipped[0])
+        assert unclipped[1] != pytest.approx(unclipped[0])
+
     def test_deltach4_from_B11_transmittance(self, mock_srf):
         """Test deltach4_from_B11_transmittance."""
         from marss2l.mars_sentinel2 import transmittance_to_ch4 as t2ch4

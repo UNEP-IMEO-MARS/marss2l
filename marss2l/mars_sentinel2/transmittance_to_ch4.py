@@ -382,6 +382,8 @@ class TransmittanceCH4Interpolation:
         vza: Optional[float],
         trans_b12: Union[NDArray, GeoTensor],
         amf: Optional[float] = None,
+        clip_values_retrieval: Optional[bool] = None,
+        allow_negative_ch4: Optional[bool] = None,
     ) -> Union[NDArray, GeoTensor]:
         r"""
         Returns the methane concentration in ppb from the observed transmittance of band B12.
@@ -392,13 +394,29 @@ class TransmittanceCH4Interpolation:
             vza (float): view zenith angle in degrees. This is used if `amf` is not provided.
             trans_b12 (Union[NDArray, GeoTensor]): Observed transmittance of band B12.
             amf (Optional[float], optional): Air mass factor. Defaults to None. If not provided, it will be calculated from `sza` and `vza`.
-
+            clip_values_retrieval (Optional[bool], optional): Whether to clip the input transmittance to
+                [MIN_MBMP_VALUE, MAX_MBMP_VALUE], as :meth:`deltach4_from_ratio_transmittance` clips the ratio.
+                Defaults to None, which uses the object attribute `clip_values_retrieval`.
+            allow_negative_ch4 (Optional[bool], optional): Whether to keep negative enhancements; if False they
+                are clipped to 0. Defaults to None, which uses the object attribute `allow_negative_ch4`.
 
         Returns:
             Union[NDArray, GeoTensor]: Image with $\Delta$XCH$_4$: the methane concentration in ppb.
         """
         if amf is None:
             amf = self.air_mass_factor(sza, vza)
+
+        if clip_values_retrieval is None:
+            clip_values_retrieval = self.clip_values_retrieval
+
+        if allow_negative_ch4 is None:
+            allow_negative_ch4 = self.allow_negative_ch4
+
+        if clip_values_retrieval:
+            if isinstance(trans_b12, GeoTensor):
+                trans_b12 = trans_b12.clip(MIN_MBMP_VALUE, MAX_MBMP_VALUE)
+            else:
+                trans_b12 = np.clip(trans_b12, MIN_MBMP_VALUE, MAX_MBMP_VALUE)
 
         mr_ch4_arr_1d = self.f_ch4_mr(amf)
 
@@ -416,7 +434,10 @@ class TransmittanceCH4Interpolation:
             fill_value="extrapolate",
             kind="cubic",
         )
-        final_fun = lambda x: np.clip(interpfun(x) - self.background_concentration, 0, None)
+        if allow_negative_ch4:
+            final_fun = lambda x: interpfun(x) - self.background_concentration
+        else:
+            final_fun = lambda x: np.clip(interpfun(x) - self.background_concentration, 0, None)
 
         return mixing_ratio_methane.apply_interpfun_to_image(final_fun, toa_b12_corrected)
 
