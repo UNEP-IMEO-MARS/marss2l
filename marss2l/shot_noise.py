@@ -19,6 +19,8 @@ Which terms enter :math:`\eta` defines the three floors (:func:`eta_ladder`).
 retrieved enhancement (``eq:sigmaxch``) and :func:`epsilon` the minimum significant
 enhancement at a confidence level (``eq:eps``). Both are first-order and are checked
 against Monte Carlo by :func:`monte_carlo_mbmp` and :func:`monte_carlo_delta_xch4`.
+L2 and L3 go through the inverse of the band ratio; L1, which involves the 2.3 um band
+alone, through the inverse of that band's transmittance (:data:`RUNG_INVERSION`).
 
 **Resolution.** The floors describe one *native* pixel. :data:`NOISE_FACTOR_10M` gives how
 much interpolating to the published 10 m grid lowers per-pixel noise, which is what is
@@ -227,19 +229,50 @@ def significance_ratio(eta: ArrayLike, p: float = 0.95) -> NDArray:
     return 1.0 / (stats.norm.ppf(p) * np.asarray(eta, dtype=np.float64) + 1.0)
 
 
-def epsilon(eta: ArrayLike, satellite: str, sza: float, vza: float, *, p: float = 0.95) -> NDArray:
+#: Look-up-table inverse that converts each floor to ppb. ``"ratio"`` is the inverse of the
+#: 2.3/1.6 um transmittance ratio, :math:`\Delta\tau_{23/16}^{-1}`, which MBMP estimates;
+#: ``"band23"`` the inverse of the relative transmittance of the 2.3 um band alone,
+#: :math:`\Delta\tau_{23}^{-1}`, the retrieval L1 describes.
+RUNG_INVERSION: Dict[str, str] = {"L1": "band23", "L2": "ratio", "L3": "ratio"}
+
+
+def _inverse(satellite: str, sza: float, vza: float, values: NDArray, inversion: str) -> NDArray:
+    """Enhancement (ppb) from a transmittance ratio (``"ratio"``) or from the relative
+    transmittance of the 2.3 um band alone (``"band23"``)."""
+    if inversion == "ratio":
+        ppb = default_lut().deltach4_from_ratio_transmittance(
+            satellite, sza=sza, vza=vza, ratio_il=values
+        )
+    elif inversion == "band23":
+        ppb = default_lut().deltach4_from_B12_transmittance(
+            satellite, sza, vza, values, clip_values_retrieval=False, allow_negative_ch4=True
+        )
+    else:
+        raise ValueError(f"inversion must be 'ratio' or 'band23', not {inversion!r}")
+    return np.asarray(ppb)
+
+
+def epsilon(
+    eta: ArrayLike,
+    satellite: str,
+    sza: float,
+    vza: float,
+    *,
+    p: float = 0.95,
+    inversion: str = "ratio",
+) -> NDArray:
     r"""Minimum significant enhancement in ppb (``eq:eps``, Appendix A).
 
-    .. math:: \epsilon = \Delta\tau_{23/16}^{-1}\left(\frac{1}{\Phi^{-1}(p)\,\eta + 1}\right)
+    .. math:: \epsilon = \Delta\tau^{-1}\left(\frac{1}{\Phi^{-1}(p)\,\eta + 1}\right)
 
     The enhancement a pixel with an ideal reference needs for the retrieval to read above
-    zero with probability ``p``. Same shape as ``eta``.
+    zero with probability ``p``. :math:`\Delta\tau^{-1}` is the inverse of the band ratio, or
+    of the 2.3 um band alone with ``inversion="band23"`` (:data:`RUNG_INVERSION`). Same shape
+    as ``eta``.
     """
     ratio = significance_ratio(eta, p=p)
-    ppb = default_lut().deltach4_from_ratio_transmittance(
-        satellite, sza=sza, vza=vza, ratio_il=ratio
-    )
-    return np.asarray(ppb).reshape(np.shape(ratio))
+    ppb = _inverse(satellite, sza, vza, ratio, inversion)
+    return ppb.reshape(np.shape(ratio))
 
 
 #: Range of MBMP over which the look-up-table inverse is fitted by a quadratic. Local on
@@ -247,38 +280,46 @@ def epsilon(eta: ArrayLike, satellite: str, sza: float, vza: float, *, p: float 
 #: [0.3, 1.08] would even get the sign of the slope at 1 wrong.
 _FIT_RANGE = (0.90, 1.05)
 
+_INVERSIONS = ("ratio", "band23")
+
 
 @lru_cache(maxsize=4096)
-def _lut_slope_at_one(satellite: str, sza: float, vza: float) -> float:
-    """Slope of the look-up-table inverse at MBMP = 1, in ppb per unit ratio, from a quadratic
-    :math:`a m^2 + b m + c` fitted over :data:`_FIT_RANGE`: :math:`2a + b`. Negative, since a
-    smaller ratio means more methane. Within about 1 % of a numerical derivative of the table
-    (up to 4 % for S2B at the lowest air-mass factor)."""
-    mbmp = np.linspace(*_FIT_RANGE, 101)
-    ppb = default_lut().deltach4_from_ratio_transmittance(
-        satellite, sza=sza, vza=vza, ratio_il=mbmp
-    )
-    a, b, _ = np.polyfit(mbmp, np.asarray(ppb), 2)
+def _lut_slope_at_one(satellite: str, sza: float, vza: float, inversion: str = "ratio") -> float:
+    """Slope of the look-up-table inverse at a transmittance (ratio) of 1, in ppb per unit, from
+    a quadratic :math:`a m^2 + b m + c` fitted over :data:`_FIT_RANGE`: :math:`2a + b`, for the
+    band ratio or, with ``inversion="band23"``, for the 2.3 um band alone. Negative, since a
+    smaller transmittance means more methane. Within about 1 % of a numerical derivative of the
+    table (up to 4 % for S2B at the lowest air-mass factor)."""
+    if inversion not in _INVERSIONS:
+        raise ValueError(f"inversion must be 'ratio' or 'band23', not {inversion!r}")
+    m = np.linspace(*_FIT_RANGE, 101)
+    a, b, _ = np.polyfit(m, _inverse(satellite, sza, vza, m, inversion), 2)
     return 2.0 * a + b
 
 
-def sigma_delta_xch4(eta: ArrayLike, satellite: str, sza: float, vza: float) -> NDArray:
+def sigma_delta_xch4(
+    eta: ArrayLike, satellite: str, sza: float, vza: float, *, inversion: str = "ratio"
+) -> NDArray:
     r"""Standard deviation of the retrieved enhancement, in ppb (``eq:sigmaxch``).
 
     .. math:: \sigma(\Delta\mathrm{XCH_4}) \approx \mathrm{MBMP}\,\eta\,|2a\,\mathrm{MBMP} + b|
 
     evaluated at MBMP = 1, which is where the retrieval reads on plume-free ground once each
     pass is normalised by its own mean band ratio (the factor :math:`\kappa` of ``eq:mbmp``).
-    The absolute value is needed because the inverse is decreasing.
+    The absolute value is needed because the inverse is decreasing. With
+    ``inversion="band23"`` the quadratic is that of the 2.3 um band alone, evaluated at a
+    relative transmittance of 1.
 
     Args:
         eta: Relative noise level, any rung of :func:`eta_ladder`.
         satellite: Instrument of the target pass (the look-up table is per instrument).
         sza: Solar zenith angle of the target pass, degrees.
         vza: View zenith angle, degrees.
+        inversion: ``"ratio"`` or ``"band23"``; :data:`RUNG_INVERSION` gives the one of each
+            rung.
     """
     return np.asarray(eta, dtype=np.float64) * abs(
-        _lut_slope_at_one(satellite, float(sza), float(vza))
+        _lut_slope_at_one(satellite, float(sza), float(vza), inversion)
     )
 
 

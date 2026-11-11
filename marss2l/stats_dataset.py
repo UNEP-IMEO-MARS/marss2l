@@ -331,8 +331,9 @@ def compute_shot_noise_stats(
 
     Returns:
         ``radiance_B12_mean`` and ``radiance_B12_std`` (W m-2 sr-1 um-1), and for each rung
-        ``sigma_ch4_{rung}_mean`` and ``epsilon_{rung}_mean`` (ppb). Empty when the scene has
-        no valid pixel.
+        ``sigma_ch4_{rung}_mean`` and ``epsilon_{rung}_mean`` (ppb), each through the
+        inverse of :data:`marss2l.shot_noise.RUNG_INVERSION`. Empty when the scene has no
+        valid pixel.
     """
     if not mask.any():
         return {}
@@ -369,11 +370,12 @@ def compute_shot_noise_stats(
         else float("nan"),
     }
     for rung, eta in ladder.items():
+        inversion = shot_noise.RUNG_INVERSION[rung]
         stats_item[f"sigma_ch4_{rung}_mean"] = float(
-            shot_noise.sigma_delta_xch4(eta, satellite, sza, vza).mean()
+            shot_noise.sigma_delta_xch4(eta, satellite, sza, vza, inversion=inversion).mean()
         )
         stats_item[f"epsilon_{rung}_mean"] = float(
-            shot_noise.epsilon(eta, satellite, sza, vza).mean()
+            shot_noise.epsilon(eta, satellite, sza, vza, inversion=inversion).mean()
         )
     return stats_item
 

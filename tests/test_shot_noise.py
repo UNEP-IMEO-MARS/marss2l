@@ -247,6 +247,93 @@ def test_epsilon_has_the_false_alarm_rate_it_claims(p):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# L1 through the inverse of the 2.3 um band alone
+# ─────────────────────────────────────────────────────────────────────────────
+#: Solar zenith angles giving air-mass factors from 2.0 to 3.9 at nadir.
+SZA_AMF_RANGE = [0.0, 38.5, 60.0, 70.0]
+
+
+def test_each_rung_has_its_inversion():
+    assert sn.RUNG_INVERSION == {"L1": "band23", "L2": "ratio", "L3": "ratio"}
+    with pytest.raises(ValueError):
+        sn.sigma_delta_xch4(0.005, "S2A", SZA, VZA, inversion="b11")
+
+
+@pytest.mark.parametrize("satellite", ["S2A", "LC08"])
+def test_the_band23_quadratic_matches_the_lut_slope_at_one(satellite):
+    """As for the ratio: the local quadratic against a numerical derivative of the inverse."""
+    step = 1e-3
+    numerical = np.diff(
+        sn.default_lut().deltach4_from_B12_transmittance(
+            satellite,
+            SZA,
+            VZA,
+            np.array([1 - step, 1 + step]),
+            clip_values_retrieval=False,
+            allow_negative_ch4=True,
+        )
+    ) / (2 * step)
+
+    slope = sn._lut_slope_at_one(satellite, SZA, VZA, "band23")
+    assert slope < 0
+    assert slope == pytest.approx(float(numerical[0]), rel=0.01)
+
+
+@pytest.mark.parametrize("satellite", ["S2A", "LC08"])
+@pytest.mark.parametrize("sza", SZA_AMF_RANGE)
+def test_the_band23_slope_is_a_sixth_below_the_ratio_slope(satellite, sza):
+    """The 1.6 um band absorbs a little methane, so the ratio is less sensitive than the band."""
+    ratio = sn._lut_slope_at_one(satellite, sza, 0.0, "ratio")
+    band23 = sn._lut_slope_at_one(satellite, sza, 0.0, "band23")
+    assert 0.80 <= band23 / ratio <= 0.88
+
+
+def test_the_ratio_inversion_is_the_default():
+    """L2 and L3 are unchanged by the single-band inversion of L1."""
+    eta = np.array([0.003, 0.006])
+    assert np.array_equal(
+        sn.sigma_delta_xch4(eta, "S2A", SZA, VZA),
+        sn.sigma_delta_xch4(eta, "S2A", SZA, VZA, inversion="ratio"),
+    )
+    assert np.array_equal(
+        sn.epsilon(eta, "S2A", SZA, VZA), sn.epsilon(eta, "S2A", SZA, VZA, inversion="ratio")
+    )
+
+
+@pytest.mark.parametrize("satellite", ["S2A", "LC09"])
+def test_the_ladder_stays_ordered_in_ppb(satellite):
+    radiances = (np.array([1.0, 9.5, 20.0]), np.array([3.5, 33.25, 70.0]))
+    ladder = sn.eta_ladder(*radiances, *radiances, satellite=satellite)
+
+    for convert in (sn.sigma_delta_xch4, sn.epsilon):
+        ppb = {
+            rung: convert(eta, satellite, SZA, VZA, inversion=sn.RUNG_INVERSION[rung])
+            for rung, eta in ladder.items()
+        }
+        assert np.all(ppb["L1"] <= ppb["L2"])
+        assert np.all(ppb["L2"] <= ppb["L3"])
+
+
+@pytest.mark.parametrize("satellite", ["S2A", "LC09"])
+@pytest.mark.parametrize("radiance_23", [1.0, 9.5])
+def test_monte_carlo_agrees_with_the_l1_floor(satellite, radiance_23):
+    """Shot noise on the 2.3 um band alone, against its true radiance, through the single-band
+    inverse: its spread is sigma at L1 and epsilon at L1 is exceeded 1-p of the time."""
+    rng = np.random.default_rng(0)
+    snr = sn.snr_at_radiance(radiance_23, satellite, sn.BAND_23)
+    transmittance = rng.normal(1.0, 1.0 / snr, size=200_000)
+    samples = sn.default_lut().deltach4_from_B12_transmittance(
+        satellite, SZA, VZA, transmittance, clip_values_retrieval=False, allow_negative_ch4=True
+    )
+    eta = sn.eta_ladder(radiance_23, 3.5 * radiance_23, satellite=satellite)["L1"]
+
+    sigma = float(sn.sigma_delta_xch4(eta, satellite, SZA, VZA, inversion="band23"))
+    threshold = float(sn.epsilon(eta, satellite, SZA, VZA, inversion="band23"))
+    assert np.std(samples) == pytest.approx(sigma, rel=0.03)
+    assert (samples > threshold).mean() == pytest.approx(0.05, rel=0.15)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Resolution
 # ─────────────────────────────────────────────────────────────────────────────
 def test_the_sentinel2_noise_factor_is_the_bilinear_step():

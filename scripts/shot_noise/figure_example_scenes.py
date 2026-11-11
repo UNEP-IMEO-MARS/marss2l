@@ -240,7 +240,13 @@ def scene_rasters(row: pd.Series, fs=None, rung: str = "L3", native_grid: bool =
         satellite_bg=row.satellite_bg or None,
     )
     eta = ladder[rung]
-    sigma = shot_noise.sigma_delta_xch4(eta, row.satellite, float(row.sza), float(row.vza))
+    sigma = shot_noise.sigma_delta_xch4(
+        eta,
+        row.satellite,
+        float(row.sza),
+        float(row.vza),
+        inversion=shot_noise.RUNG_INVERSION[rung],
+    )
 
     def masked(array: np.ndarray) -> GeoTensor:
         """Invalid pixels are not measurements; leave them blank rather than 0."""

@@ -37,7 +37,7 @@ The Permian basin label needs the EIA's `PermianBasin_Extent` layer, from
 
 | Module | Role |
 | --- | --- |
-| `marss2l/shot_noise.py` | Reflectance to radiance, SNR scaled to the radiance of each pixel, the L1/L2/L3 floors, σ(ΔXCH₄) and the minimum significant enhancement ε, and the Monte-Carlo check of the closed forms |
+| `marss2l/shot_noise.py` | Reflectance to radiance, SNR scaled to the radiance of each pixel, the L1/L2/L3 floors, σ(ΔXCH₄) and the minimum significant enhancement ε (L2 and L3 through the inverse of the band ratio, L1 through the inverse of the 2.3 µm band alone), and the Monte-Carlo check of the closed forms |
 | `marss2l/stats_dataset.py` | The per-image sweep: measured noise on plume-free pixels and the floors, one row per image |
 | `marss2l/resampling.py` | Sentinel-2 back on its native 20 m grid, by inverting the bilinear 20 → 10 m step of the chips |
 | `scripts/shot_noise/figure_regional.py` | Every data figure (floors, gap, drivers, CloudSEN12 supplement, detectable source rate, probability of detection by region) and the per-region table |

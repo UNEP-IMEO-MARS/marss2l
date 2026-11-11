@@ -1086,7 +1086,7 @@ def figure_pod_paired(scenes: pd.DataFrame, path: str, ncols: int = 4) -> pd.Dat
                 ax.yaxis.set_tick_params(labelleft=False)
             else:
                 ax.set_ylabel(
-                    "retrieval noise" if noise == "measured" else "$L_1$",
+                    "retrieval noise" if noise == "measured" else "photon noise ($L_1$)",
                     color=colour,
                     fontsize=9,
                 )
